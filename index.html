@@ -6,10 +6,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Gastos">
+<meta name="apple-mobile-web-app-title" content="Bússola">
 <meta name="theme-color" content="#4F8EF7">
 <link rel="manifest" href="./manifest.json">
-<title>Registro de Gastos</title>
+<title>Bússola</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#080B12;--surface:#0E1220;--surface2:#141826;--border:#1E2438;--border2:#2A3050;--accent:#4F8EF7;--accent2:#00D4A8;--danger:#FF4F6A;--warn:#F5A623;--purple:#A259FF;--text:#DDE3F5;--muted:#6B738F;--mono:'DM Mono',monospace;--sans:'Sora',sans-serif;--safe-top:env(safe-area-inset-top,0px);--safe-bot:env(safe-area-inset-bottom,0px)}
@@ -166,6 +166,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .topbar-actions{width:100%;justify-content:space-between}
 .btn-top{flex:1;justify-content:center;font-size:.7rem;padding:8px 6px}
 }
+
+@media (max-width:480px){
+.topbar-actions{
+flex-wrap:wrap;
+max-width:100%;
+justify-content:flex-end;
+}
+.btn-top{
+flex:1 1 30%;
+font-size:11px;
+padding:6px 4px;
+}
+.topbar h1{
+max-width:120px;
+font-size:.8rem;
+}
+}
+
 </style>
 </head>
 <body>
@@ -328,6 +346,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 <div class="toast" id="toast"></div>
 
 <script>
+const APP_VERSION = "1.4";
+
 const CATS={
   'Receita':['Renda do Trabalho','Trabalho Autônomo / Freelance','Rendimentos Financeiros','Benefícios e Transferências','Receitas Eventuais'],
   'Despesas fixas':['Moradia','Serviços Essenciais','Saúde e Proteção','Educação','Assinaturas e Serviços Digitais','Compromissos Financeiros'],
