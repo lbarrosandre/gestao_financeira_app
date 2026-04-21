@@ -161,6 +161,45 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 }
 
 </style>
+
+<style>
+/* ===== MELHORIAS MOBILE BOTÕES E TÍTULO ===== */
+
+.top-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.top-buttons button {
+    flex: 1 1 auto;
+    min-width: 90px;
+}
+
+@media (max-width: 600px) {
+
+    h1 {
+        font-size: 20px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .top-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .top-buttons button {
+        width: 100%;
+        font-size: 14px;
+        padding: 10px;
+    }
+
+}
+</style>
+
 </head>
 <body>
 <div class="topbar">
@@ -672,5 +711,74 @@ function importarBackup(event) {
 }
 
 </script>
+
+<script>
+/* ===============================
+   VERSIONAMENTO AUTOMÁTICO
+   Versão atual: 1.4
+=============================== */
+
+const APP_VERSION = "1.4";
+
+function verificarVersaoApp() {
+
+    const versaoSalva =
+        localStorage.getItem("app_version");
+
+    if (versaoSalva !== APP_VERSION) {
+
+        console.log(
+            "Nova versão detectada:",
+            APP_VERSION
+        );
+
+        localStorage.setItem(
+            "app_version",
+            APP_VERSION
+        );
+
+        limparCacheApp();
+
+    }
+
+}
+
+function limparCacheApp() {
+
+    if ("caches" in window) {
+
+        caches.keys().then(names => {
+
+            names.forEach(name => {
+
+                caches.delete(name);
+
+            });
+
+            console.log("Cache limpo");
+
+            setTimeout(() => {
+
+                location.reload(true);
+
+            }, 1000);
+
+        });
+
+    } else {
+
+        location.reload(true);
+
+    }
+
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+
+    verificarVersaoApp();
+
+});
+</script>
+
 </body>
 </html>
