@@ -449,17 +449,19 @@ let mesesSel=new Set();
 
 /* ═══ MÁSCARA DE MOEDA ══════════════════ */
 function maskCurrency(input){
-  const pos=input.selectionStart;
-  let v=input.value.replace(/[^\d,]/g,'');
-  // Permite somente uma vírgula
-  const partes=v.split(',');
-  if(partes.length>2)v=partes[0]+','+partes.slice(1).join('');
-  // Limita casas decimais a 2
-  const [intStr,decStr]=v.split(',');
-  const decPart=decStr!==undefined?','+decStr.substring(0,2):'';
-  // Formata parte inteira com ponto de milhar
-  const intFormatted=(intStr||'').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
-  input.value=intFormatted+decPart;
+  // Mantém apenas dígitos — os decimais são calculados automaticamente
+  let digits=input.value.replace(/\D/g,'');
+  if(!digits){input.value='';return;}
+  // Remove zeros à esquerda
+  digits=digits.replace(/^0+/,'')||'0';
+  // Garante mínimo de 3 dígitos (ex: "5" → "005" → "0,05")
+  while(digits.length<3)digits='0'+digits;
+  // Separa centavos (2 últimos dígitos) do inteiro
+  const dec=digits.slice(-2);
+  const intRaw=digits.slice(0,-2).replace(/^0+/,'')||'0';
+  // Aplica ponto de milhar na parte inteira
+  const intFmt=intRaw.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  input.value=intFmt+','+dec;
 }
 
 function parseCurrency(str){
