@@ -138,6 +138,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .empty{text-align:center;padding:40px 20px;color:var(--muted)}
 .empty .e-icon{font-size:2.4rem;margin-bottom:8px;opacity:.4}
 .empty p{font-size:.85rem;line-height:1.6}
+
+/* === Backup Buttons === */
+.btn-top.backup {
+    background: var(--purple);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(162,89,255,.35);
+}
+
+.btn-top.restore {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+}
+
+.btn-top.backup:hover {
+    transform: translateY(-1px);
+}
+
+.btn-top.restore:hover {
+    border-color: var(--accent);
+}
+
 </style>
 </head>
 <body>
@@ -147,8 +169,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
     <h1>Registro de <span>Gastos</span></h1>
   </div>
   <div class="topbar-actions">
-    <button class="btn-top version">v1.2</button>
-    <button class="btn-top export" onclick="exportarCSV()">⬇ CSV</button>
+    <button class="btn-top version">v1.3</button>
+
+    <button 
+        class="btn-top backup"
+        onclick="exportarBackup()">
+        💾 Backup
+    </button>
+
+    <input 
+        type="file" 
+        id="importarArquivo" 
+        accept=".json"
+        style="display:none"
+        onchange="importarBackup(event)"
+    >
+
+    <button 
+        class="btn-top restore"
+        onclick="document.getElementById('importarArquivo').click()">
+        📥 Restaurar
+    </button>
+
+    <button 
+        class="btn-top export" 
+        onclick="exportarCSV()">
+        ⬇ CSV
+    </button>
+
   </div>
 </div>
 <div class="statsbar">
@@ -543,6 +591,86 @@ function toast(msg,erro=false,pl=false){
   el.className='toast show'+(erro?' erro':pl?' plan':'');
   clearTimeout(tt);tt=setTimeout(()=>el.className='toast',2800);
 }
+
+/* === Backup Functions === */
+
+function exportarBackup() {
+    try {
+
+        const dadosBackup = {
+            gastos: localStorage.getItem('gastos_v2'),
+            planejamento: localStorage.getItem('gastos_plan')
+        };
+
+        const json = JSON.stringify(dadosBackup, null, 2);
+
+        const blob = new Blob([json], {
+            type: "application/json"
+        });
+
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+
+        a.href = url;
+        a.download = "backup_gastos.json";
+
+        a.click();
+
+        URL.revokeObjectURL(url);
+
+        toast("💾 Backup exportado!");
+
+    } catch (e) {
+
+        toast("❌ Erro ao exportar backup", true);
+
+    }
+}
+
+function importarBackup(event) {
+
+    const arquivo = event.target.files[0];
+
+    if (!arquivo) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+
+        try {
+
+            const dados = JSON.parse(e.target.result);
+
+            if (dados.gastos) {
+                localStorage.setItem(
+                    'gastos_v2',
+                    dados.gastos
+                );
+            }
+
+            if (dados.planejamento) {
+                localStorage.setItem(
+                    'gastos_plan',
+                    dados.planejamento
+                );
+            }
+
+            toast("📥 Backup restaurado!");
+
+            location.reload();
+
+        } catch (erro) {
+
+            toast("❌ Backup inválido", true);
+
+        }
+
+    };
+
+    reader.readAsText(arquivo);
+}
+
 </script>
 </body>
 </html>
