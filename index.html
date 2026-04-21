@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gastos">
+<meta name="theme-color" content="#4F8EF7">
+<link rel="manifest" href="./manifest.json">
+<title>Registro de Gastos</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #080B12;
+    --surface:  #0E1220;
+    --surface2: #141826;
+    --border:   #1E2438;
+    --border2:  #2A3050;
+    --accent:   #4F8EF7;
+    --accent2:  #00D4A8;
+    --danger:   #FF4F6A;
+    --warn:     #F5A623;
+    --text:     #DDE3F5;
+    --muted:    #6B738F;
+    --mono:     'DM Mono', monospace;
+    --sans:     'Sora', sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    display: flex;
+    flex-direction: column;
+    overscroll-behavior: none;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: calc(var(--safe-top) + 14px) 16px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .topbar-icon {
+    width: 34px; height: 34px; background: var(--accent);
+    border-radius: 9px; display: grid; place-items: center;
+    font-size: 16px; box-shadow: 0 0 16px rgba(79,142,247,.4);
+    flex-shrink: 0;
+  }
+  .topbar h1 { font-size: 1rem; font-weight: 700; }
+  .topbar h1 span { color: var(--accent); }
+  .btn-export {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--accent2); color: #080B12;
+    border: none; border-radius: 8px;
+    padding: 8px 13px; font-family: var(--sans);
+    font-size: .78rem; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    box-shadow: 0 0 14px rgba(0,212,168,.3);
+  }
+
+  /* ── Stats bar ── */
+  .statsbar {
+    display: grid; grid-template-columns: repeat(3,1fr);
+    gap: 0; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .stat {
+    padding: 10px 12px; text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .stat:last-child { border-right: none; }
+  .stat .s-label { font-size: .58rem; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  .stat .s-val   { font-family: var(--mono); font-size: .88rem; font-weight: 500; margin-top: 2px; }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    flex-shrink: 0; background: var(--surface);
+  }
+  .tab {
+    flex: 1; padding: 12px 8px; text-align: center;
+    font-size: .8rem; font-weight: 600; color: var(--muted);
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all .18s; user-select: none;
+  }
+  .tab.ativo { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Scroll area ── */
+  .tab-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .tab-pane { display: none; padding: 16px 14px calc(var(--safe-bot) + 20px); }
+  .tab-pane.ativo { display: block; }
+
+  /* ── Form ── */
+  .section-title {
+    font-size: .68rem; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .field label { font-size: .68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .field input, .field select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 1rem;
+    padding: 12px 14px;
+    outline: none;
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,142,247,.12);
+  }
+  .field input::placeholder { color: var(--muted); }
+
+  #inp-valor {
+    font-family: var(--mono);
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--accent2);
+  }
+
+  /* Movimento toggle */
+  .toggle-grupo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .toggle-btn {
+    padding: 12px; border-radius: 10px; border: 1px solid var(--border2);
+    background: var(--surface2); color: var(--muted);
+    font-family: var(--sans); font-size: .88rem; font-weight: 600;
+    cursor: pointer; transition: all .18s; text-align: center;
+    user-select: none;
+  }
+  .toggle-btn.debito.ativo  { background: rgba(255,79,106,.12); color: var(--danger); border-color: var(--danger); }
+  .toggle-btn.credito.ativo { background: rgba(0,212,168,.12); color: var(--accent2); border-color: var(--accent2); }
+
+  /* Campos em linha */
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Botão adicionar */
+  .btn-add {
+    width: 100%; padding: 15px; background: var(--accent); color: #fff;
+    border: none; border-radius: 12px; font-family: var(--sans);
+    font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 6px;
+    box-shadow: 0 4px 20px rgba(79,142,247,.35);
+    transition: all .18s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-add:active { transform: scale(.98); box-shadow: none; }
+
+  /* ── Lista ── */
+  .filtros-lista {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;
+  }
+  .filtros-lista select, .filtros-lista input {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 8px; color: var(--text);
+    font-family: var(--sans); font-size: .82rem;
+    padding: 9px 10px; outline: none;
+    -webkit-appearance: none; appearance: none; width: 100%;
+  }
+  .filtros-lista input:focus, .filtros-lista select:focus { border-color: var(--accent); }
+
+  .count-bar {
+    font-size: .72rem; color: var(--muted); margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .btn-limpar-todos {
+    font-size: .72rem; color: var(--danger); background: none; border: none;
+    cursor: pointer; font-family: var(--sans);
+  }
+
+  /* Cards de lançamento */
+  .lancamento-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 13px 14px; margin-bottom: 10px;
+    display: flex; align-items: flex-start; gap: 12px;
+    animation: fadeIn .2s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+  .card-icone {
+    width: 36px; height: 36px; border-radius: 9px;
+    display: grid; place-items: center; font-size: 16px; flex-shrink: 0;
+  }
+  .card-icone.debito  { background: rgba(255,79,106,.12); }
+  .card-icone.credito { background: rgba(0,212,168,.12); }
+
+  .card-body { flex: 1; min-width: 0; }
+  .card-desc { font-size: .88rem; font-weight: 600; margin-bottom: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { font-size: .72rem; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+  .card-meta .tag {
+    background: rgba(79,142,247,.1); color: var(--accent);
+    border: 1px solid rgba(79,142,247,.2); border-radius: 4px;
+    padding: 1px 6px; font-size: .68rem;
+  }
+
+  .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .card-valor { font-family: var(--mono); font-size: .95rem; font-weight: 500; white-space: nowrap; }
+  .btn-del {
+    background: none; border: none; color: var(--muted);
+    font-size: 1rem; cursor: pointer; padding: 2px 4px; line-height: 1;
+  }
+  .btn-del:active { color: var(--danger); }
+
+  /* Empty */
+  .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+  .empty .e-icon { font-size: 2.8rem; margin-bottom: 10px; opacity: .4; }
+  .empty p { font-size: .88rem; line-height: 1.6; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: calc(var(--safe-bot) + 20px); left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-left: 3px solid var(--accent2);
+    padding: 11px 18px; border-radius: 10px; font-size: .84rem;
+    transition: transform .28s ease, opacity .28s;
+    opacity: 0; z-index: 999; white-space: nowrap;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.erro  { border-left-color: var(--danger); }
+
+  /* Confirm overlay */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.75);
+    display: none; place-items: center; z-index: 200;
+    backdrop-filter: blur(6px);
+  }
+  .overlay.show { display: grid; }
+  .dialog {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 16px; padding: 26px 22px; max-width: 320px; width: 90%;
+    box-shadow: 0 24px 64px rgba(0,0,0,.7);
+    margin: 0 16px;
+  }
+  .dialog h3 { font-size: 1rem; margin-bottom: 8px; }
+  .dialog p  { font-size: .84rem; color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
+  .dialog-btns { display: flex; gap: 8px; }
+  .dialog-btns button {
+    flex: 1; padding: 11px; border-radius: 9px; border: none;
+    font-family: var(--sans); font-size: .88rem; font-weight: 600; cursor: pointer;
+  }
+  .btn-cancel-dlg { background: var(--surface2); color: var(--muted); border: 1px solid var(--border2) !important; }
+  .btn-confirm-dlg { background: var(--danger); color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-icon">💳</div>
+    <h1>Registro de <span>Gastos</span></h1>
+  </div>
+  <button class="btn-export" onclick="exportarCSV()">⬇ CSV</button>
+</div>
+
+<!-- Stats -->
+<div class="statsbar">
+  <div class="stat">
+    <div class="s-label">Receitas</div>
+    <div class="s-val" id="stat-rec" style="color:var(--accent2)">R$ 0</div>
+  </div>
+  <div class="stat">
+    <div class="s-label">Despesas</div>
+    <div class="s-val" id="stat-desp" style="color:var(--danger)">R$ 0</div>
+  </div>
+  <div class="stat">
+    <div class="s-label">Saldo</div>
+    <div class="s-val" id="stat-saldo">R$ 0</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab ativo" id="tab-form" onclick="trocarTab('form')">➕ Lançar</div>
+  <div class="tab" id="tab-lista" onclick="trocarTab('lista')">📋 Registros</div>
+</div>
+
+<!-- Conteúdo -->
+<div class="tab-content">
+
+  <!-- ABA: Formulário -->
+  <div class="tab-pane ativo" id="pane-form">
+
+    <div class="section-title">Movimento</div>
+    <div class="toggle-grupo" style="margin-bottom:14px">
+      <div class="toggle-btn debito ativo" id="btn-debito" onclick="setMovimento('Debito')">⬇ Débito</div>
+      <div class="toggle-btn credito" id="btn-credito" onclick="setMovimento('Credito')">⬆ Crédito</div>
+    </div>
+
+    <div class="row-2">
+      <div class="field">
+        <label>Data</label>
+        <input type="date" id="inp-data">
+      </div>
+      <div class="field">
+        <label>Mês Ref.</label>
+        <select id="inp-mes">
+          <option value="jan/26">jan/26</option>
+          <option value="fev/26">fev/26</option>
+          <option value="mar/26">mar/26</option>
+          <option value="abr/26">abr/26</option>
+          <option value="mai/26">mai/26</option>
+          <option value="jun/26">jun/26</option>
+          <option value="jul/26">jul/26</option>
+          <option value="ago/26">ago/26</option>
+          <option value="set/26">set/26</option>
+          <option value="out/26">out/26</option>
+          <option value="nov/26">nov/26</option>
+          <option value="dez/26">dez/26</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Valor R$</label>
+      <input type="number" id="inp-valor" placeholder="0,00" step="0.01" min="0" inputmode="decimal">
+    </div>
+
+    <div class="field">
+      <label>Descrição</label>
+      <input type="text" id="inp-desc" placeholder="Ex: Supermercado Atacadão" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>Tipo</label>
+      <select id="inp-tipo" onchange="atualizarCategorias()">
+        <option value="">Selecione o tipo</option>
+        <option value="Receita">Receita</option>
+        <option value="Despesas fixas">Despesas fixas</option>
+        <option value="Despesas variaveis">Despesas variáveis</option>
+        <option value="Despesas eventuais">Despesas eventuais</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Categoria</label>
+      <select id="inp-categoria">
+        <option value="">Selecione o tipo primeiro</option>
+      </select>
+    </div>
+
+    <button class="btn-add" onclick="adicionarLancamento()">
+      <span>+</span> Adicionar Lançamento
+    </button>
+  </div>
+
+  <!-- ABA: Lista -->
+  <div class="tab-pane" id="pane-lista">
+
+    <div class="filtros-lista">
+      <input type="text" id="busca" placeholder="🔍 Buscar..." oninput="renderLista()">
+      <select id="filtro-mes-l" onchange="renderLista()">
+        <option value="">Todos os meses</option>
+      </select>
+      <select id="filtro-mov-l" onchange="renderLista()">
+        <option value="">Todos</option>
+        <option value="Credito">Crédito</option>
+        <option value="Debito">Débito</option>
+      </select>
+      <select id="filtro-tipo-l" onchange="renderLista()">
+        <option value="">Todos os tipos</option>
+        <option value="Receita">Receita</option>
+        <option value="Despesas fixas">Fixas</option>
+        <option value="Despesas variaveis">Variáveis</option>
+        <option value="Despesas eventuais">Eventuais</option>
+      </select>
+    </div>
+
+    <div class="count-bar">
+      <span id="count-label">0 registros</span>
+      <button class="btn-limpar-todos" onclick="confirmarLimpar()">🗑 Limpar tudo</button>
+    </div>
+
+    <div id="lista-container"></div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Dialog -->
+<div class="overlay" id="overlay">
+  <div class="dialog">
+    <h3>⚠️ Limpar tudo?</h3>
+    <p>Todos os lançamentos serão removidos. Exporte o CSV antes se precisar manter os dados.</p>
+    <div class="dialog-btns">
+      <button class="btn-cancel-dlg" onclick="fecharDialog()">Cancelar</button>
+      <button class="btn-confirm-dlg" onclick="limparTudo()">Limpar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Categorias ─────────────────────────────────────────────────────────────
+const CATS = {
+  'Receita':             ['Renda do Trabalho','Trabalho Autônomo / Freelance','Rendimentos Financeiros','Benefícios e Transferências','Receitas Eventuais'],
+  'Despesas fixas':      ['Moradia','Serviços Essenciais','Saúde e Proteção','Educação','Assinaturas e Serviços Digitais','Compromissos Financeiros'],
+  'Despesas variaveis':  ['Alimentação','Transporte','Higiene e Cuidados Pessoais','Vestuário','Lazer e Entretenimento','Família e Dependentes'],
+  'Despesas eventuais':  ['Manutenção e Reparos','Saúde Eventual','Datas Especiais e Sociais','Obrigações Anuais','Viagens e Turismo','Compras Não Recorrentes']
+};
+const MESES = ['jan/26','fev/26','mar/26','abr/26','mai/26','jun/26','jul/26','ago/26','set/26','out/26','nov/26','dez/26'];
+const ICONES_TIPO = { Receita:'💰', 'Despesas fixas':'🏠', 'Despesas variaveis':'🛒', 'Despesas eventuais':'⚡' };
+
+let dados = JSON.parse(localStorage.getItem('gastos_v2') || '[]');
+let movimento = 'Debito';
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(function init() {
+  // Data e mês padrão
+  const hoje = new Date();
+  document.getElementById('inp-data').value = hoje.toISOString().split('T')[0];
+  const mesIdx = hoje.getMonth(); // 0-based
+  document.getElementById('inp-mes').selectedIndex = Math.min(mesIdx, 11);
+
+  // Popula filtro de meses
+  const fm = document.getElementById('filtro-mes-l');
+  MESES.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=m; fm.appendChild(o); });
+
+  renderLista();
+  atualizarStats();
+
+  // Registra service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+})();
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function trocarTab(tab) {
+  ['form','lista'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('ativo', t===tab);
+    document.getElementById('pane-'+t).classList.toggle('ativo', t===tab);
+  });
+  if(tab==='lista') renderLista();
+}
+
+// ── Movimento ──────────────────────────────────────────────────────────────
+function setMovimento(mov) {
+  movimento = mov;
+  document.getElementById('btn-debito').className  = 'toggle-btn debito'  + (mov==='Debito' ?' ativo':'');
+  document.getElementById('btn-credito').className = 'toggle-btn credito' + (mov==='Credito'?' ativo':'');
+  if(mov==='Credito') { document.getElementById('inp-tipo').value='Receita'; atualizarCategorias(); }
+  else { if(document.getElementById('inp-tipo').value==='Receita') { document.getElementById('inp-tipo').value=''; atualizarCategorias(); } }
+}
+
+// ── Categorias ─────────────────────────────────────────────────────────────
+function atualizarCategorias() {
+  const tipo = document.getElementById('inp-tipo').value;
+  const sel  = document.getElementById('inp-categoria');
+  sel.innerHTML = '<option value="">Selecione a categoria</option>';
+  if(tipo && CATS[tipo]) CATS[tipo].forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+  if(tipo==='Receita') { movimento='Credito'; document.getElementById('btn-debito').className='toggle-btn debito'; document.getElementById('btn-credito').className='toggle-btn credito ativo'; }
+  else if(tipo) { movimento='Debito'; document.getElementById('btn-debito').className='toggle-btn debito ativo'; document.getElementById('btn-credito').className='toggle-btn credito'; }
+}
+
+// ── Adicionar ──────────────────────────────────────────────────────────────
+function adicionarLancamento() {
+  const data      = document.getElementById('inp-data').value;
+  const desc      = document.getElementById('inp-desc').value.trim();
+  const valorRaw  = parseFloat(document.getElementById('inp-valor').value);
+  const tipo      = document.getElementById('inp-tipo').value;
+  const categoria = document.getElementById('inp-categoria').value;
+  const mes       = document.getElementById('inp-mes').value;
+
+  if(!data)              return toast('⚠️ Informe a data', true);
+  if(!desc)              return toast('⚠️ Informe a descrição', true);
+  if(!valorRaw||valorRaw<=0) return toast('⚠️ Valor inválido', true);
+  if(!tipo)              return toast('⚠️ Selecione o tipo', true);
+  if(!categoria)         return toast('⚠️ Selecione a categoria', true);
+
+  const [y,m,d] = data.split('-');
+  const valor   = movimento==='Debito' ? -Math.abs(valorRaw) : Math.abs(valorRaw);
+
+  dados.push({
+    id: Date.now(),
+    data: `${d}/${m}/${y}`,
+    dataISO: data,
+    mes, descricao: desc.toUpperCase(), movimento,
+    valor, valorAbs: Math.abs(valorRaw),
+    categoria,
+    classificacao: movimento==='Credito' ? 'Receita' : 'Despesas',
+    tipo
+  });
+
+  salvar();
+  atualizarStats();
+
+  // Limpa apenas valor e descrição, mantém demais campos
+  document.getElementById('inp-desc').value  = '';
+  document.getElementById('inp-valor').value = '';
+  document.getElementById('inp-valor').focus();
+  toast('✅ Lançamento adicionado!');
+}
+
+// ── Render lista ───────────────────────────────────────────────────────────
+function renderLista() {
+  const busca = document.getElementById('busca').value.toLowerCase();
+  const fMov  = document.getElementById('filtro-mov-l').value;
+  const fTipo = document.getElementById('filtro-tipo-l').value;
+  const fMes  = document.getElementById('filtro-mes-l').value;
+
+  const filtrado = dados
+    .filter(d =>
+      (!busca || d.descricao.toLowerCase().includes(busca)) &&
+      (!fMov  || d.movimento===fMov) &&
+      (!fTipo || d.tipo===fTipo) &&
+      (!fMes  || d.mes===fMes)
+    )
+    .sort((a,b) => b.dataISO.localeCompare(a.dataISO));
+
+  document.getElementById('count-label').textContent = `${filtrado.length} registro${filtrado.length!==1?'s':''}`;
+
+  const container = document.getElementById('lista-container');
+  if(filtrado.length===0) {
+    container.innerHTML = `<div class="empty"><div class="e-icon">📭</div><p>Nenhum lançamento encontrado.<br>Adicione um na aba <strong>Lançar</strong>.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = filtrado.map(d => {
+    const cor   = d.movimento==='Credito' ? 'var(--accent2)' : 'var(--danger)';
+    const sinal = d.movimento==='Credito' ? '+' : '-';
+    const icone = ICONES_TIPO[d.tipo] || '💸';
+    return `
+    <div class="lancamento-card">
+      <div class="card-icone ${d.movimento.toLowerCase()}">${icone}</div>
+      <div class="card-body">
+        <div class="card-desc" title="${d.descricao}">${d.descricao}</div>
+        <div class="card-meta">
+          <span>${d.data}</span>
+          <span class="tag">${d.mes}</span>
+          <span>${d.categoria}</span>
+        </div>
+      </div>
+      <div class="card-right">
+        <div class="card-valor" style="color:${cor}">${sinal} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <button class="btn-del" onclick="remover(${d.id})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+function atualizarStats() {
+  const rec  = dados.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
+  const desp = dados.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
+  const sal  = rec - desp;
+  const fmt  = v => {
+    if(v>=1000) return 'R$ '+Math.round(v/1000)+'k';
+    return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+  };
+  document.getElementById('stat-rec').textContent  = fmt(rec);
+  document.getElementById('stat-desp').textContent = fmt(desp);
+  const el = document.getElementById('stat-saldo');
+  el.textContent  = fmt(Math.abs(sal));
+  el.style.color  = sal>=0 ? 'var(--accent2)' : 'var(--danger)';
+}
+
+// ── Remover ────────────────────────────────────────────────────────────────
+function remover(id) {
+  dados = dados.filter(d=>d.id!==id);
+  salvar(); renderLista(); atualizarStats();
+  toast('🗑 Removido');
+}
+
+// ── Export CSV ─────────────────────────────────────────────────────────────
+function exportarCSV() {
+  if(dados.length===0) return toast('⚠️ Nenhum lançamento', true);
+  const header = ['Data ','Mês','Descrição ','Movimento','Valor R$','Categoria','Classificação','Tipo'];
+  const linhas = [...dados]
+    .sort((a,b)=>a.dataISO.localeCompare(b.dataISO))
+    .map(d=>[d.data,d.mes,d.descricao,d.movimento,
+      d.valor.toFixed(2).replace('.',','),
+      d.categoria,d.classificacao,d.tipo
+    ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';'));
+  const csv  = [header.join(';'),...linhas].join('\r\n');
+  const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href=url;
+  a.download = `lancamentos_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast(`✅ CSV com ${dados.length} lançamento${dados.length!==1?'s':''}`);
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function salvar() { localStorage.setItem('gastos_v2', JSON.stringify(dados)); }
+
+let toastTimer;
+function toast(msg, erro=false) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='toast show'+(erro?' erro':'');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.className='toast',2500);
+}
+
+function confirmarLimpar() { document.getElementById('overlay').classList.add('show'); }
+function fecharDialog()    { document.getElementById('overlay').classList.remove('show'); }
+function limparTudo() {
+  dados=[]; salvar(); renderLista(); atualizarStats();
+  fecharDialog(); toast('🗑 Lançamentos removidos');
+}
+document.getElementById('overlay').addEventListener('click', e => { if(e.target===e.currentTarget) fecharDialog(); });
+</script>
+</body>
+</html>
