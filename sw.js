@@ -4,7 +4,7 @@
    atualização automática no celular.
    ===================================================== */
 
-const CACHE_VERSION = 'bussola-v1.4';
+const CACHE_VERSION = 'bussola-v1.5';
 
 const CACHE_ASSETS = [
   './',
