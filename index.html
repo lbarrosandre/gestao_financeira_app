@@ -249,13 +249,162 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .empty h4{font-size:.88rem;font-weight:600;color:var(--text2);margin-bottom:5px}
 .empty p{font-size:.8rem;line-height:1.7}
 
-/* ─── HINT MÊS SINCRONIZADO ─────────── */
-.mes-sync-hint{font-size:.58rem;color:var(--teal);opacity:.7;margin-top:2px;display:flex;align-items:center;gap:3px}
+/* ─── AUTH SCREEN ────────────────────── */
+#auth-screen{
+  position:fixed;inset:0;z-index:10000;
+  background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px 20px calc(var(--safe-bot)+24px);
+  transition:opacity .45s ease,transform .45s ease;
+}
+#auth-screen.hide{opacity:0;transform:scale(.96);pointer-events:none}
+.auth-bg-glow{
+  position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(16,185,129,.08) 0%,transparent 70%),
+             radial-gradient(ellipse 40% 30% at 80% 100%,rgba(59,130,246,.06) 0%,transparent 60%);
+}
+.auth-logo-wrap{position:relative;margin-bottom:28px;animation:sDrop .6s cubic-bezier(.22,1,.36,1) both}
+.auth-logo-wrap img{width:72px;height:72px;border-radius:18px;box-shadow:0 0 40px rgba(16,185,129,.3)}
+.auth-logo-ring{position:absolute;inset:-8px;border:1.5px solid rgba(16,185,129,.22);border-radius:26px;animation:sRing 2.2s ease-in-out infinite}
+.auth-card{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:20px;padding:26px 22px;width:100%;max-width:340px;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);
+  animation:sFadeUp .5s ease both .15s;
+}
+.auth-header{text-align:center;margin-bottom:20px}
+.auth-title{font-size:1.1rem;font-weight:700;margin-bottom:5px}
+.auth-title em{color:var(--teal);font-style:normal}
+.auth-sub{font-size:.76rem;color:var(--text3);line-height:1.5}
+.auth-steps{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
+.auth-step-dot{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:.25s}
+.auth-step-dot.ativo{background:var(--teal);width:18px;border-radius:3px}
+.auth-name-step .fi{margin-bottom:14px}
+.btn-auth-next{
+  width:100%;padding:13px;border:none;border-radius:var(--r);
+  background:var(--teal);color:#fff;font-family:var(--sans);
+  font-size:.9rem;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 20px var(--teal-glow);transition:.15s;
+}
+.btn-auth-next:active{transform:scale(.98);box-shadow:none}
+.auth-pin-label{font-size:.62rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;text-align:center;margin-bottom:14px}
+.auth-dots{display:flex;gap:16px;justify-content:center;margin-bottom:24px}
+.auth-dot{
+  width:15px;height:15px;border-radius:50%;
+  border:2px solid var(--border2);background:transparent;
+  transition:all .2s cubic-bezier(.34,1.56,.64,1);
+}
+.auth-dot.filled{background:var(--teal);border-color:var(--teal);box-shadow:0 0 10px var(--teal-glow);transform:scale(1.15)}
+.auth-dot.error{background:var(--danger);border-color:var(--danger);animation:authShake .35s ease}
+@keyframes authShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.pin-btn{
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--r);padding:0;height:56px;
+  color:var(--text);font-family:var(--mono);font-size:1.3rem;font-weight:500;
+  cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center;
+  user-select:none;-webkit-user-select:none;
+}
+.pin-btn:active{background:var(--surface3);transform:scale(.93);border-color:var(--teal);color:var(--teal)}
+.pin-btn.pin-empty{background:transparent;border:none;pointer-events:none}
+.pin-btn.pin-del{font-size:1rem;color:var(--text3)}
+.pin-btn.pin-del:active{color:var(--danger);border-color:var(--danger);background:rgba(239,68,68,.08)}
+.auth-avatar{
+  width:62px;height:62px;border-radius:50%;
+  background:linear-gradient(135deg,var(--teal) 0%,var(--accent) 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;font-weight:700;color:#fff;
+  margin:0 auto 12px;box-shadow:0 0 24px var(--teal-glow);
+  letter-spacing:-.02em;
+}
+.auth-welcome{font-size:1.05rem;font-weight:700;text-align:center;margin-bottom:4px}
+.btn-troca{
+  display:block;width:100%;margin-top:16px;padding:0;border:none;background:none;
+  font-family:var(--sans);font-size:.72rem;color:var(--text3);cursor:pointer;text-align:center;
+  transition:color .15s;
+}
+.btn-troca:hover,.btn-troca:active{color:var(--danger)}
 
 @media(max-width:400px){.btn-top{font-size:.68rem;padding:7px 9px}}
 </style>
 </head>
 <body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-bg-glow"></div>
+  <div class="auth-logo-wrap">
+    <img src="icon-192.png" alt="Bussola" onerror="this.src='icon-64.png'">
+    <div class="auth-logo-ring"></div>
+  </div>
+  <!-- CARD: NOME -->
+  <div class="auth-card" id="ac-nome" style="display:none">
+    <div class="auth-steps">
+      <div class="auth-step-dot ativo"></div>
+      <div class="auth-step-dot"></div>
+      <div class="auth-step-dot"></div>
+    </div>
+    <div class="auth-header">
+      <div class="auth-title">Bem-vindo ao <em>Bussola</em></div>
+      <div class="auth-sub">Crie sua conta para proteger seus dados financeiros</div>
+    </div>
+    <div class="fi" style="margin-bottom:16px">
+      <label>Seu nome</label>
+      <input type="text" id="auth-nome-inp" placeholder="Como quer ser chamado?" autocomplete="name" autocapitalize="words">
+    </div>
+    <button class="btn-auth-next" onclick="authIrPin()">Continuar</button>
+  </div>
+  <!-- CARD: CRIAR PIN -->
+  <div class="auth-card" id="ac-pin" style="display:none">
+    <div class="auth-steps">
+      <div class="auth-step-dot"></div>
+      <div class="auth-step-dot ativo"></div>
+      <div class="auth-step-dot"></div>
+    </div>
+    <div class="auth-header">
+      <div class="auth-title">Crie seu <em>PIN</em></div>
+      <div class="auth-sub">Escolha 4 digitos para proteger o acesso</div>
+    </div>
+    <div class="auth-pin-label">Digite o PIN</div>
+    <div class="auth-dots" id="dots-criar">
+      <div class="auth-dot"></div><div class="auth-dot"></div>
+      <div class="auth-dot"></div><div class="auth-dot"></div>
+    </div>
+    <div class="pin-grid" id="pad-criar"></div>
+  </div>
+  <!-- CARD: CONFIRMAR PIN -->
+  <div class="auth-card" id="ac-confirm" style="display:none">
+    <div class="auth-steps">
+      <div class="auth-step-dot"></div>
+      <div class="auth-step-dot"></div>
+      <div class="auth-step-dot ativo"></div>
+    </div>
+    <div class="auth-header">
+      <div class="auth-title">Confirme o <em>PIN</em></div>
+      <div class="auth-sub">Digite novamente para garantir que anotou certo</div>
+    </div>
+    <div class="auth-pin-label">Repita o PIN</div>
+    <div class="auth-dots" id="dots-confirm">
+      <div class="auth-dot"></div><div class="auth-dot"></div>
+      <div class="auth-dot"></div><div class="auth-dot"></div>
+    </div>
+    <div class="pin-grid" id="pad-confirm"></div>
+  </div>
+  <!-- CARD: LOGIN -->
+  <div class="auth-card" id="ac-login" style="display:none">
+    <div class="auth-avatar" id="login-avatar">?</div>
+    <div class="auth-welcome" id="login-nome">Ola!</div>
+    <div class="auth-header" style="margin-top:4px;margin-bottom:18px">
+      <div class="auth-sub">Digite seu PIN para entrar</div>
+    </div>
+    <div class="auth-dots" id="dots-login">
+      <div class="auth-dot"></div><div class="auth-dot"></div>
+      <div class="auth-dot"></div><div class="auth-dot"></div>
+    </div>
+    <div class="pin-grid" id="pad-login"></div>
+    <button class="btn-troca" onclick="authTrocarUsuario()">Trocar usuario</button>
+  </div>
+</div>
 
 <!-- SPLASH -->
 <div id="splash">
@@ -447,6 +596,132 @@ let plan=JSON.parse(localStorage.getItem('gastos_plan')||'[]');
 let mov='Debito',planMov='Debito',execId=null;
 let mesesSel=new Set();
 
+/* ═══ AUTH ══════════════════════════════ */
+const AUTH_KEY='bussola_auth';
+let authPinCriar='', authPinConfirm='', authPinLogin='';
+
+async function authHash(pin){
+  const enc=new TextEncoder();
+  const buf=await crypto.subtle.digest('SHA-256',enc.encode(pin+'bussola2026'));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function authBuildPad(gridId, onDigit, onDel){
+  const g=document.getElementById(gridId);
+  g.innerHTML='';
+  [1,2,3,4,5,6,7,8,9,'',0,'del'].forEach(v=>{
+    const b=document.createElement('button');
+    b.type='button';
+    if(v===''){b.className='pin-btn pin-empty';g.appendChild(b);return;}
+    if(v==='del'){
+      b.className='pin-btn pin-del';
+      b.textContent='⌫';
+      b.addEventListener('click',onDel);
+    } else {
+      b.className='pin-btn';
+      b.textContent=v;
+      b.addEventListener('click',()=>onDigit(String(v)));
+    }
+    g.appendChild(b);
+  });
+}
+
+function authUpdateDots(dotsId, val, isError=false){
+  const dots=document.getElementById(dotsId).querySelectorAll('.auth-dot');
+  dots.forEach((d,i)=>{
+    d.classList.toggle('filled', i < val.length);
+    d.classList.toggle('error', isError);
+  });
+}
+
+function authShowCard(id){
+  ['ac-nome','ac-pin','ac-confirm','ac-login'].forEach(c=>{
+    document.getElementById(c).style.display=c===id?'block':'none';
+  });
+}
+
+function authInit(){
+  const saved=localStorage.getItem(AUTH_KEY);
+  if(saved){
+    const u=JSON.parse(saved);
+    const ini=u.nome?u.nome.trim()[0].toUpperCase():'?';
+    document.getElementById('login-avatar').textContent=ini;
+    document.getElementById('login-nome').textContent='Ola, '+u.nome.split(' ')[0]+'!';
+    authBuildPad('pad-login',
+      d=>{ if(authPinLogin.length>=4)return; authPinLogin+=d; authUpdateDots('dots-login',authPinLogin); if(authPinLogin.length===4)authVerificarLogin(); },
+      ()=>{ authPinLogin=authPinLogin.slice(0,-1); authUpdateDots('dots-login',authPinLogin); }
+    );
+    authShowCard('ac-login');
+  } else {
+    authBuildPad('pad-criar',
+      d=>{ if(authPinCriar.length>=4)return; authPinCriar+=d; authUpdateDots('dots-criar',authPinCriar); if(authPinCriar.length===4)authIrConfirm(); },
+      ()=>{ authPinCriar=authPinCriar.slice(0,-1); authUpdateDots('dots-criar',authPinCriar); }
+    );
+    authBuildPad('pad-confirm',
+      d=>{ if(authPinConfirm.length>=4)return; authPinConfirm+=d; authUpdateDots('dots-confirm',authPinConfirm); if(authPinConfirm.length===4)authSalvarCadastro(); },
+      ()=>{ authPinConfirm=authPinConfirm.slice(0,-1); authUpdateDots('dots-confirm',authPinConfirm); }
+    );
+    authShowCard('ac-nome');
+    setTimeout(()=>document.getElementById('auth-nome-inp').focus(),300);
+  }
+}
+
+function authIrPin(){
+  const nome=document.getElementById('auth-nome-inp').value.trim();
+  if(!nome)return authShakeCard();
+  authShowCard('ac-pin');
+}
+
+function authIrConfirm(){
+  authShowCard('ac-confirm');
+}
+
+async function authSalvarCadastro(){
+  if(authPinCriar!==authPinConfirm){
+    authPinConfirm='';
+    authUpdateDots('dots-confirm','',true);
+    setTimeout(()=>authUpdateDots('dots-confirm','',false),600);
+    return;
+  }
+  const nome=document.getElementById('auth-nome-inp').value.trim();
+  const hash=await authHash(authPinCriar);
+  localStorage.setItem(AUTH_KEY,JSON.stringify({nome,hash}));
+  authEntrar();
+}
+
+async function authVerificarLogin(){
+  const saved=JSON.parse(localStorage.getItem(AUTH_KEY));
+  const hash=await authHash(authPinLogin);
+  if(hash===saved.hash){
+    authEntrar();
+  } else {
+    authPinLogin='';
+    authUpdateDots('dots-login','',true);
+    setTimeout(()=>authUpdateDots('dots-login','',false),600);
+  }
+}
+
+function authEntrar(){
+  const as=document.getElementById('auth-screen');
+  as.classList.add('hide');
+  setTimeout(()=>{as.remove();},500);
+  iniciarApp();
+}
+
+function authTrocarUsuario(){
+  if(!confirm('Remover usuario e PIN salvos?'))return;
+  localStorage.removeItem(AUTH_KEY);
+  location.reload();
+}
+
+function authShakeCard(){
+  const c=document.getElementById('auth-nome-inp');
+  c.style.borderColor='var(--danger)';
+  c.focus();
+  setTimeout(()=>c.style.borderColor='',800);
+}
+
+
 /* ═══ MÁSCARA DE MOEDA ══════════════════ */
 function maskCurrency(input){
   // Mantém apenas dígitos — os decimais são calculados automaticamente
@@ -480,21 +755,24 @@ function syncMesFromData(dataId,mesId){
 }
 
 window.addEventListener('load',()=>{
+  authInit();
+  registrarSW();
+});
+
+function iniciarApp(){
   init();
   const t0=Date.now();
   setTimeout(()=>{
     const elapsed=Date.now()-t0;
-    const wait=Math.max(0,1800-elapsed);
+    const wait=Math.max(0,1200-elapsed);
     setTimeout(()=>{
       const sp=document.getElementById('splash');
-      sp.classList.add('hide');
+      if(sp){sp.classList.add('hide');setTimeout(()=>sp.remove(),600);}
       const app=document.getElementById('appRoot');
       app.style.display='flex';app.style.flexDirection='column';app.style.height='100%';
-      setTimeout(()=>sp.remove(),600);
     },wait);
   },0);
-  registrarSW();
-});
+}
 
 function init(){
   const hoje=new Date(),hISO=hoje.toISOString().split('T')[0];
