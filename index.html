@@ -248,7 +248,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 <div class="sheet-overlay" id="sheet-overlay" onclick="fecharSheet()"></div>
 <div class="sheet" id="sheet">
   <div class="sheet-handle"></div>
-  <h3>▶ Executar pagamento</h3>
+  <h3>▶ Confirmar pagamento</h3>
   <p class="sheet-sub" id="sheet-desc"></p>
   <div class="sheet-info"><span class="sheet-info-label">Valor planejado</span><span class="sheet-info-val" id="sheet-val-plan">R$ 0,00</span></div>
   <div class="field"><label>Valor real pago R$</label><input type="number" id="sheet-valor-real" placeholder="0,00" step="0.01" min="0" inputmode="decimal"></div>
@@ -448,7 +448,7 @@ function planCard(p){
     ?`<div><div class="plan-val-plan">R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="plan-val-real" style="color:${corV}">${sinal} R$ ${p.valorReal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`
     :`<div class="plan-val-real" style="color:var(--purple)">${sinal} R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>`;
   const actions=!isE
-    ?`<div class="plan-card-actions"><button class="btn-executar" onclick="abrirSheet(${p.id})">▶ Executar pagamento</button><button class="btn-del-plan" onclick="removerPlan(${p.id})">🗑</button></div>`
+    ?`<div class="plan-card-actions"><button class="btn-executar" onclick="abrirSheet(${p.id})">▶ Confirmar pagamento</button><button class="btn-del-plan" onclick="removerPlan(${p.id})">🗑</button></div>`
     :`<div class="plan-card-actions"><div style="font-size:.7rem;color:var(--muted);flex:1">✅ Executado em ${p.dataExec} · lançamento criado</div><button class="btn-del-plan" onclick="removerPlan(${p.id})">🗑</button></div>`;
   return `<div class="plan-card ${p.status}">
     <div class="plan-card-top">
