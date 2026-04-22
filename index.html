@@ -543,7 +543,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
     <button class="btn-top btn-backup" onclick="exportarBackup()">💾 Backup</button>
     <input type="file" id="impArq" accept=".json" style="display:none" onchange="importarBackup(event)">
     <button class="btn-top btn-restore" onclick="document.getElementById('impArq').click()">📥</button>
-    <button class="btn-top btn-csv" onclick="exportarCSV()">CSV</button>
+    <input type="file" id="impCSV" accept=".csv,.txt" style="display:none" onchange="importarCSV(event)">
+    <button class="btn-top btn-csv" onclick="document.getElementById('impCSV').click()" title="Importar histórico CSV do Excel">📤 Histórico</button>
+    <button class="btn-top btn-csv" onclick="exportarCSV()">CSV ↓</button>
   </div>
 </div>
 
@@ -551,7 +553,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
   <div class="stat"><div class="s-label">Receitas</div><div class="s-val" id="stat-rec" style="color:var(--teal)"><span class="val-txt">R$ 0,00</span></div></div>
   <div class="stat"><div class="s-label">Despesas</div><div class="s-val" id="stat-desp" style="color:var(--danger)"><span class="val-txt">R$ 0,00</span></div></div>
   <div class="stat"><div class="s-label">Saldo</div><div class="s-val" id="stat-saldo"><span class="val-txt">R$ 0,00</span></div></div>
-  <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores">👁</button>
+  <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
 </div>
 
 <div class="tabs">
@@ -1240,7 +1242,9 @@ function aplicarVisibilidade(){
     el.classList.toggle('hidden-val',!valoresVisiveis);
   });
   const eye=document.getElementById('btn-eye');
-  if(eye)eye.textContent=valoresVisiveis?'🙈':'👁';
+  if(eye)eye.innerHTML=valoresVisiveis
+    ?'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+    :'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 }
 
 function remover(id){dados=dados.filter(d=>d.id!==id);salvar();renderLista();atualizarStats();toast('🗑 Removido');}
@@ -1284,6 +1288,134 @@ function importarBackup(event){
     }catch{toast('❌ Backup inválido',true);}
   };
   r.readAsText(arq);
+}
+
+function importarCSV(event){
+  const arq=event.target.files[0];
+  if(!arq)return;
+  event.target.value=''; // reset input
+  const r=new FileReader();
+  r.onload=function(e){
+    try{
+      const txt=e.target.result;
+      // Detecta separador: ; ou ,
+      const linhas=txt.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l=>l.trim());
+      if(linhas.length<2){return toast('⚠️ CSV vazio ou inválido',true);}
+      const sep=linhas[0].includes(';')?';':',';
+
+      function parseLine(l){
+        const res=[];let cur='',inQ=false;
+        for(let i=0;i<l.length;i++){
+          const c=l[i];
+          if(c==='"'){if(inQ&&l[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}
+          else if(c===sep&&!inQ){res.push(cur.trim());cur='';}
+          else cur+=c;
+        }
+        res.push(cur.trim());
+        return res;
+      }
+
+      const header=parseLine(linhas[0]).map(h=>h.toLowerCase().replace(/[^a-záéíóúãõçàâê]/gi,'').trim());
+
+      // Mapeia colunas pelos cabeçalhos
+      function col(names){
+        for(const n of names){const i=header.findIndex(h=>h.includes(n));if(i>=0)return i;}
+        return -1;
+      }
+      const iData  = col(['data']);
+      const iMes   = col(['ms','mes']);
+      const iDesc  = col(['desc','descri']);
+      const iMov   = col(['mov','movimento']);
+      const iVal   = col(['valor']);
+      const iCat   = col(['categ']);
+      const iClass = col(['class','classif']);
+      const iTipo  = col(['tipo']);
+
+      if(iData<0||iVal<0){return toast('⚠️ CSV: colunas Data/Valor não encontradas',true);}
+
+      // Calcula corte de 3 meses atrás
+      const hoje=new Date();
+      const corte=new Date(hoje.getFullYear(),hoje.getMonth()-2,1); // início há 3 meses
+
+      let adicionados=0, duplicados=0, foraRangeIgn=0;
+      const novosDados=[...dados];
+
+      for(let i=1;i<linhas.length;i++){
+        const cols=parseLine(linhas[i]);
+        if(cols.length<2)continue;
+
+        // Data
+        const dataStr=(cols[iData]||'').replace(/"/g,'').trim();
+        if(!dataStr)continue;
+
+        // Converte data para ISO
+        let dataISO='';
+        if(/^\d{2}\/\d{2}\/\d{4}$/.test(dataStr)){
+          const[d,m,y]=dataStr.split('/');dataISO=`${y}-${m}-${d}`;
+        } else if(/^\d{4}-\d{2}-\d{2}$/.test(dataStr)){
+          dataISO=dataStr;
+        } else if(/^\d{2}\/\d{2}\/\d{2}$/.test(dataStr)){
+          const[d,m,y]=dataStr.split('/');dataISO=`20${y}-${m}-${d}`;
+        } else continue;
+
+        const dataObj=new Date(dataISO+'T00:00:00');
+        if(dataObj<corte){foraRangeIgn++;continue;}
+
+        // Valor
+        let valorStr=(cols[iVal]||'0').replace(/"/g,'').trim().replace(',','.');
+        const valorNum=parseFloat(valorStr)||0;
+        if(valorNum===0)continue;
+
+        const desc=(iDesc>=0?cols[iDesc]:'').replace(/"/g,'').trim().toUpperCase()||'SEM DESCRIÇÃO';
+        const movRaw=(iMov>=0?cols[iMov]:'').replace(/"/g,'').trim();
+        const mov2=movRaw==='Credito'||movRaw==='Crédito'||valorNum>0?'Credito':'Debito';
+        const valorAbs=Math.abs(valorNum);
+        const valorFinal=mov2==='Debito'?-valorAbs:valorAbs;
+
+        // Mês
+        let mes=(iMes>=0?cols[iMes]:'').replace(/"/g,'').trim();
+        if(!mes){
+          const d2=new Date(dataISO+'T00:00:00');
+          mes=d2.toLocaleDateString('pt-BR',{month:'short',year:'2-digit'}).replace('. de ','').replace('. ','').replace('.','/')||'';
+        }
+
+        const cat=(iCat>=0?cols[iCat]:'').replace(/"/g,'').trim()||'Compras Não Recorrentes';
+        const classif=(iClass>=0?cols[iClass]:'').replace(/"/g,'').trim()||(mov2==='Credito'?'Receita':'Despesas');
+        const tipo=(iTipo>=0?cols[iTipo]:'').replace(/"/g,'').trim()||'Despesas eventuais';
+
+        // Deduplicação: mesma data+descricao+valorAbs
+        const jaExiste=novosDados.some(d=>d.dataISO===dataISO&&d.descricao===desc&&Math.abs(d.valor)===valorAbs);
+        if(jaExiste){duplicados++;continue;}
+
+        novosDados.push({
+          id:Date.now()+Math.random(),
+          data:dataStr.includes('/')?dataStr:`${dataISO.split('-')[2]}/${dataISO.split('-')[1]}/${dataISO.split('-')[0]}`,
+          dataISO,mes,descricao:desc,movimento:mov2,
+          valor:valorFinal,valorAbs,categoria:cat,
+          classificacao:classif,tipo,dePlan:false,recorrente:false,importado:true
+        });
+        adicionados++;
+      }
+
+      if(adicionados===0){
+        let msg='⚠️ Nenhum registro novo importado.';
+        if(duplicados>0)msg+=` (${duplicados} duplicados)`;
+        if(foraRangeIgn>0)msg+=` (${foraRangeIgn} fora dos últimos 3 meses)`;
+        return toast(msg,true);
+      }
+
+      dados=novosDados;
+      salvar();renderLista();atualizarStats();
+      let msg=`✅ ${adicionados} lançamento${adicionados!==1?'s':''} importado${adicionados!==1?'s':''}!`;
+      if(duplicados>0)msg+=` · ${duplicados} duplicado${duplicados!==1?'s':''}`;
+      if(foraRangeIgn>0)msg+=` · ${foraRangeIgn} fora do período`;
+      toast(msg,false,false);
+    }catch(err){
+      console.error(err);
+      toast('❌ Erro ao ler CSV. Verifique o arquivo.',true);
+    }
+  };
+  r.readAsText(arq,'UTF-8');
 }
 
 function salvar(){localStorage.setItem('gastos_v2',JSON.stringify(dados));}
