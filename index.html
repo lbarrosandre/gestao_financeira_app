@@ -165,13 +165,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .ci{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:14px;flex-shrink:0}
 .ci.debito{background:rgba(239,68,68,.1)}.ci.credito{background:rgba(16,185,129,.1)}
 .cb{flex:1;min-width:0}
-.cd{font-size:.82rem;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd{font-size:.76rem;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cm{font-size:.64rem;color:var(--text3);display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .tag{background:rgba(59,130,246,.1);color:var(--accent);border:1px solid rgba(59,130,246,.2);border-radius:4px;padding:1px 5px;font-size:.62rem}
 .tag-p{background:rgba(139,92,246,.1);color:var(--purple);border:1px solid rgba(139,92,246,.2)}
 .tag-r{background:rgba(234,179,8,.1);color:var(--gold);border:1px solid rgba(234,179,8,.2)}
 .cr{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
-.cv{font-family:var(--mono);font-size:.85rem;font-weight:500;white-space:nowrap}
+.cv{font-family:var(--mono);font-size:.76rem;font-weight:500;white-space:nowrap}
 .btn-del{background:none;border:none;color:var(--text3);font-size:.85rem;cursor:pointer;padding:2px 4px}
 .btn-del:active{color:var(--danger)}
 
@@ -195,11 +195,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .pi{width:32px;height:32px;border-radius:8px;background:rgba(139,92,246,.12);display:grid;place-items:center;font-size:13px;flex-shrink:0}
 .pi.exec{background:rgba(16,185,129,.1)}.pi.venc{background:rgba(239,68,68,.1)}
 .pb{flex:1;min-width:0}
-.pd{font-size:.82rem;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pd{font-size:.76rem;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pm{font-size:.64rem;color:var(--text3);display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .pr{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
 .pvp{font-family:var(--mono);font-size:.7rem;color:var(--text3);text-decoration:line-through}
-.pvr{font-family:var(--mono);font-size:.85rem;font-weight:500}
+.pvr{font-family:var(--mono);font-size:.76rem;font-weight:500}
 .bs{font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
 .bs.pendente{background:rgba(139,92,246,.15);color:var(--purple)}
 .bs.executado{background:rgba(16,185,129,.12);color:var(--teal)}
@@ -325,6 +325,46 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 }
 .btn-troca:hover,.btn-troca:active{color:var(--danger)}
 
+
+/* ─── AUTH PHOTO ─────────────────────── */
+.auth-photo-wrap{position:relative;width:80px;height:80px;margin:0 auto 16px;cursor:pointer}
+.auth-photo-img{
+  width:80px;height:80px;border-radius:50%;object-fit:cover;
+  border:2.5px solid var(--teal);box-shadow:0 0 20px var(--teal-glow);
+  display:block;
+}
+.auth-photo-ini{
+  width:80px;height:80px;border-radius:50%;
+  background:linear-gradient(135deg,var(--teal),var(--accent));
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.8rem;font-weight:700;color:#fff;
+  border:2.5px solid var(--teal);box-shadow:0 0 20px var(--teal-glow);
+}
+.auth-photo-edit{
+  position:absolute;bottom:0;right:0;
+  width:26px;height:26px;border-radius:50%;
+  background:var(--accent);border:2px solid var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.75rem;
+}
+/* ─── EYE TOGGLE ─────────────────────── */
+.stats-eye{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;
+  color:var(--text3);font-size:.9rem;padding:4px;
+  transition:color .15s;
+}
+.stats-eye:active{color:var(--text)}
+.statsbar{position:relative}
+.stat .s-val.hidden-val::after{content:'••••';font-family:var(--mono)}
+.stat .s-val.hidden-val .val-txt{display:none}
+/* ─── RECOVERY ───────────────────────── */
+.btn-forgot{
+  display:block;width:100%;margin-top:10px;padding:0;border:none;background:none;
+  font-family:var(--sans);font-size:.72rem;color:var(--text3);cursor:pointer;text-align:center;
+  transition:color .15s;
+}
+.btn-forgot:active{color:var(--accent)}
 @media(max-width:400px){.btn-top{font-size:.68rem;padding:7px 9px}}
 </style>
 </head>
@@ -378,6 +418,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
       <div class="auth-step-dot"></div>
       <div class="auth-step-dot"></div>
       <div class="auth-step-dot ativo"></div>
+      <div class="auth-step-dot"></div>
     </div>
     <div class="auth-header">
       <div class="auth-title">Confirme o <em>PIN</em></div>
@@ -390,9 +431,42 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
     </div>
     <div class="pin-grid" id="pad-confirm"></div>
   </div>
+  <!-- CARD: PERGUNTA DE SEGURANCA -->
+  <div class="auth-card" id="ac-security" style="display:none">
+    <div class="auth-steps">
+      <div class="auth-step-dot"></div>
+      <div class="auth-step-dot"></div>
+      <div class="auth-step-dot"></div>
+      <div class="auth-step-dot ativo"></div>
+    </div>
+    <div class="auth-header">
+      <div class="auth-title">Pergunta de <em>seguranca</em></div>
+      <div class="auth-sub">Usada para recuperar o PIN caso esqueca</div>
+    </div>
+    <div class="fi" style="margin-bottom:10px">
+      <label>Pergunta</label>
+      <div class="sw"><select id="sec-pergunta">
+        <option value="Mae">Qual o nome da sua mae?</option>
+        <option value="Pet">Qual o nome do seu primeiro pet?</option>
+        <option value="Escola">Qual o nome da sua escola primaria?</option>
+        <option value="Cidade">Em qual cidade voce nasceu?</option>
+        <option value="Apelido">Qual o seu apelido de infancia?</option>
+      </select></div>
+    </div>
+    <div class="fi" style="margin-bottom:16px">
+      <label>Resposta</label>
+      <input type="text" id="sec-resp" placeholder="Sua resposta..." autocomplete="off">
+    </div>
+    <button class="btn-auth-next" onclick="authSalvarSeguranca()">Concluir cadastro</button>
+  </div>
   <!-- CARD: LOGIN -->
   <div class="auth-card" id="ac-login" style="display:none">
-    <div class="auth-avatar" id="login-avatar">?</div>
+    <div class="auth-photo-wrap" onclick="fotoClicar()" title="Alterar foto">
+      <div class="auth-photo-ini" id="login-avatar-ini">?</div>
+      <img id="login-avatar-img" class="auth-photo-img" style="display:none" alt="">
+      <div class="auth-photo-edit">📷</div>
+    </div>
+    <input type="file" id="foto-inp" accept="image/*" style="display:none" onchange="fotoCarregar(event)">
     <div class="auth-welcome" id="login-nome">Ola!</div>
     <div class="auth-header" style="margin-top:4px;margin-bottom:18px">
       <div class="auth-sub">Digite seu PIN para entrar</div>
@@ -402,7 +476,35 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
       <div class="auth-dot"></div><div class="auth-dot"></div>
     </div>
     <div class="pin-grid" id="pad-login"></div>
+    <button class="btn-forgot" onclick="authEsqueceuPin()">Esqueci meu PIN</button>
     <button class="btn-troca" onclick="authTrocarUsuario()">Trocar usuario</button>
+  </div>
+  <!-- CARD: RECUPERAR PIN -->
+  <div class="auth-card" id="ac-recovery" style="display:none">
+    <div class="auth-header">
+      <div class="auth-title">Recuperar <em>PIN</em></div>
+      <div class="auth-sub">Responda a pergunta de seguranca cadastrada</div>
+    </div>
+    <div id="rec-pergunta-txt" style="font-size:.82rem;font-weight:600;color:var(--text2);background:var(--surface2);border-radius:10px;padding:11px 13px;margin-bottom:12px;line-height:1.5"></div>
+    <div class="fi" style="margin-bottom:16px">
+      <label>Sua resposta</label>
+      <input type="text" id="rec-resp-inp" placeholder="Digite a resposta..." autocomplete="off">
+    </div>
+    <button class="btn-auth-next" onclick="authValidarResposta()">Confirmar</button>
+    <button class="btn-forgot" onclick="authShowCard('ac-login')">Voltar ao login</button>
+  </div>
+  <!-- CARD: NOVO PIN (recuperacao) -->
+  <div class="auth-card" id="ac-newpin" style="display:none">
+    <div class="auth-header">
+      <div class="auth-title">Novo <em>PIN</em></div>
+      <div class="auth-sub">Identidade confirmada! Crie um novo PIN</div>
+    </div>
+    <div class="auth-pin-label">Digite o novo PIN</div>
+    <div class="auth-dots" id="dots-newpin">
+      <div class="auth-dot"></div><div class="auth-dot"></div>
+      <div class="auth-dot"></div><div class="auth-dot"></div>
+    </div>
+    <div class="pin-grid" id="pad-newpin"></div>
   </div>
 </div>
 
@@ -423,7 +525,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
     <div class="splash-dot"></div>
     <div class="splash-dot"></div>
   </div>
-  <div class="splash-ver">v1.6</div>
+  <div class="splash-ver">v1.7</div>
 </div>
 
 <!-- APP -->
@@ -435,7 +537,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
   <div class="topbar-brand">
     <div class="topbar-logo"><img src="icon-64.png" alt="B" onerror="this.parentElement.innerHTML='🧭'"></div>
     <span class="topbar-title">Bússola</span>
-    <span class="topbar-ver">v1.6</span>
+    <span class="topbar-ver">v1.7</span>
   </div>
   <div class="topbar-actions">
     <button class="btn-top btn-backup" onclick="exportarBackup()">💾 Backup</button>
@@ -445,10 +547,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
   </div>
 </div>
 
-<div class="statsbar">
-  <div class="stat"><div class="s-label">Receitas</div><div class="s-val" id="stat-rec" style="color:var(--teal)">R$ 0</div></div>
-  <div class="stat"><div class="s-label">Despesas</div><div class="s-val" id="stat-desp" style="color:var(--danger)">R$ 0</div></div>
-  <div class="stat"><div class="s-label">Saldo</div><div class="s-val" id="stat-saldo">R$ 0</div></div>
+<div class="statsbar" style="position:relative">
+  <div class="stat"><div class="s-label">Receitas</div><div class="s-val" id="stat-rec" style="color:var(--teal)"><span class="val-txt">R$ 0,00</span></div></div>
+  <div class="stat"><div class="s-label">Despesas</div><div class="s-val" id="stat-desp" style="color:var(--danger)"><span class="val-txt">R$ 0,00</span></div></div>
+  <div class="stat"><div class="s-label">Saldo</div><div class="s-val" id="stat-saldo"><span class="val-txt">R$ 0,00</span></div></div>
+  <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores">👁</button>
 </div>
 
 <div class="tabs">
@@ -587,7 +690,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION='1.6';
+const APP_VERSION='1.7';
 const CATS={'Receita':['Renda do Trabalho','Trabalho Autônomo / Freelance','Rendimentos Financeiros','Benefícios e Transferências','Receitas Eventuais'],'Despesas fixas':['Moradia','Serviços Essenciais','Saúde e Proteção','Educação','Assinaturas e Serviços Digitais','Compromissos Financeiros'],'Despesas variaveis':['Alimentação','Transporte','Higiene e Cuidados Pessoais','Vestuário','Lazer e Entretenimento','Família e Dependentes'],'Despesas eventuais':['Manutenção e Reparos','Saúde Eventual','Datas Especiais e Sociais','Obrigações Anuais','Viagens e Turismo','Compras Não Recorrentes']};
 const MESES=['jan/26','fev/26','mar/26','abr/26','mai/26','jun/26','jul/26','ago/26','set/26','out/26','nov/26','dez/26'];
 const ICONS={Receita:'💰','Despesas fixas':'🏠','Despesas variaveis':'🛒','Despesas eventuais':'⚡'};
@@ -635,8 +738,8 @@ function authUpdateDots(dotsId, val, isError=false){
 }
 
 function authShowCard(id){
-  ['ac-nome','ac-pin','ac-confirm','ac-login'].forEach(c=>{
-    document.getElementById(c).style.display=c===id?'block':'none';
+  ['ac-nome','ac-pin','ac-confirm','ac-security','ac-login','ac-recovery','ac-newpin'].forEach(c=>{
+    const el=document.getElementById(c);if(el)el.style.display=c===id?'block':'none';
   });
 }
 
@@ -645,8 +748,10 @@ function authInit(){
   if(saved){
     const u=JSON.parse(saved);
     const ini=u.nome?u.nome.trim()[0].toUpperCase():'?';
-    document.getElementById('login-avatar').textContent=ini;
+    const iniEl=document.getElementById('login-avatar-ini');
+    if(iniEl)iniEl.textContent=ini;
     document.getElementById('login-nome').textContent='Ola, '+u.nome.split(' ')[0]+'!';
+    if(u.foto)authAplicarFoto(u.foto);
     authBuildPad('pad-login',
       d=>{ if(authPinLogin.length>=4)return; authPinLogin+=d; authUpdateDots('dots-login',authPinLogin); if(authPinLogin.length===4)authVerificarLogin(); },
       ()=>{ authPinLogin=authPinLogin.slice(0,-1); authUpdateDots('dots-login',authPinLogin); }
@@ -686,7 +791,7 @@ async function authSalvarCadastro(){
   const nome=document.getElementById('auth-nome-inp').value.trim();
   const hash=await authHash(authPinCriar);
   localStorage.setItem(AUTH_KEY,JSON.stringify({nome,hash}));
-  authEntrar();
+  authShowCard('ac-security');
 }
 
 async function authVerificarLogin(){
@@ -709,7 +814,7 @@ function authEntrar(){
 }
 
 function authTrocarUsuario(){
-  if(!confirm('Remover usuario e PIN salvos?'))return;
+  if(!confirm('Remover usuario e PIN salvos? Os dados financeiros serao mantidos.'))return;
   localStorage.removeItem(AUTH_KEY);
   location.reload();
 }
@@ -719,6 +824,90 @@ function authShakeCard(){
   c.style.borderColor='var(--danger)';
   c.focus();
   setTimeout(()=>c.style.borderColor='',800);
+}
+
+/* ── FOTO DE PERFIL ── */
+function fotoClicar(){document.getElementById('foto-inp').click();}
+function fotoCarregar(evt){
+  const file=evt.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    const data64=e.target.result;
+    const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
+    saved.foto=data64;
+    localStorage.setItem(AUTH_KEY,JSON.stringify(saved));
+    authAplicarFoto(data64);
+  };
+  r.readAsDataURL(file);
+}
+function authAplicarFoto(src){
+  const img=document.getElementById('login-avatar-img');
+  const ini=document.getElementById('login-avatar-ini');
+  if(src){img.src=src;img.style.display='block';ini.style.display='none';}
+  else{img.style.display='none';ini.style.display='flex';}
+}
+
+/* ── PERGUNTA DE SEGURANÇA (cadastro) ── */
+async function authSalvarCadastroOriginal(){} // placeholder
+async function authSalvarSeguranca(){
+  const resp=document.getElementById('sec-resp').value.trim();
+  if(!resp)return;
+  const pergunta=document.getElementById('sec-pergunta').value;
+  const hResp=await authHash(resp.toLowerCase());
+  const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
+  saved.secPergunta=pergunta;
+  saved.secHash=hResp;
+  localStorage.setItem(AUTH_KEY,JSON.stringify(saved));
+  authEntrar();
+}
+
+/* ── RECUPERAÇÃO DE PIN ── */
+const PERGUNTAS={
+  Mae:'Qual o nome da sua mae?',
+  Pet:'Qual o nome do seu primeiro pet?',
+  Escola:'Qual o nome da sua escola primaria?',
+  Cidade:'Em qual cidade voce nasceu?',
+  Apelido:'Qual o seu apelido de infancia?'
+};
+function authEsqueceuPin(){
+  const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
+  if(!saved.secPergunta){
+    toast('⚠️ Nenhuma pergunta cadastrada. Use "Trocar usuario".', true);
+    return;
+  }
+  document.getElementById('rec-pergunta-txt').textContent=PERGUNTAS[saved.secPergunta]||saved.secPergunta;
+  authShowCard('ac-recovery');
+}
+async function authValidarResposta(){
+  const resp=document.getElementById('rec-resp-inp').value.trim();
+  if(!resp)return;
+  const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
+  const hResp=await authHash(resp.toLowerCase());
+  if(hResp!==saved.secHash){
+    document.getElementById('rec-resp-inp').style.borderColor='var(--danger)';
+    setTimeout(()=>document.getElementById('rec-resp-inp').style.borderColor='',800);
+    toast('❌ Resposta incorreta',true);
+    return;
+  }
+  // Correto — ir para novo PIN
+  let newPin='';
+  authBuildPad('pad-newpin',
+    d=>{
+      if(newPin.length>=4)return;
+      newPin+=d;
+      authUpdateDots('dots-newpin',newPin);
+      if(newPin.length===4)authSalvarNovoPin(newPin);
+    },
+    ()=>{ newPin=newPin.slice(0,-1); authUpdateDots('dots-newpin',newPin); }
+  );
+  authShowCard('ac-newpin');
+}
+async function authSalvarNovoPin(pin){
+  const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
+  saved.hash=await authHash(pin);
+  localStorage.setItem(AUTH_KEY,JSON.stringify(saved));
+  toast('✅ PIN redefinido!');
+  authEntrar();
 }
 
 
@@ -1028,16 +1217,30 @@ function confirmarExec(){
   toast('✅ Executado! Lançamento criado.',false,true);
 }
 
+let valoresVisiveis=false;
+function fmtStat(v){return'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function atualizarStats(){
   const rec=dados.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
   const desp=dados.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
   const sal=rec-desp;
-  const f=v=>v>=1000?'R$ '+Math.round(v/1000)+'k':'R$ '+v.toLocaleString('pt-BR',{maximumFractionDigits:0});
-  document.getElementById('stat-rec').textContent=f(rec);
-  document.getElementById('stat-desp').textContent=f(desp);
+  document.getElementById('stat-rec').querySelector('.val-txt').textContent=fmtStat(rec);
+  document.getElementById('stat-desp').querySelector('.val-txt').textContent=fmtStat(desp);
   const el=document.getElementById('stat-saldo');
-  el.textContent=f(Math.abs(sal));
+  el.querySelector('.val-txt').textContent=fmtStat(Math.abs(sal));
   el.style.color=sal>=0?'var(--teal)':'var(--danger)';
+  aplicarVisibilidade();
+}
+function toggleValores(){
+  valoresVisiveis=!valoresVisiveis;
+  aplicarVisibilidade();
+}
+function aplicarVisibilidade(){
+  ['stat-rec','stat-desp','stat-saldo'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.classList.toggle('hidden-val',!valoresVisiveis);
+  });
+  const eye=document.getElementById('btn-eye');
+  if(eye)eye.textContent=valoresVisiveis?'🙈':'👁';
 }
 
 function remover(id){dados=dados.filter(d=>d.id!==id);salvar();renderLista();atualizarStats();toast('🗑 Removido');}
