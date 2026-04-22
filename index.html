@@ -26,6 +26,17 @@
   --safe-top:env(safe-area-inset-top,0px);--safe-bot:env(safe-area-inset-bottom,0px);
   --r:12px;--r2:16px;
 }
+body.light{
+  --bg:#F8FAFC;--surface:#FFFFFF;--surface2:#F1F5F9;--surface3:#E2E8F0;
+  --border:#E2E8F0;--border2:#CBD5E1;
+  --accent:#2563EB;--accent-glow:rgba(37,99,235,.18);
+  --teal:#059669;--teal-glow:rgba(5,150,105,.15);
+  --danger:#DC2626;--danger-glow:rgba(220,38,38,.15);
+  --warn:#D97706;--purple:#7C3AED;--purple-glow:rgba(124,58,237,.18);
+  --gold:#CA8A04;
+  --text:#0F172A;--text2:#475569;--text3:#94A3B8;
+}
+*{transition:background-color .25s,border-color .25s,color .18s}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex;flex-direction:column;overscroll-behavior:none}
@@ -368,6 +379,51 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .btn-forgot:active{color:var(--accent)}
 @media(max-width:400px){.btn-top{font-size:.68rem;padding:7px 9px}}
 
+/* ─── HAMBURGER BUTTON ───────────────── */
+.btn-ham{display:flex;flex-direction:column;justify-content:center;gap:5px;width:38px;height:38px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);cursor:pointer;padding:9px 8px;flex-shrink:0;transition:all .15s}
+.btn-ham span{display:block;height:2px;border-radius:1px;background:var(--text2);transition:all .25s}
+.btn-ham:active{transform:scale(.94)}
+
+/* ─── DRAWER MENU ────────────────────── */
+.menu-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:500;backdrop-filter:blur(3px)}
+.menu-ov.show{display:block}
+.menu-drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(300px,85vw);
+  background:var(--surface);border-left:1px solid var(--border2);
+  display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  z-index:501;overflow-y:auto;-webkit-overflow-scrolling:touch;
+}
+.menu-drawer.show{transform:none}
+.menu-top{display:flex;align-items:center;justify-content:space-between;padding:calc(var(--safe-top)+16px) 18px 14px;border-bottom:1px solid var(--border)}
+.menu-top-title{font-size:.95rem;font-weight:700;color:var(--text)}
+.menu-close{background:none;border:none;color:var(--text3);font-size:1.3rem;cursor:pointer;padding:4px;line-height:1}
+.menu-section{padding:14px 18px 6px}
+.menu-sec-label{font-size:.58rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px}
+.menu-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--r);cursor:pointer;transition:background .15s;margin-bottom:3px;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);color:var(--text)}
+.menu-item:active,.menu-item:hover{background:var(--surface2)}
+.menu-item-ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex-shrink:0}
+.menu-item-body{flex:1;min-width:0}
+.menu-item-label{font-size:.85rem;font-weight:600;color:var(--text)}
+.menu-item-sub{font-size:.7rem;color:var(--text3);margin-top:1px}
+.menu-item-end{font-size:.75rem;color:var(--text3);flex-shrink:0}
+.menu-divider{height:1px;background:var(--border);margin:6px 18px}
+.menu-ver{padding:14px 18px calc(var(--safe-bot)+16px);font-size:.68rem;color:var(--text3);text-align:center}
+
+/* ─── TEMA TOGGLE ────────────────────── */
+.tema-tog{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 18px 6px}
+.tema-btn{padding:10px 8px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--surface2);color:var(--text3);font-family:var(--sans);font-size:.78rem;font-weight:600;cursor:pointer;text-align:center;transition:all .18s}
+.tema-btn.ativo{border-color:var(--accent);color:var(--accent);background:rgba(59,130,246,.08)}
+body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
+
+/* ─── NOTIF BANNER ───────────────────── */
+.notif-banner{display:none;background:linear-gradient(135deg,rgba(139,92,246,.18),rgba(59,130,246,.12));border-bottom:1px solid rgba(139,92,246,.3);padding:10px 14px;flex-shrink:0;animation:slideDown .3s ease;cursor:pointer}
+.notif-banner.show{display:block}
+.notif-banner-title{font-size:.75rem;font-weight:700;color:var(--purple);margin-bottom:4px}
+.notif-banner-list{display:flex;flex-direction:column;gap:3px}
+.notif-banner-item{font-size:.72rem;color:var(--text2);display:flex;align-items:center;gap:6px}
+.notif-banner-close{float:right;background:none;border:none;color:var(--text3);font-size:1rem;cursor:pointer;margin-top:-2px;padding:0}
+
 /* ─── BOLSOS / INVESTIMENTOS ─────────── */
 .inv-saldo-card{background:linear-gradient(135deg,rgba(16,185,129,.12) 0%,rgba(59,130,246,.08) 100%);border:1px solid rgba(16,185,129,.25);border-radius:var(--r2);padding:16px;margin-bottom:14px;text-align:center}
 .inv-saldo-label{font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
@@ -695,7 +751,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
     <div class="splash-dot"></div>
     <div class="splash-dot"></div>
   </div>
-  <div class="splash-ver">v1.8</div>
+  <div class="splash-ver">v1.9</div>
 </div>
 
 <!-- APP -->
@@ -707,23 +763,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
   <div class="topbar-brand">
     <div class="topbar-logo"><img src="icon-64.png" alt="B" onerror="this.parentElement.innerHTML='🧭'"></div>
     <span class="topbar-title">Bússola</span>
-    <span class="topbar-ver">v1.8</span>
   </div>
   <div class="topbar-actions">
-    <button class="btn-top btn-backup" onclick="exportarBackup()">💾 Backup</button>
-    <input type="file" id="impArq" accept=".json" style="display:none" onchange="importarBackup(event)">
-    <button class="btn-top btn-restore" onclick="document.getElementById('impArq').click()">📥</button>
-    <input type="file" id="impCSV" accept=".csv,.txt" style="display:none" onchange="importarCSV(event)">
-    <button class="btn-top btn-csv" onclick="document.getElementById('impCSV').click()" title="Importar histórico CSV do Excel">📤 Histórico</button>
-    <button class="btn-top btn-csv" onclick="exportarCSV()">CSV ↓</button>
+    <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores" style="position:static;transform:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+    <button class="btn-ham" onclick="abrirMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </div>
 
-<div class="statsbar" style="position:relative">
+<div class="notif-banner" id="notif-banner">
+  <button class="notif-banner-close" onclick="fecharNotifBanner()">✕</button>
+  <div class="notif-banner-title">🔔 Pagamentos para amanhã</div>
+  <div class="notif-banner-list" id="notif-banner-list"></div>
+</div>
+
+<div class="statsbar">
   <div class="stat"><div class="s-label">Receitas</div><div class="s-val" id="stat-rec" style="color:var(--teal)"><span class="val-txt">R$ 0,00</span></div></div>
   <div class="stat"><div class="s-label">Despesas</div><div class="s-val" id="stat-desp" style="color:var(--danger)"><span class="val-txt">R$ 0,00</span></div></div>
   <div class="stat"><div class="s-label">Saldo</div><div class="s-val" id="stat-saldo"><span class="val-txt">R$ 0,00</span></div></div>
-  <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
 </div>
 
 <div class="tabs">
@@ -1057,6 +1115,78 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
     <div id="pag-lista"></div>
   </div>
 
+<!-- MENU HAMBÚRGUER -->
+<div class="menu-ov" id="menu-ov" onclick="fecharMenu()"></div>
+<div class="menu-drawer" id="menu-drawer">
+  <div class="menu-top">
+    <span class="menu-top-title">⚙️ Configurações</span>
+    <button class="menu-close" onclick="fecharMenu()">✕</button>
+  </div>
+
+  <!-- SEÇÃO: TEMA -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Aparência</div>
+  </div>
+  <div class="tema-tog">
+    <button class="tema-btn ativo" id="tema-escuro" onclick="setTema('dark')">🌙 Escuro</button>
+    <button class="tema-btn" id="tema-claro" onclick="setTema('light')">☀️ Claro</button>
+  </div>
+
+  <div class="menu-divider"></div>
+
+  <!-- SEÇÃO: DADOS -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Dados e exportação</div>
+    <button class="menu-item" onclick="exportarBackup();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">💾</div>
+      <div class="menu-item-body"><div class="menu-item-label">Exportar backup</div><div class="menu-item-sub">Salva todos os dados em JSON</div></div>
+    </button>
+    <button class="menu-item" onclick="document.getElementById('impArq').click();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(59,130,246,.12)">📥</div>
+      <div class="menu-item-body"><div class="menu-item-label">Restaurar backup</div><div class="menu-item-sub">Importa arquivo JSON salvo</div></div>
+    </button>
+    <button class="menu-item" onclick="exportarCSV();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(16,185,129,.12)">📊</div>
+      <div class="menu-item-body"><div class="menu-item-label">Exportar CSV</div><div class="menu-item-sub">Para reconciliar no Excel</div></div>
+    </button>
+    <button class="menu-item" onclick="document.getElementById('impCSV').click();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(234,179,8,.12)">📤</div>
+      <div class="menu-item-body"><div class="menu-item-label">Importar histórico CSV</div><div class="menu-item-sub">Carrega até 3 meses do Excel</div></div>
+    </button>
+  </div>
+
+  <input type="file" id="impArq" accept=".json" style="display:none" onchange="importarBackup(event)">
+  <input type="file" id="impCSV" accept=".csv,.txt" style="display:none" onchange="importarCSV(event)">
+
+  <div class="menu-divider"></div>
+
+  <!-- SEÇÃO: CONTA -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Conta e segurança</div>
+    <button class="menu-item" onclick="fecharMenu();authTrocarUsuario()">
+      <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🔄</div>
+      <div class="menu-item-body"><div class="menu-item-label">Trocar usuário</div><div class="menu-item-sub">Remove PIN e redefine acesso</div></div>
+    </button>
+    <button class="menu-item" onclick="fecharMenu();confirmarLimpar()">
+      <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🗑</div>
+      <div class="menu-item-body"><div class="menu-item-label" style="color:var(--danger)">Limpar todos os lançamentos</div><div class="menu-item-sub">Remove registros da conta corrente</div></div>
+    </button>
+  </div>
+
+  <div class="menu-divider"></div>
+
+  <!-- NOTIFICAÇÕES -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Notificações</div>
+    <button class="menu-item" onclick="solicitarPermissaoNotif();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">🔔</div>
+      <div class="menu-item-body"><div class="menu-item-label">Ativar notificações</div><div class="menu-item-sub" id="notif-status-label">Alertas 1 dia antes do vencimento</div></div>
+    </button>
+  </div>
+
+  <div class="menu-ver" id="menu-ver-label">Bússola v1.9 · Gestão Financeira</div>
+</div>
+
 <!-- SHEET -->
 <div class="sh-ov" id="sh-ov" onclick="fecharSh()"></div>
 <div class="sh" id="sh">
@@ -1087,7 +1217,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION='1.8';
+const APP_VERSION='1.9';
 const CATS={'Receita':['Renda do Trabalho','Trabalho Autônomo / Freelance','Rendimentos Financeiros','Benefícios e Transferências','Receitas Eventuais'],'Despesas fixas':['Moradia','Serviços Essenciais','Saúde e Proteção','Educação','Assinaturas e Serviços Digitais','Compromissos Financeiros'],'Despesas variaveis':['Alimentação','Transporte','Higiene e Cuidados Pessoais','Vestuário','Lazer e Entretenimento','Família e Dependentes'],'Despesas eventuais':['Manutenção e Reparos','Saúde Eventual','Datas Especiais e Sociais','Obrigações Anuais','Viagens e Turismo','Compras Não Recorrentes']};
 const MESES=['jan/26','fev/26','mar/26','abr/26','mai/26','jun/26','jul/26','ago/26','set/26','out/26','nov/26','dez/26'];
 const ICONS={Receita:'💰','Despesas fixas':'🏠','Despesas variaveis':'🛒','Despesas eventuais':'⚡'};
@@ -1380,6 +1510,9 @@ function init(){
   buildMesesGrid();
   renderLista();renderPlan();atualizarStats();atualizarStatsPlan();
   renderInvestimentos();renderDividas();populateDashFilters();
+  carregarTema();
+  verificarNotificacoesPlan();
+  atualizarStatusNotif();
 }
 
 function registrarSW(){
@@ -2528,7 +2661,105 @@ function dashPlanReal(){
   });
 }
 
-/* ── Insights automáticos ── */
+/* ═══ MENU HAMBÚRGUER ═══════════════════ */
+function abrirMenu(){
+  document.getElementById('menu-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('menu-drawer').classList.add('show'),10);
+}
+function fecharMenu(){
+  document.getElementById('menu-drawer').classList.remove('show');
+  setTimeout(()=>document.getElementById('menu-ov').classList.remove('show'),300);
+}
+
+/* ═══ TEMA CLARO / ESCURO ════════════════ */
+function setTema(t){
+  const isLight=t==='light';
+  document.body.classList.toggle('light',isLight);
+  localStorage.setItem('bussola_tema',t);
+  document.getElementById('tema-escuro').classList.toggle('ativo',!isLight);
+  document.getElementById('tema-claro').classList.toggle('ativo',isLight);
+  // Atualiza meta theme-color
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta)meta.content=isLight?'#F8FAFC':'#020617';
+  // Recria charts com nova paleta se na aba dashboard
+  if(document.getElementById('pane-dash')?.classList.contains('ativo'))renderDash();
+}
+function carregarTema(){
+  const t=localStorage.getItem('bussola_tema')||'dark';
+  if(t==='light'){
+    document.body.classList.add('light');
+    document.getElementById('tema-escuro')?.classList.remove('ativo');
+    document.getElementById('tema-claro')?.classList.add('ativo');
+  }
+}
+
+/* ═══ NOTIFICAÇÕES DE PLANEJAMENTO ══════ */
+function verificarNotificacoesPlan(){
+  const amanha=new Date();
+  amanha.setDate(amanha.getDate()+1);
+  amanha.setHours(0,0,0,0);
+  const amanhaISO=amanha.toISOString().split('T')[0];
+
+  const itens=plan.filter(p=>p.status==='pendente'&&p.dataISO===amanhaISO);
+  if(!itens.length)return;
+
+  // Banner na tela
+  const banner=document.getElementById('notif-banner');
+  const lista=document.getElementById('notif-banner-list');
+  if(banner&&lista){
+    lista.innerHTML=itens.map(p=>`
+      <div class="notif-banner-item">
+        <span>📅</span>
+        <span><strong>${p.descricao}</strong> — R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})} · ${p.categoria}</span>
+      </div>`).join('');
+    banner.classList.add('show');
+  }
+
+  // Notificação do sistema (se permitido)
+  if(Notification.permission==='granted'){
+    itens.forEach(p=>{
+      try{
+        new Notification('🔔 Bússola — Pagamento amanhã',{
+          body:`${p.descricao} · R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}`,
+          icon:'./icon-192.png',tag:'plan-'+p.id
+        });
+      }catch(e){}
+    });
+  }
+}
+
+function fecharNotifBanner(){
+  document.getElementById('notif-banner')?.classList.remove('show');
+}
+
+function solicitarPermissaoNotif(){
+  if(!('Notification'in window)){
+    toast('⚠️ Seu navegador não suporta notificações',true);return;
+  }
+  if(Notification.permission==='granted'){
+    toast('✅ Notificações já ativadas!');
+    document.getElementById('notif-status-label').textContent='✅ Ativadas';
+    return;
+  }
+  Notification.requestPermission().then(p=>{
+    if(p==='granted'){
+      toast('✅ Notificações ativadas!');
+      document.getElementById('notif-status-label').textContent='✅ Ativadas';
+    } else {
+      toast('⚠️ Permissão negada pelo sistema',true);
+    }
+  });
+}
+
+function atualizarStatusNotif(){
+  const lbl=document.getElementById('notif-status-label');
+  if(!lbl)return;
+  if(!('Notification'in window)){lbl.textContent='Não disponível neste navegador';return;}
+  if(Notification.permission==='granted')lbl.textContent='✅ Ativadas';
+  else if(Notification.permission==='denied')lbl.textContent='❌ Bloqueadas (ajuste nas config. do Android)';
+  else lbl.textContent='Alertas 1 dia antes do vencimento';
+}
+
 function dashInsights(base){
   const ins=[];
   const rec=base.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
