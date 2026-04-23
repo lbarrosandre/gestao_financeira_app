@@ -434,6 +434,51 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .info-coin-bar{flex:1;border-radius:2px 2px 0 0;background:var(--border2);transition:height .4s ease}
 .info-coin.usd .info-coin-bar.fill{background:rgba(59,130,246,.55)}
 .info-coin.eur .info-coin-bar.fill{background:rgba(234,179,8,.55)}
+.info-coin.btc{border-top:2px solid #F7931A;grid-column:1/-1}
+.info-coin.btc .info-coin-code{color:#F7931A}
+.info-coin.btc .info-coin-price{font-size:1.6rem}
+.info-coin.btc .info-coin-bar.fill{background:rgba(247,147,26,.55)}
+.info-btc-row{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-top:4px}
+.info-btc-stat{text-align:center}
+.info-btc-stat-label{font-size:.55rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+.info-btc-stat-val{font-family:var(--mono);font-size:.82rem;font-weight:500}
+
+/* ─── CRYPTO MARKET SECTION ──────────── */
+.info-market-list{display:flex;flex-direction:column;gap:5px;margin-bottom:4px}
+.info-market-item{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;transition:border-color .15s}
+.info-market-rank{font-size:.58rem;color:var(--text3);font-family:var(--mono);width:16px;text-align:center;flex-shrink:0}
+.info-market-icon{font-size:1.15rem;flex-shrink:0;width:22px;text-align:center}
+.info-market-body{flex:1;min-width:0}
+.info-market-name{font-size:.75rem;font-weight:700;color:var(--text);line-height:1.2}
+.info-market-symbol{font-size:.58rem;color:var(--text3);font-family:var(--mono);text-transform:uppercase}
+.info-market-right{text-align:right;flex-shrink:0}
+.info-market-price{font-family:var(--mono);font-size:.78rem;font-weight:500;color:var(--text);line-height:1.2}
+.info-market-cap{font-size:.58rem;color:var(--text3)}
+.info-market-change{font-size:.72rem;font-family:var(--mono);font-weight:600;padding:2px 6px;border-radius:5px;display:inline-block;margin-top:3px}
+.info-market-change.up{color:var(--teal);background:rgba(16,185,129,.1)}
+.info-market-change.down{color:var(--danger);background:rgba(239,68,68,.1)}
+.info-crypto-tabs{display:flex;gap:6px;margin-bottom:10px}
+.info-crypto-tab{flex:1;padding:7px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text3);font-size:.68rem;font-weight:600;text-align:center;cursor:pointer;transition:.15s}
+.info-crypto-tab.ativo{border-color:var(--teal);color:var(--teal);background:rgba(16,185,129,.1)}
+.info-crypto-tab.baixa.ativo{border-color:var(--danger);color:var(--danger);background:rgba(239,68,68,.1)}
+.info-loading-pill{text-align:center;padding:20px 0;font-size:.72rem;color:var(--text3);display:flex;align-items:center;justify-content:center;gap:6px}
+.info-loading-pill::before{content:'';width:8px;height:8px;border-radius:50%;border:2px solid var(--border2);border-top-color:var(--accent);animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.info-err-pill{text-align:center;padding:14px 0;font-size:.72rem;color:var(--danger)}
+
+/* ─── STOCKS SECTION ─────────────────── */
+.info-stock-item{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;margin-bottom:5px}
+.info-stock-rank{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:.58rem;font-weight:700;font-family:var(--mono);flex-shrink:0;background:rgba(59,130,246,.1);color:var(--accent)}
+.info-stock-body{flex:1;min-width:0}
+.info-stock-ticker{font-size:.78rem;font-weight:700;color:var(--text);font-family:var(--mono)}
+.info-stock-name{font-size:.58rem;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info-stock-right{text-align:right;flex-shrink:0}
+.info-stock-price{font-family:var(--mono);font-size:.82rem;font-weight:500;color:var(--text)}
+.info-stock-change{font-size:.68rem;font-family:var(--mono);font-weight:600;padding:2px 6px;border-radius:5px;display:inline-block;margin-top:2px}
+.info-stock-change.up{color:var(--teal);background:rgba(16,185,129,.1)}
+.info-stock-change.down{color:var(--danger);background:rgba(239,68,68,.1)}
+.info-stock-vol{font-size:.58rem;color:var(--text3);margin-top:1px}
+.info-disclaimer{font-size:.62rem;color:var(--text3);background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:8px;padding:9px 12px;line-height:1.6;margin-bottom:12px}
 
 .info-section-title{font-size:.62rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.9px;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
 .info-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
@@ -869,7 +914,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="splash-dot"></div>
     <div class="splash-dot"></div>
   </div>
-  <div class="splash-ver">v2.0</div>
+  <div class="splash-ver">v2.1</div>
 </div>
 
 <!-- APP -->
@@ -1131,8 +1176,8 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         </div>
         <div class="info-updated" id="info-updated">aguardando...</div>
       </div>
+      <!-- USD + EUR -->
       <div class="info-coins-grid">
-        <!-- USD -->
         <div class="info-coin usd">
           <div class="info-coin-flag">🇺🇸</div>
           <div class="info-coin-code">USD</div>
@@ -1142,7 +1187,6 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
           <div class="info-coin-meta" id="usd-meta">Compra / Venda</div>
           <div class="info-coin-bars" id="usd-bars"></div>
         </div>
-        <!-- EUR -->
         <div class="info-coin eur">
           <div class="info-coin-flag">🇪🇺</div>
           <div class="info-coin-code">EUR</div>
@@ -1152,6 +1196,37 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
           <div class="info-coin-meta" id="eur-meta">Compra / Venda</div>
           <div class="info-coin-bars" id="eur-bars"></div>
         </div>
+        <!-- Bitcoin destaque full-width -->
+        <div class="info-coin btc">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:9px">
+              <div class="info-coin-flag" style="font-size:1.6rem">₿</div>
+              <div>
+                <div class="info-coin-code">BTC</div>
+                <div class="info-coin-name">Bitcoin</div>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="info-coin-price loading" id="btc-price" style="font-size:1.3rem">carregando</div>
+              <div class="info-coin-change neutral" id="btc-change" style="justify-content:flex-end">— %</div>
+            </div>
+          </div>
+          <div class="info-btc-row">
+            <div class="info-btc-stat">
+              <div class="info-btc-stat-label">Mínima 24h</div>
+              <div class="info-btc-stat-val" id="btc-low" style="color:var(--danger)">—</div>
+            </div>
+            <div class="info-btc-stat">
+              <div class="info-btc-stat-label">Máxima 24h</div>
+              <div class="info-btc-stat-val" id="btc-high" style="color:var(--teal)">—</div>
+            </div>
+            <div class="info-btc-stat">
+              <div class="info-btc-stat-label">Vol. 24h</div>
+              <div class="info-btc-stat-val" id="btc-vol" style="color:var(--accent)">—</div>
+            </div>
+          </div>
+          <div class="info-coin-bars" id="btc-bars" style="height:24px"></div>
+        </div>
       </div>
     </div>
 
@@ -1159,9 +1234,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="info-section-title">💱 Conversor</div>
     <div class="info-conv-box">
       <div class="info-conv-tabs">
-        <div class="info-conv-tab ativo" id="conv-tab-usd" onclick="setConvMoeda('USD')">🇺🇸 USD → BRL</div>
-        <div class="info-conv-tab" id="conv-tab-eur" onclick="setConvMoeda('EUR')">🇪🇺 EUR → BRL</div>
-        <div class="info-conv-tab" id="conv-tab-brl" onclick="setConvMoeda('BRL')">🇧🇷 BRL → USD</div>
+        <div class="info-conv-tab ativo" id="conv-tab-usd" onclick="setConvMoeda('USD')">🇺🇸 USD</div>
+        <div class="info-conv-tab" id="conv-tab-eur" onclick="setConvMoeda('EUR')">🇪🇺 EUR</div>
+        <div class="info-conv-tab" id="conv-tab-brl" onclick="setConvMoeda('BRL')">🇧🇷 BRL→USD</div>
       </div>
       <div class="info-conv-row">
         <div>
@@ -1180,16 +1255,33 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       </div>
     </div>
 
-    <!-- Histórico simulado (7 dias) -->
+    <!-- Histórico 7 dias -->
     <div class="info-section-title">📅 Variação — últimos 7 dias</div>
     <div class="info-hist" id="info-hist-wrap">
       <div style="font-size:.75rem;color:var(--text3);text-align:center;padding:14px 0">Carregando histórico...</div>
     </div>
 
-    <!-- Dica -->
-    <div class="info-tip">
+    <!-- Mercado Cripto -->
+    <div class="info-section-title">🪙 Mercado Cripto</div>
+    <div class="info-crypto-tabs">
+      <div class="info-crypto-tab ativo" id="crypto-tab-alta" onclick="setCryptoTab('alta')">🚀 Em alta</div>
+      <div class="info-crypto-tab baixa" id="crypto-tab-baixa" onclick="setCryptoTab('baixa')">📉 Em baixa</div>
+    </div>
+    <div id="info-crypto-market">
+      <div class="info-loading-pill">Carregando mercado</div>
+    </div>
+
+    <!-- Top 5 Ações -->
+    <div class="info-section-title">📊 Top 5 Ações — IBOVESPA</div>
+    <div class="info-disclaimer">⚠️ Dados com atraso de até 15 min via Yahoo Finance. Não constitui recomendação de investimento.</div>
+    <div id="info-stocks">
+      <div class="info-loading-pill">Carregando ações</div>
+    </div>
+
+    <!-- Fontes -->
+    <div class="info-tip" style="margin-top:4px">
       <span style="font-size:1rem;flex-shrink:0">💡</span>
-      <span>Cotações fornecidas pela <strong>AwesomeAPI</strong> — atualizadas automaticamente a cada <strong>60 segundos</strong>. Valores em BRL (Real Brasileiro).</span>
+      <span>Cotações via <strong>AwesomeAPI</strong> · Cripto via <strong>CoinGecko</strong> · Ações via <strong>Yahoo Finance</strong>. Atualização automática a cada <strong>60s</strong>.</span>
     </div>
 
   </div><!-- /pane-info -->
@@ -1442,7 +1534,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </div>
   </div>
 
-  <div class="menu-ver" id="menu-ver-label">Bússola v2.0 · Gestão Financeira</div>
+  <div class="menu-ver" id="menu-ver-label">Bússola v2.1 · Gestão Financeira</div>
 </div>
 
 <!-- SHEET -->
@@ -3187,10 +3279,12 @@ function atualizarStatusNotif(){
 }
 
 /* ═══ ABA INFO — COTAÇÕES ════════════════ */
-let infoRates={USD:null,EUR:null};
+let infoRates={USD:null,EUR:null,BTC:null};
 let infoTimer=null;
 let convMoeda='USD';
 let infoInitialized=false;
+let cryptoMarketData=[];
+let cryptoTab='alta';
 
 const INFO_HIST_KEY='bussola_info_hist';
 
@@ -3198,19 +3292,27 @@ function infoInit(){
   if(!infoInitialized){
     infoInitialized=true;
     buscarCotacoes();
-    infoTimer=setInterval(buscarCotacoes,60000);
+    buscarCryptoMarket();
+    buscarTopStocks();
+    infoTimer=setInterval(()=>{
+      buscarCotacoes();
+      buscarCryptoMarket();
+      buscarTopStocks();
+    },60000);
   }
 }
 
 async function buscarCotacoes(){
   try{
-    const r=await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL');
+    const r=await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,BTC-BRL');
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
     const usd=d['USDBRL'];
     const eur=d['EURBRL'];
+    const btc=d['BTCBRL'];
     infoRates.USD={bid:parseFloat(usd.bid),ask:parseFloat(usd.ask),pctChange:parseFloat(usd.pctChange),varBid:parseFloat(usd.varBid)};
     infoRates.EUR={bid:parseFloat(eur.bid),ask:parseFloat(eur.ask),pctChange:parseFloat(eur.pctChange),varBid:parseFloat(eur.varBid)};
+    if(btc){infoRates.BTC={bid:parseFloat(btc.bid),ask:parseFloat(btc.ask),pctChange:parseFloat(btc.pctChange),low:parseFloat(btc.low),high:parseFloat(btc.high),vol:parseFloat(btc.vol||0)};}
     renderCotacoes();
     salvarHistorico();
     renderHistorico();
@@ -3218,6 +3320,7 @@ async function buscarCotacoes(){
   }catch(e){
     document.getElementById('usd-price').textContent='erro';
     document.getElementById('eur-price').textContent='erro';
+    document.getElementById('btc-price').textContent='erro';
     document.getElementById('info-updated').textContent='falha ao atualizar';
   }
 }
@@ -3225,6 +3328,7 @@ async function buscarCotacoes(){
 function renderCotacoes(){
   const fmt=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4});
   const fmtPct=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
+  const fmtBRL=(v,dec=2)=>'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
 
   // USD
   const u=infoRates.USD;
@@ -3248,6 +3352,27 @@ function renderCotacoes(){
   document.getElementById('eur-meta').textContent='Compra R$'+eu.bid.toFixed(4)+' · Venda R$'+eu.ask.toFixed(4);
   renderMiniBar('eur-bars','eur');
 
+  // BTC
+  if(infoRates.BTC){
+    const b=infoRates.BTC;
+    const bEl=document.getElementById('btc-price');
+    bEl.textContent=fmtBRL(b.bid,0);
+    bEl.classList.remove('loading');
+    const bCh=document.getElementById('btc-change');
+    bCh.textContent=fmtPct(b.pctChange);
+    bCh.className='info-coin-change '+(b.pctChange>0?'up':b.pctChange<0?'down':'neutral');
+    const lowEl=document.getElementById('btc-low');
+    const highEl=document.getElementById('btc-high');
+    const volEl=document.getElementById('btc-vol');
+    if(lowEl)lowEl.textContent=fmtBRL(b.low,0);
+    if(highEl)highEl.textContent=fmtBRL(b.high,0);
+    if(volEl){
+      const v=b.vol;
+      volEl.textContent=v>1e9?'R$'+(v/1e9).toFixed(1)+'B':v>1e6?'R$'+(v/1e6).toFixed(0)+'M':'R$'+v.toFixed(0);
+    }
+    renderMiniBar('btc-bars','btc');
+  }
+
   // Timestamp
   const now=new Date();
   document.getElementById('info-updated').textContent=
@@ -3260,7 +3385,6 @@ function renderMiniBar(containerId,moeda){
   const entries=hist.filter(h=>h[key]).slice(-7);
   const vals=entries.map(h=>h[key]);
   if(vals.length<2){
-    // Single bar placeholder
     vals.push(infoRates[key]?infoRates[key].bid:0);
   }
   const min=Math.min(...vals)*0.998;
@@ -3272,7 +3396,7 @@ function renderMiniBar(containerId,moeda){
     const pct=Math.round(((v-min)/range)*100);
     const h=Math.max(15,pct);
     const isFill=i===vals.length-1;
-    return`<div class="info-coin-bar${isFill?' fill':''}" style="height:${h}%" title="R$ ${v.toFixed(4)}"></div>`;
+    return`<div class="info-coin-bar${isFill?' fill':''}" style="height:${h}%" title="R$ ${v.toFixed(2)}"></div>`;
   }).join('');
 }
 
@@ -3280,10 +3404,9 @@ function salvarHistorico(){
   const hist=carregarHistorico();
   const hoje=new Date().toISOString().split('T')[0];
   const idx=hist.findIndex(h=>h.date===hoje);
-  const entry={date:hoje,USD:infoRates.USD?.bid||null,EUR:infoRates.EUR?.bid||null};
+  const entry={date:hoje,USD:infoRates.USD?.bid||null,EUR:infoRates.EUR?.bid||null,BTC:infoRates.BTC?.bid||null};
   if(idx>=0)hist[idx]=entry;
   else hist.push(entry);
-  // Mantém somente 30 dias
   const trimmed=hist.slice(-30);
   localStorage.setItem(INFO_HIST_KEY,JSON.stringify(trimmed));
 }
@@ -3367,6 +3490,159 @@ function calcConv(){
     resVal.textContent='US$ '+result.toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4});
   }
   resRate.textContent='Taxa: '+rateLabel;
+}
+
+/* ═══ CRIPTO MERCADO ══════════════════════ */
+const CRYPTO_ICONS={bitcoin:'₿',ethereum:'Ξ',tether:'₮','binancecoin':'BNB','solana':'◎','ripple':'✕','dogecoin':'Ð','cardano':'₳','avalanche-2':'🔺','chainlink':'⬡',polkadot:'●','litecoin':'Ł','tron':'TRX','uniswap':'🦄','stellar':'XLM'};
+const CRYPTO_FLAGS={bitcoin:'🟠',ethereum:'🔷',tether:'💚','binancecoin':'🟡','solana':'🟣','ripple':'🔵','dogecoin':'🟫','cardano':'🔵','avalanche-2':'🔴','chainlink':'🔵',polkadot:'🔴','litecoin':'⚪','tron':'🔴','uniswap':'🩷','stellar':'⚫'};
+
+async function buscarCryptoMarket(){
+  const wrap=document.getElementById('info-crypto-market');
+  if(!wrap)return;
+  try{
+    const url='https://api.coingecko.com/api/v3/coins/markets?vs_currency=brl&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h';
+    const r=await fetch(url);
+    if(!r.ok)throw new Error(r.status);
+    cryptoMarketData=await r.json();
+    renderCryptoMarket();
+  }catch(e){
+    if(wrap)wrap.innerHTML='<div class="info-err-pill">⚠️ Falha ao carregar mercado cripto</div>';
+  }
+}
+
+function setCryptoTab(tab){
+  cryptoTab=tab;
+  document.getElementById('crypto-tab-alta').classList.toggle('ativo',tab==='alta');
+  document.getElementById('crypto-tab-baixa').classList.toggle('ativo',tab==='baixa');
+  renderCryptoMarket();
+}
+
+function renderCryptoMarket(){
+  const wrap=document.getElementById('info-crypto-market');
+  if(!wrap||!cryptoMarketData.length)return;
+  const sorted=[...cryptoMarketData].sort((a,b)=>
+    cryptoTab==='alta'
+      ?(b.price_change_percentage_24h||0)-(a.price_change_percentage_24h||0)
+      :(a.price_change_percentage_24h||0)-(b.price_change_percentage_24h||0)
+  );
+  const top5=sorted.slice(0,5);
+  const fmtPrice=v=>{
+    if(v>=1000)return'R$'+v.toLocaleString('pt-BR',{maximumFractionDigits:0});
+    if(v>=1)return'R$'+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    return'R$'+v.toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4});
+  };
+  const fmtCap=v=>{
+    if(v>=1e12)return'R$'+(v/1e12).toFixed(1)+'T';
+    if(v>=1e9)return'R$'+(v/1e9).toFixed(1)+'B';
+    if(v>=1e6)return'R$'+(v/1e6).toFixed(0)+'M';
+    return'R$'+v.toLocaleString('pt-BR');
+  };
+  wrap.innerHTML='<div class="info-market-list">'+top5.map((c,i)=>{
+    const pct=c.price_change_percentage_24h||0;
+    const cls=pct>=0?'up':'down';
+    const arrow=pct>=0?'▲':'▼';
+    const ico=CRYPTO_FLAGS[c.id]||'🪙';
+    return`<div class="info-market-item">
+      <div class="info-market-rank">${i+1}</div>
+      <div class="info-market-icon">${ico}</div>
+      <div class="info-market-body">
+        <div class="info-market-name">${c.name}</div>
+        <div class="info-market-symbol">${c.symbol.toUpperCase()} · Cap: ${fmtCap(c.market_cap||0)}</div>
+      </div>
+      <div class="info-market-right">
+        <div class="info-market-price">${fmtPrice(c.current_price||0)}</div>
+        <div class="info-market-change ${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</div>
+      </div>
+    </div>`;
+  }).join('')+'</div>';
+}
+
+/* ═══ TOP AÇÕES IBOVESPA ══════════════════ */
+const TOP_STOCKS=[
+  {ticker:'PETR4.SA',nome:'Petrobras PN'},
+  {ticker:'VALE3.SA',nome:'Vale ON'},
+  {ticker:'ITUB4.SA',nome:'Itaú Unibanco PN'},
+  {ticker:'BBDC4.SA',nome:'Bradesco PN'},
+  {ticker:'ABEV3.SA',nome:'Ambev ON'},
+];
+
+async function buscarTopStocks(){
+  const wrap=document.getElementById('info-stocks');
+  if(!wrap)return;
+  try{
+    const symbols=TOP_STOCKS.map(s=>s.ticker).join(',');
+    const url=`https://query1.finance.yahoo.com/v7/finance/quote?lang=pt-BR&region=BR&symbols=${symbols}`;
+    const r=await fetch(url,{headers:{'Accept':'application/json'}});
+    if(!r.ok)throw new Error(r.status);
+    const d=await r.json();
+    const quotes=d?.quoteResponse?.result||[];
+    if(!quotes.length)throw new Error('empty');
+    renderTopStocks(quotes);
+  }catch(e){
+    // Fallback: try brapi.dev
+    try{
+      const tickers=TOP_STOCKS.map(s=>s.ticker.replace('.SA','')).join(',');
+      const r2=await fetch(`https://brapi.dev/api/quote/${tickers}`);
+      if(!r2.ok)throw new Error(r2.status);
+      const d2=await r2.json();
+      renderTopStocksBrapi(d2.results||[]);
+    }catch(e2){
+      if(wrap)wrap.innerHTML='<div class="info-err-pill">⚠️ Falha ao carregar ações. Verifique a conexão.</div>';
+    }
+  }
+}
+
+function renderTopStocks(quotes){
+  const wrap=document.getElementById('info-stocks');
+  if(!wrap)return;
+  const sorted=[...quotes].sort((a,b)=>(b.regularMarketChangePercent||0)-(a.regularMarketChangePercent||0));
+  wrap.innerHTML=sorted.map((q,i)=>{
+    const pct=q.regularMarketChangePercent||0;
+    const price=q.regularMarketPrice||0;
+    const cls=pct>=0?'up':'down';
+    const arrow=pct>=0?'▲':'▼';
+    const vol=q.regularMarketVolume||0;
+    const volFmt=vol>=1e6?(vol/1e6).toFixed(1)+'M':vol>=1e3?(vol/1e3).toFixed(0)+'K':vol.toString();
+    const ticker=q.symbol?.replace('.SA','')||q.symbol;
+    const nome=TOP_STOCKS.find(s=>s.ticker===q.symbol)?.nome||q.longName||q.shortName||ticker;
+    return`<div class="info-stock-item">
+      <div class="info-stock-rank">${i+1}</div>
+      <div class="info-stock-body">
+        <div class="info-stock-ticker">${ticker}</div>
+        <div class="info-stock-name">${nome}</div>
+      </div>
+      <div class="info-stock-right">
+        <div class="info-stock-price">R$ ${price.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+        <div class="info-stock-change ${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</div>
+        <div class="info-stock-vol">Vol: ${volFmt}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTopStocksBrapi(results){
+  const wrap=document.getElementById('info-stocks');
+  if(!wrap)return;
+  const sorted=[...results].sort((a,b)=>(b.regularMarketChangePercent||0)-(a.regularMarketChangePercent||0));
+  wrap.innerHTML=sorted.map((q,i)=>{
+    const pct=q.regularMarketChangePercent||0;
+    const price=q.regularMarketPrice||0;
+    const cls=pct>=0?'up':'down';
+    const arrow=pct>=0?'▲':'▼';
+    const ticker=q.symbol||'';
+    const nome=TOP_STOCKS.find(s=>s.ticker.replace('.SA','')===ticker)?.nome||q.longName||ticker;
+    return`<div class="info-stock-item">
+      <div class="info-stock-rank">${i+1}</div>
+      <div class="info-stock-body">
+        <div class="info-stock-ticker">${ticker}</div>
+        <div class="info-stock-name">${nome}</div>
+      </div>
+      <div class="info-stock-right">
+        <div class="info-stock-price">R$ ${price.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+        <div class="info-stock-change ${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 /* ═══ DASH INSIGHTS ══════════════════════ */
