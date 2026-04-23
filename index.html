@@ -102,14 +102,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .stat .s-val{font-family:var(--mono);font-size:.88rem;font-weight:500}
 
 /* ─── TABS ───────────────────────────── */
-.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
-.tab{flex:1;padding:9px 2px 7px;text-align:center;font-size:.58rem;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;user-select:none;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;min-width:52px;padding:9px 6px 7px;text-align:center;font-size:.58rem;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;user-select:none;display:flex;flex-direction:column;align-items:center;gap:2px}
 .tab .ti{font-size:1.25rem;display:block;line-height:1}
 .tab .tl{font-size:.52rem;letter-spacing:.2px}
 .tab.ativo{color:var(--accent);border-bottom-color:var(--accent)}
 .tab.plan-tab.ativo{color:var(--purple);border-bottom-color:var(--purple)}
-.tab-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.tab-pane{display:none;padding:12px 14px calc(var(--safe-bot)+24px)}
+.tab-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;position:relative}
+.tab-pane{display:none;padding:12px 14px calc(var(--safe-bot)+80px)}
 .tab-pane.ativo{display:block}
 
 /* ─── TYPOGRAPHY ─────────────────────── */
@@ -237,7 +238,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 /* ─── SHEET ──────────────────────────── */
 .sh-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;z-index:300;backdrop-filter:blur(4px)}
 .sh-ov.show{display:block}
-.sh{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+24px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:301}
+.sh{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+24px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:301;max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh.show{transform:none}
 .sh-h{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 16px}
 .sh h3{font-size:.95rem;font-weight:700;margin-bottom:4px}
@@ -481,7 +482,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 .bmv-val{font-family:var(--mono);font-size:.76rem;font-weight:500;flex-shrink:0}
 .bolso-detalhe-ov{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:400;display:none;backdrop-filter:blur(4px)}
 .bolso-detalhe-ov.show{display:block}
-.bolso-detalhe{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+24px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:401;max-height:82vh;overflow-y:auto}
+.bolso-detalhe{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+24px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:401;max-height:82vh;overflow-y:auto;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .bolso-detalhe.show{transform:none}
 
 /* ─── CONTROLE DE DÍVIDAS ────────────── */
@@ -1022,7 +1023,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="dash-insight" id="dash-insights"></div>
 
   </div>
-</div></div><!-- /tab-content /appRoot -->
+  </div><!-- /pane-dash -->
 
   <!-- ABA CARTEIRA DE INVESTIMENTOS -->
   <div class="tab-pane" id="pane-inv">
@@ -1066,23 +1067,23 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <!-- Bolso de destino/origem -->
       <div class="fi"><label id="inv-bolso-label">Bolso destino</label><div class="sw"><select id="inv-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
 
-      <!-- Origem/destino na conta corrente -->
-      <div id="inv-cc-wrap" style="background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.18);border-radius:10px;padding:11px 13px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <span style="font-size:.72rem;font-weight:700;color:var(--accent)">🏦 Envolve conta corrente?</span>
-          <label class="sw-tog">
-            <input type="checkbox" id="inv-cc-toggle" onchange="toggleInvCC()">
-            <span class="sw-track"></span>
-          </label>
+      <!-- Origem / Destino obrigatório -->
+      <div style="background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.18);border-radius:10px;padding:11px 13px;margin-bottom:10px">
+        <div style="font-size:.72rem;font-weight:700;color:var(--accent);margin-bottom:8px" id="inv-origem-titulo">🔄 De onde vem o dinheiro?</div>
+        <div class="fi" style="margin-bottom:6px">
+          <div class="sw"><select id="inv-origem-sel" onchange="onInvOrigemChange()">
+            <option value="cc">🏦 Conta Corrente (lança débito/crédito)</option>
+            <option value="bolso">🔀 Transferência entre bolsos</option>
+            <option value="direto">📥 Depósito / Retirada direta</option>
+          </select></div>
         </div>
-        <div id="inv-cc-detail" style="display:none">
-          <div style="font-size:.7rem;color:var(--text3);line-height:1.6" id="inv-cc-hint">
-            💡 <span id="inv-cc-hint-txt">O valor será debitado da sua conta corrente (Registros) e creditado no bolso.</span>
-          </div>
-          <div style="margin-top:8px;background:var(--surface2);border-radius:8px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:.68rem;color:var(--text3)">Saldo disponível na CC</span>
-            <span style="font-family:var(--mono);font-size:.88rem" id="inv-cc-saldo-disp">R$ 0,00</span>
-          </div>
+        <div id="inv-origem-bolso-wrap" style="display:none">
+          <div class="fi" style="margin-bottom:0"><label id="inv-origem-bolso-label">Bolso origem</label><div class="sw"><select id="inv-origem-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
+        </div>
+        <div style="font-size:.7rem;color:var(--text3);line-height:1.5;margin-top:6px" id="inv-origem-hint">💡 O valor será debitado da sua conta corrente e creditado no bolso.</div>
+        <div id="inv-cc-saldo-row" style="margin-top:6px;background:var(--surface2);border-radius:8px;padding:8px 11px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:.68rem;color:var(--text3)">Saldo disponível na CC</span>
+          <span style="font-family:var(--mono);font-size:.88rem" id="inv-cc-saldo-disp">R$ 0,00</span>
         </div>
       </div>
 
@@ -1141,6 +1142,14 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="fi"><label>Valor R$</label><input type="text" id="pag-valor" placeholder="0,00" inputmode="decimal" oninput="maskCurrency(this)"></div>
         <div class="fi"><label>Data</label><input type="date" id="pag-data"></div>
       </div>
+      <div class="fi"><label>💳 Origem do pagamento</label><div class="sw"><select id="pag-origem" onchange="togglePagBolso()">
+        <option value="cc">🏦 Conta Corrente (lança débito)</option>
+        <option value="bolso">🐷 Poupança / Investimento (retira do bolso)</option>
+        <option value="manual">✋ Sem lançamento automático</option>
+      </select></div></div>
+      <div id="pag-bolso-wrap" style="display:none">
+        <div class="fi"><label>Bolso origem</label><div class="sw"><select id="pag-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
+      </div>
       <div class="fi"><label>Observação (opcional)</label><input type="text" id="pag-obs" placeholder="Ex: Pagamento extra, mês jan/27..." autocomplete="off"></div>
       <button class="btn-add azul" onclick="addPagamento()"><span>+</span> Registrar pagamento</button>
     </div>
@@ -1148,7 +1157,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <!-- Histórico de pagamentos -->
     <div class="sec" style="margin-top:4px">Histórico de pagamentos</div>
     <div id="pag-lista"></div>
-  </div>
+  </div><!-- /pane-div -->
+
+
+</div><!-- /tab-content -->
+</div><!-- /appRoot -->
 
 <!-- MENU HAMBÚRGUER -->
 <div class="menu-ov" id="menu-ov" onclick="fecharMenu()"></div>
@@ -1158,7 +1171,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <button class="menu-close" onclick="fecharMenu()">✕</button>
   </div>
 
-  <!-- SEÇÃO: TEMA -->
+  <!-- APARÊNCIA -->
   <div class="menu-section">
     <div class="menu-sec-label">Aparência</div>
   </div>
@@ -1169,24 +1182,24 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
   <div class="menu-divider"></div>
 
-  <!-- SEÇÃO: DADOS -->
+  <!-- DADOS E EXPORTAÇÃO -->
   <div class="menu-section">
     <div class="menu-sec-label">Dados e exportação</div>
     <button class="menu-item" onclick="exportarBackup();fecharMenu()">
       <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">💾</div>
-      <div class="menu-item-body"><div class="menu-item-label">Exportar backup</div><div class="menu-item-sub">Salva dados em JSON</div></div>
+      <div class="menu-item-body"><div class="menu-item-label">Exportar backup</div><div class="menu-item-sub">Salva todos os dados em JSON</div></div>
     </button>
     <button class="menu-item" onclick="document.getElementById('impArq').click();fecharMenu()">
       <div class="menu-item-ico" style="background:rgba(59,130,246,.12)">📥</div>
-      <div class="menu-item-body"><div class="menu-item-label">Restaurar backup</div><div class="menu-item-sub">Importa arquivo JSON</div></div>
+      <div class="menu-item-body"><div class="menu-item-label">Restaurar backup</div><div class="menu-item-sub">Importa arquivo JSON salvo</div></div>
     </button>
     <button class="menu-item" onclick="exportarCSV();fecharMenu()">
       <div class="menu-item-ico" style="background:rgba(16,185,129,.12)">📊</div>
-      <div class="menu-item-body"><div class="menu-item-label">Exportar CSV</div><div class="menu-item-sub">Reconciliar no Excel</div></div>
+      <div class="menu-item-body"><div class="menu-item-label">Exportar CSV</div><div class="menu-item-sub">Para reconciliar no Excel</div></div>
     </button>
     <button class="menu-item" onclick="document.getElementById('impCSV').click();fecharMenu()">
       <div class="menu-item-ico" style="background:rgba(234,179,8,.12)">📤</div>
-      <div class="menu-item-body"><div class="menu-item-label">Importar CSV</div><div class="menu-item-sub">Carrega histórico do Excel</div></div>
+      <div class="menu-item-body"><div class="menu-item-label">Importar histórico CSV</div><div class="menu-item-sub">Carrega todo o histórico disponível</div></div>
     </button>
   </div>
 
@@ -1195,7 +1208,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
   <div class="menu-divider"></div>
 
-  <!-- SEÇÃO: CONTA -->
+  <!-- CONTA E SEGURANÇA -->
   <div class="menu-section">
     <div class="menu-sec-label">Conta e segurança</div>
     <button class="menu-item" onclick="fecharMenu();authTrocarUsuario()">
@@ -1204,7 +1217,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </button>
     <button class="menu-item" onclick="fecharMenu();confirmarLimpar()">
       <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🗑</div>
-      <div class="menu-item-body"><div class="menu-item-label" style="color:var(--danger)">Limpar lançamentos</div><div class="menu-item-sub">Remove todos os registros</div></div>
+      <div class="menu-item-body"><div class="menu-item-label" style="color:var(--danger)">Limpar todos os lançamentos</div><div class="menu-item-sub">Remove todos os registros financeiros</div></div>
     </button>
   </div>
 
@@ -1221,11 +1234,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
   <div class="menu-divider"></div>
 
-  <!-- SEÇÃO: INFORMAÇÕES DO APP -->
+  <!-- INFORMAÇÕES DO APP -->
   <div class="menu-section">
     <div class="menu-sec-label">Informações do app</div>
-
-    <!-- Uso do aplicativo -->
     <button class="menu-item" onclick="toggleInfoAcc('uso')">
       <div class="menu-item-ico" style="background:rgba(16,185,129,.1)">📖</div>
       <div class="menu-item-body"><div class="menu-item-label">Uso do aplicativo</div><div class="menu-item-sub">Em desenvolvimento</div></div>
@@ -1237,8 +1248,6 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <span>Documentação completa em desenvolvimento. Em breve você encontrará aqui guias de uso, tutoriais e dicas para aproveitar ao máximo o Bússola.</span>
       </div>
     </div>
-
-    <!-- Definição de lançamentos -->
     <button class="menu-item" onclick="toggleInfoAcc('def')">
       <div class="menu-item-ico" style="background:rgba(59,130,246,.1)">💡</div>
       <div class="menu-item-body"><div class="menu-item-label">Definição de lançamentos</div><div class="menu-item-sub">Tipos e categorias explicadas</div></div>
@@ -1261,81 +1270,10 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <span class="info-sub-ico">💰</span>
         <div><span class="def-tag rec">Receitas</span> Entradas de dinheiro de qualquer origem.<br><span style="font-size:.68rem;color:var(--text3)">Ex: Salário, Freelance, Dividendos, Reembolso</span></div>
       </div>
-      <div style="padding:8px 0 4px">
-        <div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Subcategorias disponíveis</div>
-        <div style="font-size:.68rem;color:var(--text3);line-height:1.8">
-          <strong style="color:var(--danger)">Fixas:</strong> Moradia · Serviços Essenciais · Saúde e Proteção · Educação · Assinaturas Digitais · Compromissos Financeiros<br>
-          <strong style="color:var(--warn)">Variáveis:</strong> Alimentação · Transporte · Higiene · Vestuário · Lazer · Família e Dependentes<br>
-          <strong style="color:var(--purple)">Eventuais:</strong> Manutenção · Saúde Eventual · Datas Especiais · Obrigações Anuais · Viagens · Compras Não Recorrentes<br>
-          <strong style="color:var(--teal)">Receitas:</strong> Renda do Trabalho · Autônomo/Freelance · Rendimentos Financeiros · Benefícios · Receitas Eventuais
-        </div>
-      </div>
     </div>
   </div>
 
   <div class="menu-ver" id="menu-ver-label">Bússola v2.0 · Gestão Financeira</div>
-</div>
-  <div class="menu-section">
-    <div class="menu-sec-label">Aparência</div>
-  </div>
-  <div class="tema-tog">
-    <button class="tema-btn ativo" id="tema-escuro" onclick="setTema('dark')">🌙 Escuro</button>
-    <button class="tema-btn" id="tema-claro" onclick="setTema('light')">☀️ Claro</button>
-  </div>
-
-  <div class="menu-divider"></div>
-
-  <!-- SEÇÃO: DADOS -->
-  <div class="menu-section">
-    <div class="menu-sec-label">Dados e exportação</div>
-    <button class="menu-item" onclick="exportarBackup();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">💾</div>
-      <div class="menu-item-body"><div class="menu-item-label">Exportar backup</div><div class="menu-item-sub">Salva todos os dados em JSON</div></div>
-    </button>
-    <button class="menu-item" onclick="document.getElementById('impArq').click();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(59,130,246,.12)">📥</div>
-      <div class="menu-item-body"><div class="menu-item-label">Restaurar backup</div><div class="menu-item-sub">Importa arquivo JSON salvo</div></div>
-    </button>
-    <button class="menu-item" onclick="exportarCSV();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(16,185,129,.12)">📊</div>
-      <div class="menu-item-body"><div class="menu-item-label">Exportar CSV</div><div class="menu-item-sub">Para reconciliar no Excel</div></div>
-    </button>
-    <button class="menu-item" onclick="document.getElementById('impCSV').click();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(234,179,8,.12)">📤</div>
-      <div class="menu-item-body"><div class="menu-item-label">Importar histórico CSV</div><div class="menu-item-sub">Carrega até 3 meses do Excel</div></div>
-    </button>
-  </div>
-
-  <input type="file" id="impArq" accept=".json" style="display:none" onchange="importarBackup(event)">
-  <input type="file" id="impCSV" accept=".csv,.txt" style="display:none" onchange="importarCSV(event)">
-
-  <div class="menu-divider"></div>
-
-  <!-- SEÇÃO: CONTA -->
-  <div class="menu-section">
-    <div class="menu-sec-label">Conta e segurança</div>
-    <button class="menu-item" onclick="fecharMenu();authTrocarUsuario()">
-      <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🔄</div>
-      <div class="menu-item-body"><div class="menu-item-label">Trocar usuário</div><div class="menu-item-sub">Remove PIN e redefine acesso</div></div>
-    </button>
-    <button class="menu-item" onclick="fecharMenu();confirmarLimpar()">
-      <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🗑</div>
-      <div class="menu-item-body"><div class="menu-item-label" style="color:var(--danger)">Limpar todos os lançamentos</div><div class="menu-item-sub">Remove registros da conta corrente</div></div>
-    </button>
-  </div>
-
-  <div class="menu-divider"></div>
-
-  <!-- NOTIFICAÇÕES -->
-  <div class="menu-section">
-    <div class="menu-sec-label">Notificações</div>
-    <button class="menu-item" onclick="solicitarPermissaoNotif();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">🔔</div>
-      <div class="menu-item-body"><div class="menu-item-label">Ativar notificações</div><div class="menu-item-sub" id="notif-status-label">Alertas 1 dia antes do vencimento</div></div>
-    </button>
-  </div>
-
-  <div class="menu-ver" id="menu-ver-label">Bússola v1.9 · Gestão Financeira</div>
 </div>
 
 <!-- SHEET -->
@@ -1347,6 +1285,14 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="sh-info"><span class="sh-il">Valor planejado</span><span class="sh-iv" id="sh-vp">R$ 0,00</span></div>
   <div class="fi"><label>Valor real pago R$</label><input type="text" id="sheet-valor-real" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this)"></div>
   <div class="fi"><label>Data de pagamento</label><input type="date" id="sheet-data-pag"></div>
+  <div class="fi"><label>💳 Origem do pagamento</label><div class="sw"><select id="sh-origem" onchange="toggleShBolso()">
+    <option value="cc">🏦 Conta Corrente (lança débito)</option>
+    <option value="bolso">🐷 Poupança / Investimento (retira do bolso)</option>
+    <option value="manual">✋ Sem lançamento automático</option>
+  </select></div></div>
+  <div id="sh-bolso-wrap" style="display:none">
+    <div class="fi"><label>Bolso origem</label><div class="sw"><select id="sh-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
+  </div>
   <div class="sh-btns"><button class="sh-cancel" onclick="fecharSh()">Cancelar</button><button class="sh-ok" onclick="confirmarExec()">✅ Confirmar</button></div>
 </div>
 
@@ -1726,12 +1672,14 @@ function aplicarUpdate(){if(swW)swW.postMessage('skipWaiting');else location.rel
 
 function trocarTab(t){
   ['form','lista','plan','inv','div','dash'].forEach(x=>{
-    document.getElementById('tab-'+x).classList.toggle('ativo',x===t);
-    document.getElementById('pane-'+x).classList.toggle('ativo',x===t);
+    document.getElementById('tab-'+x)?.classList.toggle('ativo',x===t);
+    document.getElementById('pane-'+x)?.classList.toggle('ativo',x===t);
   });
+  // Ao sair de Registros, restaura stats globais
+  if(t!=='lista')atualizarStats();
   if(t==='lista')renderLista();
   if(t==='plan')renderPlan();
-  if(t==='inv')renderInvestimentos();
+  if(t==='inv'){renderInvestimentos();onInvOrigemChange();}
   if(t==='div')renderDividas();
   if(t==='dash'){populateDashFilters();renderDash();}
 }
@@ -1854,6 +1802,12 @@ function renderLista(){
     const matchBusca=!busca||d.descricao.toLowerCase().includes(busca)||(d.comentario&&d.comentario.toLowerCase().includes(busca));
     return matchBusca&&(!fM||d.movimento===fM)&&(!fT||d.tipo===fT)&&(!fMs||d.mes===fMs)&&(!fCom||!!d.comentario);
   }).sort((a,b)=>b.dataISO.localeCompare(a.dataISO));
+  // Atualiza stats conforme filtro ativo
+  if(fMs||fM||fT||busca){
+    atualizarStats(fil);
+  } else {
+    atualizarStats();
+  }
   document.getElementById('count-label').textContent=fil.length+(fil.length!==1?' registros encontrados':' registro encontrado');
   const c=document.getElementById('lista-container');
   if(!fil.length){c.innerHTML='<div class="empty"><div class="empty-v">🔍</div><h4>Nenhum lançamento encontrado</h4><p>Adicione seu primeiro lançamento<br>para começar a organizar suas finanças.</p></div>';return;}
@@ -1912,6 +1866,17 @@ function atualizarStatsPlan(){
   document.getElementById('ps-pend').textContent=f(pend);
 }
 
+function toggleShBolso(){
+  const v=document.getElementById('sh-origem').value;
+  const wrap=document.getElementById('sh-bolso-wrap');
+  if(wrap)wrap.style.display=v==='bolso'?'block':'none';
+  if(v==='bolso'){
+    const sel=document.getElementById('sh-bolso-sel');
+    sel.innerHTML='<option value="">Selecione o bolso</option>';
+    bolsos.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=`${b.ico} ${b.nome} — R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;sel.appendChild(o);});
+  }
+}
+
 function abrirSh(id){
   const p=plan.find(x=>x.id===id);if(!p)return;
   execId=id;
@@ -1919,6 +1884,8 @@ function abrirSh(id){
   document.getElementById('sh-vp').textContent='R$ '+p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2});
   document.getElementById('sheet-valor-real').value=p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   document.getElementById('sheet-data-pag').value=new Date().toISOString().split('T')[0];
+  document.getElementById('sh-origem').value='cc';
+  const shBWrap=document.getElementById('sh-bolso-wrap');if(shBWrap)shBWrap.style.display='none';
   document.getElementById('sh-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh').classList.add('show'),10);
   setTimeout(()=>document.getElementById('sheet-valor-real').focus(),320);
@@ -1927,22 +1894,41 @@ function fecharSh(){document.getElementById('sh').classList.remove('show');docum
 function confirmarExec(){
   const vr=parseCurrency(document.getElementById('sheet-valor-real').value);
   const de=document.getElementById('sheet-data-pag').value;
+  const origem=document.getElementById('sh-origem')?.value||'cc';
   if(!vr||vr<=0)return toast('⚠️ Informe o valor real',true);
   if(!de)return toast('⚠️ Informe a data',true);
   const p=plan.find(x=>x.id===execId);if(!p)return;
   p.status='executado';p.valorReal=Math.abs(vr);
   const[y,m,d]=de.split('-');p.dataExec=`${d}/${m}/${y}`;p.dataExecISO=de;
   const lId=Date.now();p.lancId=lId;
-  dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente});
-  salvar();salvarPlan();atualizarStats();atualizarStatsPlan();renderPlan();fecharSh();
-  toast('✅ Executado! Lançamento criado.',false,true);
+
+  if(origem==='cc'){
+    dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente});
+    salvar();atualizarStats();
+  } else if(origem==='bolso'){
+    const bid=parseInt(document.getElementById('sh-bolso-sel')?.value||'0');
+    if(!bid)return toast('⚠️ Selecione o bolso origem',true);
+    const b=bolsos.find(x=>x.id===bid);
+    if(!b)return toast('⚠️ Bolso não encontrado',true);
+    if(Math.abs(vr)>b.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${b.nome}"`,true);
+    b.saldo-=Math.abs(vr);
+    if(!b.movimentos)b.movimentos=[];
+    b.movimentos.unshift({id:lId,tipo:'retirada',valor:Math.abs(vr),desc:p.descricao,data:de,delta:-Math.abs(vr),origemCC:false,dePlan:true});
+    salvarBolsos();renderInvestimentos();
+  }
+  // 'manual' = sem lançamento automático
+
+  salvarPlan();atualizarStatsPlan();renderPlan();fecharSh();
+  const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','manual':'✋ Manual'}[origem]||'';
+  toast(`✅ Executado! [${origemLabel}]`,false,true);
 }
 
 let valoresVisiveis=false;
 function fmtStat(v){return'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function atualizarStats(){
-  const rec=dados.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
-  const desp=dados.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
+function atualizarStats(filteredDados){
+  const base=filteredDados||dados;
+  const rec=base.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
+  const desp=base.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
   const sal=rec-desp;
   document.getElementById('stat-rec').querySelector('.val-txt').textContent=fmtStat(rec);
   document.getElementById('stat-desp').querySelector('.val-txt').textContent=fmtStat(desp);
@@ -2063,11 +2049,7 @@ function importarCSV(event){
 
       if(iData<0||iVal<0){return toast('⚠️ CSV: colunas Data/Valor não encontradas',true);}
 
-      // Calcula corte de 3 meses atrás
-      const hoje=new Date();
-      const corte=new Date(hoje.getFullYear(),hoje.getMonth()-2,1); // início há 3 meses
-
-      let adicionados=0, duplicados=0, foraRangeIgn=0;
+      let adicionados=0, duplicados=0;
       const novosDados=[...dados];
 
       for(let i=1;i<linhas.length;i++){
@@ -2088,8 +2070,7 @@ function importarCSV(event){
           const[d,m,y]=dataStr.split('/');dataISO=`20${y}-${m}-${d}`;
         } else continue;
 
-        const dataObj=new Date(dataISO+'T00:00:00');
-        if(dataObj<corte){foraRangeIgn++;continue;}
+        // Sem corte de data — importa todo o histórico disponível
 
         // Valor
         let valorStr=(cols[iVal]||'0').replace(/"/g,'').trim().replace(',','.');
@@ -2102,11 +2083,15 @@ function importarCSV(event){
         const valorAbs=Math.abs(valorNum);
         const valorFinal=mov2==='Debito'?-valorAbs:valorAbs;
 
-        // Mês
+        // Mês — mapeia para MESES pelo índice para garantir formato correto
         let mes=(iMes>=0?cols[iMes]:'').replace(/"/g,'').trim();
-        if(!mes){
-          const d2=new Date(dataISO+'T00:00:00');
-          mes=d2.toLocaleDateString('pt-BR',{month:'short',year:'2-digit'}).replace('. de ','').replace('. ','').replace('.','/')||'';
+        const mIdxFromISO=parseInt(dataISO.split('-')[1],10)-1;
+        const anoISO=dataISO.split('-')[0];
+        const anoSufixo=anoISO.slice(2);
+        // Tenta usar o mês do CSV se já está no formato correto (ex: jan/26)
+        const mesFormatado=MESES[mIdxFromISO]?MESES[mIdxFromISO].replace(/\d+$/,anoSufixo):null;
+        if(!mes||!MESES.includes(mes)){
+          mes=mesFormatado||MESES[mIdxFromISO]||'';
         }
 
         const cat=(iCat>=0?cols[iCat]:'').replace(/"/g,'').trim()||'Compras Não Recorrentes';
@@ -2129,8 +2114,7 @@ function importarCSV(event){
 
       if(adicionados===0){
         let msg='⚠️ Nenhum registro novo importado.';
-        if(duplicados>0)msg+=` (${duplicados} duplicados)`;
-        if(foraRangeIgn>0)msg+=` (${foraRangeIgn} fora dos últimos 3 meses)`;
+        if(duplicados>0)msg+=` (${duplicados} duplicados ignorados)`;
         return toast(msg,true);
       }
 
@@ -2138,7 +2122,6 @@ function importarCSV(event){
       salvar();renderLista();atualizarStats();
       let msg=`✅ ${adicionados} lançamento${adicionados!==1?'s':''} importado${adicionados!==1?'s':''}!`;
       if(duplicados>0)msg+=` · ${duplicados} duplicado${duplicados!==1?'s':''}`;
-      if(foraRangeIgn>0)msg+=` · ${foraRangeIgn} fora do período`;
       toast(msg,false,false);
     }catch(err){
       console.error(err);
@@ -2161,20 +2144,46 @@ function setInvMov(m){
   document.getElementById('inv-btn-dep').className='tog credito'+(m==='deposito'?' ativo':'');
   document.getElementById('inv-btn-ret').className='tog debito'+(m==='retirada'?' ativo':'');
   document.getElementById('inv-bolso-label').textContent=m==='deposito'?'Bolso destino':'Bolso origem';
-  // Atualiza hint CC
-  const hintTxt=document.getElementById('inv-cc-hint-txt');
-  if(hintTxt){
-    hintTxt.textContent=m==='deposito'
-      ?'O valor será debitado da sua conta corrente (Registros) e creditado no bolso.'
-      :'O valor será creditado na sua conta corrente (Registros) e debitado do bolso.';
+  // Atualiza label e hint do selector de origem
+  const titulo=document.getElementById('inv-origem-titulo');
+  if(titulo)titulo.textContent=m==='deposito'?'🔄 De onde vem o dinheiro?':'🔄 Para onde vai o dinheiro?';
+  const sel=document.getElementById('inv-origem-sel');
+  if(sel){
+    sel.options[0].text=m==='deposito'?'🏦 Conta Corrente (lança débito)':'🏦 Conta Corrente (lança crédito)';
+    sel.options[1].text=m==='deposito'?'🔀 Transferência de outro bolso':'🔀 Transferência para outro bolso';
+    sel.options[2].text=m==='deposito'?'📥 Depósito direto (sem retirada de outra conta)':'📤 Retirada direta (sem destino específico)';
   }
+  onInvOrigemChange();
+  atualizarSaldoCCDisplay();
+}
+
+function onInvOrigemChange(){
+  const v=document.getElementById('inv-origem-sel')?.value||'cc';
+  const wrap=document.getElementById('inv-origem-bolso-wrap');
+  const hint=document.getElementById('inv-origem-hint');
+  const ccRow=document.getElementById('inv-cc-saldo-row');
+  const bolsoLabel=document.getElementById('inv-origem-bolso-label');
+  if(wrap)wrap.style.display=v==='bolso'?'block':'none';
+  if(ccRow)ccRow.style.display=v==='cc'?'flex':'none';
+  if(v==='bolso'){
+    // Popula bolsos disponíveis (exceto o bolso destino/origem principal)
+    const sel=document.getElementById('inv-origem-bolso-sel');
+    const mainBid=parseInt(document.getElementById('inv-bolso-sel').value||'0');
+    sel.innerHTML='<option value="">Selecione o bolso</option>';
+    bolsos.filter(b=>b.id!==mainBid).forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=`${b.ico} ${b.nome} — R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;sel.appendChild(o);});
+    if(bolsoLabel)bolsoLabel.textContent=invMov==='deposito'?'Bolso origem (de onde sai)':'Bolso destino (para onde vai)';
+  }
+  const hints={
+    deposito:{cc:'💡 O valor sai da Conta Corrente e entra no bolso.',bolso:'💡 O valor é transferido de outro bolso.',direto:'💡 Apenas registra no bolso, sem movimentar outra conta.'},
+    retirada:{cc:'💡 O valor sai do bolso e entra na Conta Corrente.',bolso:'💡 O valor é transferido para outro bolso.',direto:'💡 Apenas retira do bolso, sem depositar em outra conta.'}
+  };
+  if(hint)hint.textContent=hints[invMov]?.[v]||'';
   atualizarSaldoCCDisplay();
 }
 
 function toggleInvCC(){
-  const on=document.getElementById('inv-cc-toggle').checked;
-  document.getElementById('inv-cc-detail').style.display=on?'block':'none';
-  if(on)atualizarSaldoCCDisplay();
+  // Mantido por compatibilidade — redireciona para onInvOrigemChange
+  onInvOrigemChange();
 }
 
 function atualizarSaldoCCDisplay(){
@@ -2208,28 +2217,25 @@ function addMovBolso(){
   const b=bolsos.find(x=>x.id===bid);
   if(!b)return;
   if(invMov==='retirada'&&vl>b.saldo)return toast('⚠️ Saldo insuficiente no bolso',true);
-  const envolveCC=document.getElementById('inv-cc-toggle').checked;
+  const origemSel=document.getElementById('inv-origem-sel')?.value||'cc';
 
   const delta=invMov==='deposito'?vl:-vl;
   b.saldo+=delta;
   if(!b.movimentos)b.movimentos=[];
   const lancId=Date.now();
-  const origemLabel=envolveCC?'🏦 CC':'📥 Direto';
-  b.movimentos.unshift({id:lancId,tipo:invMov,valor:vl,desc,data,delta,origemCC:envolveCC});
+  b.movimentos.unshift({id:lancId,tipo:invMov,valor:vl,desc,data,delta,origemCC:origemSel==='cc',origemTipo:origemSel});
 
-  // Se envolve CC: cria lançamento automático nos Registros
-  if(envolveCC){
+  if(origemSel==='cc'){
+    // Lançamento automático na Conta Corrente
     const[y,mm,d]=data.split('-');
     const mesRef=MESES[parseInt(mm,10)-1]||'';
     if(invMov==='deposito'){
-      // Débito na CC (saiu dinheiro da conta)
       dados.push({id:lancId,data:`${d}/${mm}/${y}`,dataISO:data,mes:mesRef,
         descricao:('TRANSF → '+b.nome+' — '+desc).toUpperCase(),
         movimento:'Debito',valor:-Math.abs(vl),valorAbs:Math.abs(vl),
         categoria:'Compromissos Financeiros',classificacao:'Despesas',
         tipo:'Despesas fixas',dePlan:false,recorrente:false,deBolso:true,bolsoId:bid});
     } else {
-      // Crédito na CC (voltou dinheiro para a conta)
       dados.push({id:lancId,data:`${d}/${mm}/${y}`,dataISO:data,mes:mesRef,
         descricao:('RESGATE ← '+b.nome+' — '+desc).toUpperCase(),
         movimento:'Credito',valor:Math.abs(vl),valorAbs:Math.abs(vl),
@@ -2237,16 +2243,32 @@ function addMovBolso(){
         tipo:'Receita',dePlan:false,recorrente:false,deBolso:true,bolsoId:bid});
     }
     salvar();atualizarStats();
+  } else if(origemSel==='bolso'){
+    // Transferência entre bolsos
+    const bOrigId=parseInt(document.getElementById('inv-origem-bolso-sel')?.value||'0');
+    if(!bOrigId)return toast('⚠️ Selecione o bolso de origem/destino',true);
+    const bOrig=bolsos.find(x=>x.id===bOrigId);
+    if(!bOrig)return toast('⚠️ Bolso não encontrado',true);
+    if(invMov==='deposito'){
+      // Retira do bolso origem e deposita no destino (já feito acima)
+      if(vl>bOrig.saldo)return toast(`⚠️ Saldo insuficiente em "${bOrig.nome}"`,true);
+      bOrig.saldo-=vl;
+      if(!bOrig.movimentos)bOrig.movimentos=[];
+      bOrig.movimentos.unshift({id:lancId+1,tipo:'retirada',valor:vl,desc:`TRANSF → ${b.nome}: ${desc}`,data,delta:-vl,origemCC:false});
+    } else {
+      // Retira do bolso origem (b) e deposita no destino (bOrig)
+      bOrig.saldo+=vl;
+      if(!bOrig.movimentos)bOrig.movimentos=[];
+      bOrig.movimentos.unshift({id:lancId+1,tipo:'deposito',valor:vl,desc:`TRANSF ← ${b.nome}: ${desc}`,data,delta:vl,origemCC:false});
+    }
   }
+  // 'direto' = apenas no bolso, sem movimentar nada mais
 
   salvarBolsos();renderInvestimentos();
   document.getElementById('inv-valor').value='';
   document.getElementById('inv-desc-mv').value='';
-  document.getElementById('inv-cc-toggle').checked=false;
-  document.getElementById('inv-cc-detail').style.display='none';
-
-  const msgCC=envolveCC?(invMov==='deposito'?' · lançado débito na CC':' · lançado crédito na CC'):'';
-  toast(invMov==='deposito'?`💰 Depósito registrado!${msgCC}`:`↩ Retirada registrada!${msgCC}`);
+  const origemLabel={cc:'💳 CC','bolso':'🔀 Transferência','direto':'📥 Direto'}[origemSel]||'';
+  toast(invMov==='deposito'?`💰 Depósito registrado! [${origemLabel}]`:`↩ Retirada registrada! [${origemLabel}]`);
 }
 
 function removerBolso(id){
@@ -2356,8 +2378,8 @@ function renderInvestimentos(){
   bolsos.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=`${b.ico} ${b.nome} · R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;sel.appendChild(o);});
   if(prev)sel.value=prev;
 
-  // Atualiza display de saldo CC se o toggle estiver ativo
-  if(document.getElementById('inv-cc-toggle')?.checked)atualizarSaldoCCDisplay();
+  // Atualiza display de saldo CC
+  atualizarSaldoCCDisplay();
 
   // Grid de bolsos
   const g=document.getElementById('bolsos-grid');
@@ -2443,24 +2465,55 @@ function salvarDividaPai(){
   document.getElementById('div-cfg-box').style.display='none';
 }
 
+function togglePagBolso(){
+  const v=document.getElementById('pag-origem').value;
+  const wrap=document.getElementById('pag-bolso-wrap');
+  if(wrap)wrap.style.display=v==='bolso'?'block':'none';
+  if(v==='bolso'){
+    const sel=document.getElementById('pag-bolso-sel');
+    sel.innerHTML='<option value="">Selecione o bolso</option>';
+    bolsos.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=`${b.ico} ${b.nome} — R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;sel.appendChild(o);});
+  }
+}
+
 function addPagamento(){
   if(!dividaPai)return toast('⚠️ Configure a dívida principal primeiro',true);
   const vl=parseCurrency(document.getElementById('pag-valor').value);
   if(!vl||vl<=0)return toast('⚠️ Informe o valor',true);
   const data=document.getElementById('pag-data').value||new Date().toISOString().split('T')[0];
   const obs=document.getElementById('pag-obs').value.trim();
-  const isExtra=vl>3000;// heurística simples para marcar como extra
+  const origem=document.getElementById('pag-origem')?.value||'cc';
+  const isExtra=vl>3000;
   const id=Date.now();
-  pagamentos.unshift({id,valor:vl,data,obs,isExtra});
-  // Deduz do saldo devedor
+  pagamentos.unshift({id,valor:vl,data,obs,isExtra,origem});
   dividaPai.saldo=Math.max(0,dividaPai.saldo-vl);
-  // Cria lançamento automático no controle diário
   const[y,m,d]=data.split('-');
-  dados.push({id,data:`${d}/${m}/${y}`,dataISO:data,mes:MESES[parseInt(m,10)-1]||'',descricao:(dividaPai.nome+' - PAGAMENTO'+(obs?' - '+obs.toUpperCase():'')),movimento:'Debito',valor:-Math.abs(vl),valorAbs:Math.abs(vl),categoria:'Compromissos Financeiros',classificacao:'Despesas',tipo:'Despesas fixas',dePlan:false,recorrente:false});
-  salvar();salvarDivida();atualizarStats();renderDividas();
+  const mesRef=MESES[parseInt(m,10)-1]||'';
+  const descPag=(dividaPai.nome+' - PAGAMENTO'+(obs?' - '+obs.toUpperCase():'')).toUpperCase();
+
+  if(origem==='cc'){
+    // Débito na conta corrente
+    dados.push({id,data:`${d}/${m}/${y}`,dataISO:data,mes:mesRef,descricao:descPag,movimento:'Debito',valor:-Math.abs(vl),valorAbs:Math.abs(vl),categoria:'Compromissos Financeiros',classificacao:'Despesas',tipo:'Despesas fixas',dePlan:false,recorrente:false});
+    salvar();atualizarStats();
+  } else if(origem==='bolso'){
+    // Retira do bolso selecionado
+    const bid=parseInt(document.getElementById('pag-bolso-sel')?.value||'0');
+    if(!bid)return toast('⚠️ Selecione o bolso origem',true);
+    const b=bolsos.find(x=>x.id===bid);
+    if(!b)return toast('⚠️ Bolso não encontrado',true);
+    if(vl>b.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${b.nome}"`,true);
+    b.saldo-=vl;
+    if(!b.movimentos)b.movimentos=[];
+    b.movimentos.unshift({id,tipo:'retirada',valor:vl,desc:descPag,data,delta:-vl,origemCC:false,divida:true});
+    salvarBolsos();renderInvestimentos();
+  }
+  // 'manual' = sem lançamento automático
+
+  salvarDivida();renderDividas();
   document.getElementById('pag-valor').value='';
   document.getElementById('pag-obs').value='';
-  toast('✅ Pagamento registrado + lançamento criado!',false,true);
+  const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','manual':'✋ Manual'}[origem]||'';
+  toast(`✅ Pagamento registrado! [${origemLabel}]`,false,true);
 }
 
 function removerPagamento(id){
@@ -2881,12 +2934,10 @@ function setTema(t){
   const isLight=t==='light';
   document.body.classList.toggle('light',isLight);
   localStorage.setItem('bussola_tema',t);
-  document.getElementById('tema-escuro').classList.toggle('ativo',!isLight);
-  document.getElementById('tema-claro').classList.toggle('ativo',isLight);
-  // Atualiza meta theme-color
+  document.getElementById('tema-escuro')?.classList.toggle('ativo',!isLight);
+  document.getElementById('tema-claro')?.classList.toggle('ativo',isLight);
   const meta=document.querySelector('meta[name="theme-color"]');
   if(meta)meta.content=isLight?'#F8FAFC':'#020617';
-  // Recria charts com nova paleta se na aba dashboard
   if(document.getElementById('pane-dash')?.classList.contains('ativo'))renderDash();
 }
 function carregarTema(){
@@ -2957,12 +3008,12 @@ function solicitarPermissaoNotif(){
 }
 
 function atualizarStatusNotif(){
-  const lbl=document.getElementById('notif-status-label');
-  if(!lbl)return;
-  if(!('Notification'in window)){lbl.textContent='Não disponível neste navegador';return;}
-  if(Notification.permission==='granted')lbl.textContent='✅ Ativadas';
-  else if(Notification.permission==='denied')lbl.textContent='❌ Bloqueadas (ajuste nas config. do Android)';
-  else lbl.textContent='Alertas 1 dia antes do vencimento';
+  const lbls=[document.getElementById('notif-status-label')];
+  let txt='Alertas 1 dia antes do vencimento';
+  if(!('Notification'in window))txt='Não disponível neste navegador';
+  else if(Notification.permission==='granted')txt='✅ Ativadas';
+  else if(Notification.permission==='denied')txt='❌ Bloqueadas (ajuste nas config. do Android)';
+  lbls.forEach(l=>{if(l)l.textContent=txt;});
 }
 
 function dashInsights(base){
