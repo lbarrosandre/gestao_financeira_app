@@ -392,6 +392,99 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .btn-forgot:active{color:var(--accent)}
 @media(max-width:400px){.btn-top{font-size:.68rem;padding:7px 9px}}
 
+/* ─── ABA INFO / COTAÇÕES ────────────── */
+.info-hero{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:16px 14px;margin-bottom:12px;
+  position:relative;overflow:hidden;
+}
+.info-hero::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--teal));
+}
+.info-hero-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.info-hero-title{font-size:.72rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px}
+.info-live-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex-shrink:0;animation:livePulse 1.8s ease-in-out infinite}
+@keyframes livePulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(16,185,129,.6)}50%{opacity:.7;box-shadow:0 0 0 5px rgba(16,185,129,0)}}
+.info-updated{font-size:.6rem;color:var(--text3);font-family:var(--mono)}
+
+.info-coins-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.info-coin{
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--r);padding:13px 12px;
+  display:flex;flex-direction:column;gap:6px;
+  transition:border-color .2s;position:relative;overflow:hidden;
+}
+.info-coin.usd{border-top:2px solid var(--accent)}
+.info-coin.eur{border-top:2px solid var(--gold)}
+.info-coin-flag{font-size:1.4rem;line-height:1;margin-bottom:2px}
+.info-coin-code{font-size:.6rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:0}
+.info-coin.usd .info-coin-code{color:var(--accent)}
+.info-coin.eur .info-coin-code{color:var(--gold)}
+.info-coin-name{font-size:.58rem;color:var(--text3)}
+.info-coin-price{font-family:var(--mono);font-size:1.42rem;font-weight:500;color:var(--text);line-height:1;margin:4px 0 2px}
+.info-coin-price.loading{color:var(--text3);font-size:1rem;animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%,100%{opacity:.4}50%{opacity:1}}
+.info-coin-change{display:flex;align-items:center;gap:5px;font-size:.68rem;font-family:var(--mono);font-weight:500}
+.info-coin-change.up{color:var(--teal)}
+.info-coin-change.down{color:var(--danger)}
+.info-coin-change.neutral{color:var(--text3)}
+.info-coin-meta{font-size:.58rem;color:var(--text3);margin-top:2px}
+.info-coin-bars{display:flex;align-items:flex-end;gap:2px;height:28px;margin-top:6px}
+.info-coin-bar{flex:1;border-radius:2px 2px 0 0;background:var(--border2);transition:height .4s ease}
+.info-coin.usd .info-coin-bar.fill{background:rgba(59,130,246,.55)}
+.info-coin.eur .info-coin-bar.fill{background:rgba(234,179,8,.55)}
+
+.info-section-title{font-size:.62rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.9px;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+.info-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.info-conv-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:14px;margin-bottom:12px;
+}
+.info-conv-row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:10px}
+.info-conv-input{
+  background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);
+  color:var(--text);font-family:var(--mono);font-size:.95rem;
+  padding:9px 11px;outline:none;width:100%;transition:border-color .15s;
+}
+.info-conv-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.info-conv-label{font-size:.58rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
+.info-conv-arrow{font-size:1.1rem;color:var(--text3);text-align:center;padding-top:18px;cursor:pointer;transition:color .15s;user-select:none}
+.info-conv-arrow:active{color:var(--accent)}
+.info-conv-result{
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--r);padding:12px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.info-conv-result-val{font-family:var(--mono);font-size:1.05rem;color:var(--teal);font-weight:500}
+.info-conv-result-rate{font-size:.62rem;color:var(--text3)}
+.info-conv-tabs{display:flex;gap:6px;margin-bottom:12px}
+.info-conv-tab{flex:1;padding:7px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text3);font-size:.7rem;font-weight:600;text-align:center;cursor:pointer;transition:.15s}
+.info-conv-tab.ativo{background:rgba(59,130,246,.12);border-color:var(--accent);color:var(--accent)}
+
+.info-hist{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:14px;margin-bottom:12px;
+}
+.info-hist-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;border-bottom:1px solid var(--border);
+  font-size:.75rem;
+}
+.info-hist-row:last-child{border-bottom:none}
+.info-hist-date{color:var(--text3);font-family:var(--mono);font-size:.68rem}
+.info-hist-val{font-family:var(--mono);font-weight:500}
+.info-hist-diff{font-size:.65rem;font-family:var(--mono)}
+.info-hist-diff.up{color:var(--teal)}.info-hist-diff.down{color:var(--danger)}
+
+.info-tip{
+  background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);
+  border-radius:var(--r);padding:11px 13px;
+  font-size:.72rem;color:var(--text2);line-height:1.6;
+  display:flex;gap:9px;align-items:flex-start;
+}
+
 /* ─── HAMBURGER BUTTON ───────────────── */
 .btn-ham{display:flex;flex-direction:column;justify-content:center;gap:5px;width:38px;height:38px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);cursor:pointer;padding:9px 8px;flex-shrink:0;transition:all .15s}
 .btn-ham span{display:block;height:2px;border-radius:1px;background:var(--text2);transition:all .25s}
@@ -816,6 +909,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="tab" id="tab-inv" onclick="trocarTab('inv')" style="color:var(--text3)"><span class="ti">👜</span><span class="tl">Carteira</span></div>
   <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">💳</span><span class="tl">Dívidas</span></div>
   <div class="tab" id="tab-dash" onclick="trocarTab('dash')"><span class="ti">📊</span><span class="tl">Dash</span></div>
+  <div class="tab" id="tab-info" onclick="trocarTab('info')"><span class="ti">🌐</span><span class="tl">Info</span></div>
 </div>
 
 <div class="tab-content">
@@ -1024,6 +1118,81 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
   </div>
   </div><!-- /pane-dash -->
+
+  <!-- ABA INFO / COTAÇÕES ══════════════ -->
+  <div class="tab-pane" id="pane-info">
+
+    <!-- Hero: Cotações ao vivo -->
+    <div class="info-hero">
+      <div class="info-hero-top">
+        <div class="info-hero-title">
+          <span class="info-live-dot"></span>
+          Cotações ao vivo
+        </div>
+        <div class="info-updated" id="info-updated">aguardando...</div>
+      </div>
+      <div class="info-coins-grid">
+        <!-- USD -->
+        <div class="info-coin usd">
+          <div class="info-coin-flag">🇺🇸</div>
+          <div class="info-coin-code">USD</div>
+          <div class="info-coin-name">Dólar Americano</div>
+          <div class="info-coin-price loading" id="usd-price">carregando</div>
+          <div class="info-coin-change neutral" id="usd-change">— %</div>
+          <div class="info-coin-meta" id="usd-meta">Compra / Venda</div>
+          <div class="info-coin-bars" id="usd-bars"></div>
+        </div>
+        <!-- EUR -->
+        <div class="info-coin eur">
+          <div class="info-coin-flag">🇪🇺</div>
+          <div class="info-coin-code">EUR</div>
+          <div class="info-coin-name">Euro</div>
+          <div class="info-coin-price loading" id="eur-price">carregando</div>
+          <div class="info-coin-change neutral" id="eur-change">— %</div>
+          <div class="info-coin-meta" id="eur-meta">Compra / Venda</div>
+          <div class="info-coin-bars" id="eur-bars"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Conversor -->
+    <div class="info-section-title">💱 Conversor</div>
+    <div class="info-conv-box">
+      <div class="info-conv-tabs">
+        <div class="info-conv-tab ativo" id="conv-tab-usd" onclick="setConvMoeda('USD')">🇺🇸 USD → BRL</div>
+        <div class="info-conv-tab" id="conv-tab-eur" onclick="setConvMoeda('EUR')">🇪🇺 EUR → BRL</div>
+        <div class="info-conv-tab" id="conv-tab-brl" onclick="setConvMoeda('BRL')">🇧🇷 BRL → USD</div>
+      </div>
+      <div class="info-conv-row">
+        <div>
+          <div class="info-conv-label" id="conv-from-label">USD</div>
+          <input class="info-conv-input" type="number" id="conv-input" value="1" min="0" step="any" oninput="calcConv()">
+        </div>
+        <div class="info-conv-arrow" onclick="calcConv()">⇄</div>
+        <div>
+          <div class="info-conv-label" id="conv-to-label">BRL</div>
+          <input class="info-conv-input" id="conv-output" readonly placeholder="—">
+        </div>
+      </div>
+      <div class="info-conv-result">
+        <span class="info-conv-result-val" id="conv-result-val">—</span>
+        <span class="info-conv-result-rate" id="conv-result-rate">Taxa: —</span>
+      </div>
+    </div>
+
+    <!-- Histórico simulado (7 dias) -->
+    <div class="info-section-title">📅 Variação — últimos 7 dias</div>
+    <div class="info-hist" id="info-hist-wrap">
+      <div style="font-size:.75rem;color:var(--text3);text-align:center;padding:14px 0">Carregando histórico...</div>
+    </div>
+
+    <!-- Dica -->
+    <div class="info-tip">
+      <span style="font-size:1rem;flex-shrink:0">💡</span>
+      <span>Cotações fornecidas pela <strong>AwesomeAPI</strong> — atualizadas automaticamente a cada <strong>60 segundos</strong>. Valores em BRL (Real Brasileiro).</span>
+    </div>
+
+  </div><!-- /pane-info -->
 
   <!-- ABA CARTEIRA DE INVESTIMENTOS -->
   <div class="tab-pane" id="pane-inv">
@@ -1671,7 +1840,7 @@ function mostrarBanner(sw){swW=sw;document.getElementById('updateBanner').classL
 function aplicarUpdate(){if(swW)swW.postMessage('skipWaiting');else location.reload();}
 
 function trocarTab(t){
-  ['form','lista','plan','inv','div','dash'].forEach(x=>{
+  ['form','lista','plan','inv','div','dash','info'].forEach(x=>{
     document.getElementById('tab-'+x)?.classList.toggle('ativo',x===t);
     document.getElementById('pane-'+x)?.classList.toggle('ativo',x===t);
   });
@@ -1682,6 +1851,7 @@ function trocarTab(t){
   if(t==='inv'){renderInvestimentos();onInvOrigemChange();}
   if(t==='div')renderDividas();
   if(t==='dash'){populateDashFilters();renderDash();}
+  if(t==='info')infoInit();
 }
 
 function setMov(m){
@@ -3016,7 +3186,190 @@ function atualizarStatusNotif(){
   lbls.forEach(l=>{if(l)l.textContent=txt;});
 }
 
-function dashInsights(base){
+/* ═══ ABA INFO — COTAÇÕES ════════════════ */
+let infoRates={USD:null,EUR:null};
+let infoTimer=null;
+let convMoeda='USD';
+let infoInitialized=false;
+
+const INFO_HIST_KEY='bussola_info_hist';
+
+function infoInit(){
+  if(!infoInitialized){
+    infoInitialized=true;
+    buscarCotacoes();
+    infoTimer=setInterval(buscarCotacoes,60000);
+  }
+}
+
+async function buscarCotacoes(){
+  try{
+    const r=await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const usd=d['USDBRL'];
+    const eur=d['EURBRL'];
+    infoRates.USD={bid:parseFloat(usd.bid),ask:parseFloat(usd.ask),pctChange:parseFloat(usd.pctChange),varBid:parseFloat(usd.varBid)};
+    infoRates.EUR={bid:parseFloat(eur.bid),ask:parseFloat(eur.ask),pctChange:parseFloat(eur.pctChange),varBid:parseFloat(eur.varBid)};
+    renderCotacoes();
+    salvarHistorico();
+    renderHistorico();
+    calcConv();
+  }catch(e){
+    document.getElementById('usd-price').textContent='erro';
+    document.getElementById('eur-price').textContent='erro';
+    document.getElementById('info-updated').textContent='falha ao atualizar';
+  }
+}
+
+function renderCotacoes(){
+  const fmt=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4});
+  const fmtPct=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
+
+  // USD
+  const u=infoRates.USD;
+  const uEl=document.getElementById('usd-price');
+  uEl.textContent='R$ '+fmt(u.bid);
+  uEl.classList.remove('loading');
+  const uCh=document.getElementById('usd-change');
+  uCh.textContent=fmtPct(u.pctChange);
+  uCh.className='info-coin-change '+(u.pctChange>0?'up':u.pctChange<0?'down':'neutral');
+  document.getElementById('usd-meta').textContent='Compra R$'+u.bid.toFixed(4)+' · Venda R$'+u.ask.toFixed(4);
+  renderMiniBar('usd-bars','usd');
+
+  // EUR
+  const eu=infoRates.EUR;
+  const eEl=document.getElementById('eur-price');
+  eEl.textContent='R$ '+fmt(eu.bid);
+  eEl.classList.remove('loading');
+  const eCh=document.getElementById('eur-change');
+  eCh.textContent=fmtPct(eu.pctChange);
+  eCh.className='info-coin-change '+(eu.pctChange>0?'up':eu.pctChange<0?'down':'neutral');
+  document.getElementById('eur-meta').textContent='Compra R$'+eu.bid.toFixed(4)+' · Venda R$'+eu.ask.toFixed(4);
+  renderMiniBar('eur-bars','eur');
+
+  // Timestamp
+  const now=new Date();
+  document.getElementById('info-updated').textContent=
+    'Atualizado '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+function renderMiniBar(containerId,moeda){
+  const hist=carregarHistorico();
+  const key=moeda.toUpperCase();
+  const entries=hist.filter(h=>h[key]).slice(-7);
+  const vals=entries.map(h=>h[key]);
+  if(vals.length<2){
+    // Single bar placeholder
+    vals.push(infoRates[key]?infoRates[key].bid:0);
+  }
+  const min=Math.min(...vals)*0.998;
+  const max=Math.max(...vals)*1.002;
+  const range=max-min||1;
+  const wrap=document.getElementById(containerId);
+  if(!wrap)return;
+  wrap.innerHTML=vals.map((v,i)=>{
+    const pct=Math.round(((v-min)/range)*100);
+    const h=Math.max(15,pct);
+    const isFill=i===vals.length-1;
+    return`<div class="info-coin-bar${isFill?' fill':''}" style="height:${h}%" title="R$ ${v.toFixed(4)}"></div>`;
+  }).join('');
+}
+
+function salvarHistorico(){
+  const hist=carregarHistorico();
+  const hoje=new Date().toISOString().split('T')[0];
+  const idx=hist.findIndex(h=>h.date===hoje);
+  const entry={date:hoje,USD:infoRates.USD?.bid||null,EUR:infoRates.EUR?.bid||null};
+  if(idx>=0)hist[idx]=entry;
+  else hist.push(entry);
+  // Mantém somente 30 dias
+  const trimmed=hist.slice(-30);
+  localStorage.setItem(INFO_HIST_KEY,JSON.stringify(trimmed));
+}
+
+function carregarHistorico(){
+  try{return JSON.parse(localStorage.getItem(INFO_HIST_KEY)||'[]');}catch(e){return[];}
+}
+
+function renderHistorico(){
+  const hist=carregarHistorico();
+  const wrap=document.getElementById('info-hist-wrap');
+  if(!wrap)return;
+  const moeda=convMoeda==='BRL'?'USD':convMoeda;
+  const entries=[...hist].reverse().slice(0,7);
+  if(!entries.length){wrap.innerHTML='<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:14px 0">Sem dados históricos ainda.</div>';return;}
+
+  // Adiciona variação diária
+  const rows=entries.map((e,i)=>{
+    const val=e[moeda];
+    if(!val)return null;
+    const prev=entries[i+1]?entries[i+1][moeda]:null;
+    const diff=prev?(val-prev):null;
+    const pct=diff&&prev?(diff/prev*100):null;
+    const d=new Date(e.date+'T12:00:00');
+    const dlbl=d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+    const cls=pct===null?'neutral':pct>0?'up':'down';
+    const arrow=pct===null?'':pct>0?'▲':'▼';
+    return`<div class="info-hist-row">
+      <span class="info-hist-date">${dlbl}</span>
+      <span class="info-hist-val">R$ ${val.toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4})}</span>
+      <span class="info-hist-diff ${cls}">${pct!==null?arrow+Math.abs(pct).toFixed(2)+'%':'—'}</span>
+    </div>`;
+  }).filter(Boolean);
+
+  wrap.innerHTML=rows.length
+    ?`<div style="font-size:.62rem;font-weight:700;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px">${moeda}/BRL</div>`+rows.join('')
+    :'<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:14px 0">Volte nos próximos dias para ver o histórico.</div>';
+}
+
+function setConvMoeda(m){
+  convMoeda=m;
+  ['usd','eur','brl'].forEach(x=>{
+    document.getElementById('conv-tab-'+x)?.classList.remove('ativo');
+  });
+  document.getElementById('conv-tab-'+m.toLowerCase())?.classList.add('ativo');
+
+  if(m==='USD'){document.getElementById('conv-from-label').textContent='USD';document.getElementById('conv-to-label').textContent='BRL';}
+  else if(m==='EUR'){document.getElementById('conv-from-label').textContent='EUR';document.getElementById('conv-to-label').textContent='BRL';}
+  else{document.getElementById('conv-from-label').textContent='BRL';document.getElementById('conv-to-label').textContent='USD';}
+
+  renderHistorico();
+  calcConv();
+}
+
+function calcConv(){
+  const inp=parseFloat(document.getElementById('conv-input').value)||0;
+  const outEl=document.getElementById('conv-output');
+  const resVal=document.getElementById('conv-result-val');
+  const resRate=document.getElementById('conv-result-rate');
+
+  if(!infoRates.USD&&!infoRates.EUR){outEl.value='—';resVal.textContent='—';resRate.textContent='Taxa: —';return;}
+
+  let rate=1,result=0,rateLabel='';
+  if(convMoeda==='USD'){
+    rate=infoRates.USD?infoRates.USD.bid:0;
+    result=inp*rate;
+    rateLabel='1 USD = R$ '+rate.toFixed(4);
+    outEl.value=result.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    resVal.textContent='R$ '+result.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }else if(convMoeda==='EUR'){
+    rate=infoRates.EUR?infoRates.EUR.bid:0;
+    result=inp*rate;
+    rateLabel='1 EUR = R$ '+rate.toFixed(4);
+    outEl.value=result.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    resVal.textContent='R$ '+result.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }else{
+    rate=infoRates.USD?1/infoRates.USD.bid:0;
+    result=inp*rate;
+    rateLabel='1 BRL = US$ '+rate.toFixed(4);
+    outEl.value='US$ '+result.toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4});
+    resVal.textContent='US$ '+result.toLocaleString('pt-BR',{minimumFractionDigits:4,maximumFractionDigits:4});
+  }
+  resRate.textContent='Taxa: '+rateLabel;
+}
+
+
   const ins=[];
   const rec=base.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
   const desp=base.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
