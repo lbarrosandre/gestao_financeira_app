@@ -109,8 +109,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .tab .tl{font-size:.52rem;letter-spacing:.2px}
 .tab.ativo{color:var(--accent);border-bottom-color:var(--accent)}
 .tab.plan-tab.ativo{color:var(--purple);border-bottom-color:var(--purple)}
-.tab-content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;position:relative;touch-action:pan-y}
-.tab-pane{display:none;padding:12px 14px calc(var(--safe-bot)+80px)}
+.tab-content{flex:1;min-height:0;overflow:hidden;position:relative}
+.tab-pane{display:none;padding:12px 14px calc(var(--safe-bot)+80px);height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;box-sizing:border-box}
 .tab-pane.ativo{display:block}
 
 /* ─── TYPOGRAPHY ─────────────────────── */
@@ -1934,7 +1934,11 @@ function aplicarUpdate(){if(swW)swW.postMessage('skipWaiting');else location.rel
 function trocarTab(t){
   ['form','lista','plan','inv','div','dash','info'].forEach(x=>{
     document.getElementById('tab-'+x)?.classList.toggle('ativo',x===t);
-    document.getElementById('pane-'+x)?.classList.toggle('ativo',x===t);
+    const pane=document.getElementById('pane-'+x);
+    if(pane){
+      pane.classList.toggle('ativo',x===t);
+      if(x===t)pane.scrollTop=0;
+    }
   });
   // Ao sair de Registros, restaura stats globais
   if(t!=='lista')atualizarStats();
