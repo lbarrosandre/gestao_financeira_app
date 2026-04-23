@@ -103,8 +103,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 
 /* ─── TABS ───────────────────────────── */
 .tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
-.tab{flex:1;padding:10px 4px 8px;text-align:center;font-size:.7rem;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;user-select:none}
-.tab .ti{font-size:1rem;display:block;margin-bottom:2px}
+.tab{flex:1;padding:9px 2px 7px;text-align:center;font-size:.58rem;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;user-select:none;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tab .ti{font-size:1.25rem;display:block;line-height:1}
+.tab .tl{font-size:.52rem;letter-spacing:.2px}
 .tab.ativo{color:var(--accent);border-bottom-color:var(--accent)}
 .tab.plan-tab.ativo{color:var(--purple);border-bottom-color:var(--purple)}
 .tab-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -161,7 +162,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .rec-preview{font-size:.72rem;color:var(--text2);background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:8px;padding:7px 11px;line-height:1.7}
 .rec-preview strong{color:var(--teal)}
 
-/* ─── FILTROS ────────────────────────── */
+/* ─── COMENTÁRIOS ────────────────────── */
+.comment-toggle-btn{display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:6px 11px;color:var(--text3);font-size:.72rem;font-family:var(--sans);cursor:pointer;margin-bottom:9px;transition:.15s;width:100%}
+.comment-toggle-btn:hover{border-color:var(--accent);color:var(--accent)}
+.comment-toggle-btn.has-text{border-color:rgba(234,179,8,.4);color:var(--gold)}
+.comment-field{display:none;animation:fadeUp .2s ease}
+.comment-field.show{display:block}
+.comment-field textarea{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.82rem;padding:9px 12px;outline:none;resize:none;height:70px;transition:border-color .15s}
+.comment-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.has-comment{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:rgba(234,179,8,.15);border:1px solid rgba(234,179,8,.35);border-radius:3px;font-size:.6rem;cursor:pointer;flex-shrink:0;line-height:1;position:relative}
+.has-comment::after{content:'📝';font-size:.6rem}
+.comment-tooltip{position:fixed;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:10px 13px;max-width:240px;font-size:.75rem;color:var(--text2);line-height:1.5;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .15s}
+.comment-tooltip.show{opacity:1}
 .filtros-topo{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:7px}
 .filtros-topo select{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.75rem;padding:8px 10px;outline:none;-webkit-appearance:none;width:100%}
 .busca-wrap{position:relative;margin-bottom:10px}
@@ -398,17 +410,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .menu-top{display:flex;align-items:center;justify-content:space-between;padding:calc(var(--safe-top)+16px) 18px 14px;border-bottom:1px solid var(--border)}
 .menu-top-title{font-size:.95rem;font-weight:700;color:var(--text)}
 .menu-close{background:none;border:none;color:var(--text3);font-size:1.3rem;cursor:pointer;padding:4px;line-height:1}
-.menu-section{padding:14px 18px 6px}
-.menu-sec-label{font-size:.58rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px}
-.menu-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--r);cursor:pointer;transition:background .15s;margin-bottom:3px;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);color:var(--text)}
+.menu-section{padding:10px 16px 4px}
+.menu-sec-label{font-size:.55rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px}
+.menu-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r);cursor:pointer;transition:background .15s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);color:var(--text)}
 .menu-item:active,.menu-item:hover{background:var(--surface2)}
-.menu-item-ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex-shrink:0}
+.menu-item-ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:13px;flex-shrink:0}
 .menu-item-body{flex:1;min-width:0}
-.menu-item-label{font-size:.85rem;font-weight:600;color:var(--text)}
-.menu-item-sub{font-size:.7rem;color:var(--text3);margin-top:1px}
-.menu-item-end{font-size:.75rem;color:var(--text3);flex-shrink:0}
-.menu-divider{height:1px;background:var(--border);margin:6px 18px}
-.menu-ver{padding:14px 18px calc(var(--safe-bot)+16px);font-size:.68rem;color:var(--text3);text-align:center}
+.menu-item-label{font-size:.82rem;font-weight:600;color:var(--text)}
+.menu-item-sub{font-size:.65rem;color:var(--text3);margin-top:1px}
+.menu-item-end{font-size:.72rem;color:var(--text3);flex-shrink:0}
+.menu-divider{height:1px;background:var(--border);margin:4px 16px}
+.menu-ver{padding:12px 16px calc(var(--safe-bot)+12px);font-size:.65rem;color:var(--text3);text-align:center}
+/* Info do app accordion */
+.info-acc{overflow:hidden}
+.info-acc-content{display:none;padding:8px 12px 4px;animation:fadeUp .2s ease}
+.info-acc-content.show{display:block}
+.info-sub-item{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.75rem;color:var(--text2);line-height:1.5}
+.info-sub-item:last-child{border-bottom:none}
+.info-sub-ico{font-size:.9rem;flex-shrink:0;margin-top:1px}
+.def-tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.6rem;font-weight:700;margin-right:3px}
+.def-tag.fixo{background:rgba(239,68,68,.12);color:var(--danger)}
+.def-tag.var{background:rgba(245,158,11,.12);color:var(--warn)}
+.def-tag.ev{background:rgba(139,92,246,.12);color:var(--purple)}
+.def-tag.rec{background:rgba(16,185,129,.12);color:var(--teal)}
 
 /* ─── TEMA TOGGLE ────────────────────── */
 .tema-tog{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 18px 6px}
@@ -751,7 +775,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="splash-dot"></div>
     <div class="splash-dot"></div>
   </div>
-  <div class="splash-ver">v1.9</div>
+  <div class="splash-ver">v2.0</div>
 </div>
 
 <!-- APP -->
@@ -785,12 +809,12 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 </div>
 
 <div class="tabs">
-  <div class="tab ativo" id="tab-form" onclick="trocarTab('form')"><span class="ti">＋</span>Lançar</div>
-  <div class="tab" id="tab-lista" onclick="trocarTab('lista')"><span class="ti">☰</span>Registros</div>
-  <div class="tab plan-tab" id="tab-plan" onclick="trocarTab('plan')"><span class="ti">📅</span>Planejamento</div>
-  <div class="tab" id="tab-inv" onclick="trocarTab('inv')" style="color:var(--text3)"><span class="ti">💰</span>Carteira</div>
-  <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">📉</span>Dívidas</div>
-  <div class="tab" id="tab-dash" onclick="trocarTab('dash')"><span class="ti">📊</span>Dashboard</div>
+  <div class="tab ativo" id="tab-form" onclick="trocarTab('form')"><span class="ti">＋</span><span class="tl">Lançar</span></div>
+  <div class="tab" id="tab-lista" onclick="trocarTab('lista')"><span class="ti">📋</span><span class="tl">Registros</span></div>
+  <div class="tab plan-tab" id="tab-plan" onclick="trocarTab('plan')"><span class="ti">📅</span><span class="tl">Planejar</span></div>
+  <div class="tab" id="tab-inv" onclick="trocarTab('inv')" style="color:var(--text3)"><span class="ti">👜</span><span class="tl">Carteira</span></div>
+  <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">💳</span><span class="tl">Dívidas</span></div>
+  <div class="tab" id="tab-dash" onclick="trocarTab('dash')"><span class="ti">📊</span><span class="tl">Dash</span></div>
 </div>
 
 <div class="tab-content">
@@ -819,6 +843,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="fi"><label>Descrição</label><input type="text" id="inp-desc" placeholder="Ex: Supermercado Atacadão" autocomplete="off"></div>
     <div class="fi"><label>Tipo</label><div class="sw"><select id="inp-tipo" onchange="atualizarCats('inp-tipo','inp-cat','l')"><option value="">Selecione o tipo</option><option>Receita</option><option value="Despesas fixas">Despesas fixas</option><option value="Despesas variaveis">Despesas variáveis</option><option value="Despesas eventuais">Despesas eventuais</option></select></div></div>
     <div class="fi"><label>Categoria</label><div class="sw"><select id="inp-cat"><option value="">Selecione o tipo primeiro</option></select></div></div>
+    <!-- COMENTÁRIO -->
+    <button type="button" class="comment-toggle-btn" id="btn-toggle-comment-l" onclick="toggleComment('l')">📝 Adicionar comentário</button>
+    <div class="comment-field" id="comment-field-l">
+      <div class="fi"><label>Comentário</label><textarea id="inp-comment" placeholder="Ex: Compra parcelada em 3x, recibo guardado..." maxlength="280"></textarea></div>
+    </div>
     <button class="btn-add azul" onclick="addLancamento()"><span style="font-size:1.1rem">+</span> Adicionar Lançamento</button>
   </div>
 
@@ -829,8 +858,8 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <select id="f-mov-l" onchange="renderLista()"><option value="">Tipo</option><option value="Credito">Crédito</option><option value="Debito">Débito</option></select>
       <select id="f-tipo-l" onchange="renderLista()"><option value="">Categoria</option><option value="Receita">Receita</option><option value="Despesas fixas">Fixas</option><option value="Despesas variaveis">Variáveis</option><option value="Despesas eventuais">Eventuais</option></select>
     </div>
-    <div class="busca-wrap"><input type="text" id="busca" placeholder="Buscar descrição..." oninput="renderLista()"><span class="busca-ico">🔍</span></div>
-    <div class="count-bar"><span id="count-label">0 registros</span><button class="btn-limpar" onclick="confirmarLimpar()">🗑 Limpar tudo</button></div>
+    <div class="busca-wrap"><input type="text" id="busca" placeholder="Buscar descrição ou comentário..." oninput="renderLista()"><span class="busca-ico">🔍</span></div>
+    <div class="count-bar"><span id="count-label">0 registros</span><div style="display:flex;gap:8px;align-items:center"><label style="display:flex;align-items:center;gap:4px;font-size:.68rem;color:var(--text3);cursor:pointer"><input type="checkbox" id="f-comment-l" onchange="renderLista()" style="width:13px;height:13px;accent-color:var(--gold)"> 📝 Com comentário</label><button class="btn-limpar" onclick="confirmarLimpar()">🗑 Limpar tudo</button></div></div>
     <div id="lista-container"></div>
   </div>
 
@@ -863,6 +892,12 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </div>
     <div class="fi"><label>Tipo</label><div class="sw"><select id="plan-tipo" onchange="atualizarCats('plan-tipo','plan-cat','p')"><option value="">Selecione o tipo</option><option>Receita</option><option value="Despesas fixas">Despesas fixas</option><option value="Despesas variaveis">Despesas variáveis</option><option value="Despesas eventuais">Despesas eventuais</option></select></div></div>
     <div class="fi"><label>Categoria</label><div class="sw"><select id="plan-cat"><option value="">Selecione o tipo primeiro</option></select></div></div>
+
+    <!-- COMENTÁRIO PLANEJAMENTO -->
+    <button type="button" class="comment-toggle-btn" id="btn-toggle-comment-p" onclick="toggleComment('p')">📝 Adicionar comentário</button>
+    <div class="comment-field" id="comment-field-p">
+      <div class="fi"><label>Comentário</label><textarea id="plan-comment" placeholder="Ex: Renovação anual, lembrar de pegar nota fiscal..." maxlength="280"></textarea></div>
+    </div>
 
     <!-- RECORRÊNCIA -->
     <div class="rec-box">
@@ -1127,6 +1162,122 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="menu-section">
     <div class="menu-sec-label">Aparência</div>
   </div>
+  <div class="tema-tog" style="margin:0 16px 4px">
+    <button class="tema-btn ativo" id="tema-escuro" onclick="setTema('dark')">🌙 Escuro</button>
+    <button class="tema-btn" id="tema-claro" onclick="setTema('light')">☀️ Claro</button>
+  </div>
+
+  <div class="menu-divider"></div>
+
+  <!-- SEÇÃO: DADOS -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Dados e exportação</div>
+    <button class="menu-item" onclick="exportarBackup();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">💾</div>
+      <div class="menu-item-body"><div class="menu-item-label">Exportar backup</div><div class="menu-item-sub">Salva dados em JSON</div></div>
+    </button>
+    <button class="menu-item" onclick="document.getElementById('impArq').click();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(59,130,246,.12)">📥</div>
+      <div class="menu-item-body"><div class="menu-item-label">Restaurar backup</div><div class="menu-item-sub">Importa arquivo JSON</div></div>
+    </button>
+    <button class="menu-item" onclick="exportarCSV();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(16,185,129,.12)">📊</div>
+      <div class="menu-item-body"><div class="menu-item-label">Exportar CSV</div><div class="menu-item-sub">Reconciliar no Excel</div></div>
+    </button>
+    <button class="menu-item" onclick="document.getElementById('impCSV').click();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(234,179,8,.12)">📤</div>
+      <div class="menu-item-body"><div class="menu-item-label">Importar CSV</div><div class="menu-item-sub">Carrega histórico do Excel</div></div>
+    </button>
+  </div>
+
+  <input type="file" id="impArq" accept=".json" style="display:none" onchange="importarBackup(event)">
+  <input type="file" id="impCSV" accept=".csv,.txt" style="display:none" onchange="importarCSV(event)">
+
+  <div class="menu-divider"></div>
+
+  <!-- SEÇÃO: CONTA -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Conta e segurança</div>
+    <button class="menu-item" onclick="fecharMenu();authTrocarUsuario()">
+      <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🔄</div>
+      <div class="menu-item-body"><div class="menu-item-label">Trocar usuário</div><div class="menu-item-sub">Remove PIN e redefine acesso</div></div>
+    </button>
+    <button class="menu-item" onclick="fecharMenu();confirmarLimpar()">
+      <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🗑</div>
+      <div class="menu-item-body"><div class="menu-item-label" style="color:var(--danger)">Limpar lançamentos</div><div class="menu-item-sub">Remove todos os registros</div></div>
+    </button>
+  </div>
+
+  <div class="menu-divider"></div>
+
+  <!-- NOTIFICAÇÕES -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Notificações</div>
+    <button class="menu-item" onclick="solicitarPermissaoNotif();fecharMenu()">
+      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">🔔</div>
+      <div class="menu-item-body"><div class="menu-item-label">Ativar notificações</div><div class="menu-item-sub" id="notif-status-label">Alertas 1 dia antes do vencimento</div></div>
+    </button>
+  </div>
+
+  <div class="menu-divider"></div>
+
+  <!-- SEÇÃO: INFORMAÇÕES DO APP -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Informações do app</div>
+
+    <!-- Uso do aplicativo -->
+    <button class="menu-item" onclick="toggleInfoAcc('uso')">
+      <div class="menu-item-ico" style="background:rgba(16,185,129,.1)">📖</div>
+      <div class="menu-item-body"><div class="menu-item-label">Uso do aplicativo</div><div class="menu-item-sub">Em desenvolvimento</div></div>
+      <div class="menu-item-end" id="acc-ico-uso">›</div>
+    </button>
+    <div class="info-acc-content" id="acc-uso">
+      <div class="info-sub-item">
+        <span class="info-sub-ico">🚧</span>
+        <span>Documentação completa em desenvolvimento. Em breve você encontrará aqui guias de uso, tutoriais e dicas para aproveitar ao máximo o Bússola.</span>
+      </div>
+    </div>
+
+    <!-- Definição de lançamentos -->
+    <button class="menu-item" onclick="toggleInfoAcc('def')">
+      <div class="menu-item-ico" style="background:rgba(59,130,246,.1)">💡</div>
+      <div class="menu-item-body"><div class="menu-item-label">Definição de lançamentos</div><div class="menu-item-sub">Tipos e categorias explicadas</div></div>
+      <div class="menu-item-end" id="acc-ico-def">›</div>
+    </button>
+    <div class="info-acc-content" id="acc-def">
+      <div class="info-sub-item">
+        <span class="info-sub-ico">🔒</span>
+        <div><span class="def-tag fixo">Despesas Fixas</span> Valor previsível, vence todo mês na mesma data.<br><span style="font-size:.68rem;color:var(--text3)">Ex: Aluguel, Plano de saúde, Internet, Escola</span></div>
+      </div>
+      <div class="info-sub-item">
+        <span class="info-sub-ico">🔀</span>
+        <div><span class="def-tag var">Despesas Variáveis</span> Ocorrem todo mês, mas o valor oscila.<br><span style="font-size:.68rem;color:var(--text3)">Ex: Supermercado, Combustível, Farmácia</span></div>
+      </div>
+      <div class="info-sub-item">
+        <span class="info-sub-ico">⚡</span>
+        <div><span class="def-tag ev">Despesas Eventuais</span> Não ocorrem todo mês — imprevisíveis ou sazonais.<br><span style="font-size:.68rem;color:var(--text3)">Ex: Consertos, Presentes, IPVA, Viagens</span></div>
+      </div>
+      <div class="info-sub-item">
+        <span class="info-sub-ico">💰</span>
+        <div><span class="def-tag rec">Receitas</span> Entradas de dinheiro de qualquer origem.<br><span style="font-size:.68rem;color:var(--text3)">Ex: Salário, Freelance, Dividendos, Reembolso</span></div>
+      </div>
+      <div style="padding:8px 0 4px">
+        <div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Subcategorias disponíveis</div>
+        <div style="font-size:.68rem;color:var(--text3);line-height:1.8">
+          <strong style="color:var(--danger)">Fixas:</strong> Moradia · Serviços Essenciais · Saúde e Proteção · Educação · Assinaturas Digitais · Compromissos Financeiros<br>
+          <strong style="color:var(--warn)">Variáveis:</strong> Alimentação · Transporte · Higiene · Vestuário · Lazer · Família e Dependentes<br>
+          <strong style="color:var(--purple)">Eventuais:</strong> Manutenção · Saúde Eventual · Datas Especiais · Obrigações Anuais · Viagens · Compras Não Recorrentes<br>
+          <strong style="color:var(--teal)">Receitas:</strong> Renda do Trabalho · Autônomo/Freelance · Rendimentos Financeiros · Benefícios · Receitas Eventuais
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="menu-ver" id="menu-ver-label">Bússola v2.0 · Gestão Financeira</div>
+</div>
+  <div class="menu-section">
+    <div class="menu-sec-label">Aparência</div>
+  </div>
   <div class="tema-tog">
     <button class="tema-btn ativo" id="tema-escuro" onclick="setTema('dark')">🌙 Escuro</button>
     <button class="tema-btn" id="tema-claro" onclick="setTema('light')">☀️ Claro</button>
@@ -1217,7 +1368,47 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION='1.9';
+/* ═══ COMENTÁRIOS ═══════════════════════ */
+function toggleComment(ctx){
+  const field=document.getElementById(`comment-field-${ctx}`);
+  const btn=document.getElementById(`btn-toggle-comment-${ctx}`);
+  const isOpen=field.classList.toggle('show');
+  btn.textContent=isOpen?'📝 Fechar comentário':'📝 Adicionar comentário';
+  if(isOpen){
+    const ta=document.getElementById(ctx==='l'?'inp-comment':'plan-comment');
+    ta.focus();
+    ta.addEventListener('input',()=>{
+      btn.classList.toggle('has-text',ta.value.trim().length>0);
+      btn.textContent=ta.value.trim().length>0?'📝 Comentário adicionado ✓':'📝 Fechar comentário';
+    });
+  }
+}
+
+let ttip=null;
+function showCommentTooltip(e,txt){
+  e.stopPropagation();
+  if(ttip){ttip.remove();ttip=null;return;}
+  const div=document.createElement('div');
+  div.className='comment-tooltip show';
+  div.innerHTML='<strong style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">💬 Comentário</strong>'+txt;
+  document.body.appendChild(div);
+  ttip=div;
+  const r=e.target.getBoundingClientRect();
+  const top=r.top+window.scrollY-div.offsetHeight-8;
+  div.style.left=Math.min(r.left,window.innerWidth-250)+'px';
+  div.style.top=Math.max(8,top)+'px';
+  setTimeout(()=>document.addEventListener('click',function h(){div.remove();ttip=null;document.removeEventListener('click',h);},{once:true}),10);
+}
+
+/* ═══ MENU INFO ACCORDION ═══════════════ */
+function toggleInfoAcc(id){
+  const el=document.getElementById('acc-'+id);
+  const ico=document.getElementById('acc-ico-'+id);
+  const isOpen=el.classList.toggle('show');
+  if(ico)ico.style.transform=isOpen?'rotate(90deg)':'';
+}
+
+const APP_VERSION='2.0';
 const CATS={'Receita':['Renda do Trabalho','Trabalho Autônomo / Freelance','Rendimentos Financeiros','Benefícios e Transferências','Receitas Eventuais'],'Despesas fixas':['Moradia','Serviços Essenciais','Saúde e Proteção','Educação','Assinaturas e Serviços Digitais','Compromissos Financeiros'],'Despesas variaveis':['Alimentação','Transporte','Higiene e Cuidados Pessoais','Vestuário','Lazer e Entretenimento','Família e Dependentes'],'Despesas eventuais':['Manutenção e Reparos','Saúde Eventual','Datas Especiais e Sociais','Obrigações Anuais','Viagens e Turismo','Compras Não Recorrentes']};
 const MESES=['jan/26','fev/26','mar/26','abr/26','mai/26','jun/26','jul/26','ago/26','set/26','out/26','nov/26','dez/26'];
 const ICONS={Receita:'💰','Despesas fixas':'🏠','Despesas variaveis':'🛒','Despesas eventuais':'⚡'};
@@ -1633,15 +1824,19 @@ function addPlanejamento(){
   const listaMeses=swRec?[...mesesSel].sort((a,b)=>a-b).map(i=>MESES[i]):[mes];
   const[,, d]=data.split('-');
   const grupoRec=swRec?`rec_${Date.now()}`:null;
+  const comentarioPlan=(document.getElementById('plan-comment')?.value||'').trim();
   listaMeses.forEach((mesAlvo,idx)=>{
     const mi=MESES.indexOf(mesAlvo);
     const ano=2026;
     const dISO=`${ano}-${String(mi+1).padStart(2,'0')}-${d}`;
-    plan.push({id:Date.now()+idx,data:`${d}/${String(mi+1).padStart(2,'0')}/${ano}`,dataISO:dISO,mes:mesAlvo,descricao:desc.toUpperCase(),movimento:planMov,valorPlanejado:Math.abs(vp),valorReal:0,categoria:cat,classificacao:planMov==='Credito'?'Receita':'Despesas',tipo,status:'pendente',lancId:null,recorrente:swRec,grupoRec});
+    plan.push({id:Date.now()+idx,data:`${d}/${String(mi+1).padStart(2,'0')}/${ano}`,dataISO:dISO,mes:mesAlvo,descricao:desc.toUpperCase(),movimento:planMov,valorPlanejado:Math.abs(vp),valorReal:0,categoria:cat,classificacao:planMov==='Credito'?'Receita':'Despesas',tipo,status:'pendente',lancId:null,recorrente:swRec,grupoRec,comentario:comentarioPlan||undefined});
   });
   salvarPlan();renderPlan();atualizarStatsPlan();
   document.getElementById('plan-desc').value='';
   document.getElementById('plan-valor-plan').value='';
+  if(document.getElementById('plan-comment'))document.getElementById('plan-comment').value='';
+  const btnP=document.getElementById('btn-toggle-comment-p');
+  if(btnP){btnP.classList.remove('has-text');document.getElementById('comment-field-p').classList.remove('show');}
   document.getElementById('sw-rec').checked=false;
   document.getElementById('rec-cfg').classList.remove('show');
   mesesSel.clear();buildMesesGrid();atualizarBtnPlan();
@@ -1654,14 +1849,19 @@ function renderLista(){
   const fM=document.getElementById('f-mov-l').value;
   const fT=document.getElementById('f-tipo-l').value;
   const fMs=document.getElementById('f-mes-l').value;
-  const fil=dados.filter(d=>(!busca||d.descricao.toLowerCase().includes(busca))&&(!fM||d.movimento===fM)&&(!fT||d.tipo===fT)&&(!fMs||d.mes===fMs)).sort((a,b)=>b.dataISO.localeCompare(a.dataISO));
+  const fCom=document.getElementById('f-comment-l')?.checked;
+  const fil=dados.filter(d=>{
+    const matchBusca=!busca||d.descricao.toLowerCase().includes(busca)||(d.comentario&&d.comentario.toLowerCase().includes(busca));
+    return matchBusca&&(!fM||d.movimento===fM)&&(!fT||d.tipo===fT)&&(!fMs||d.mes===fMs)&&(!fCom||!!d.comentario);
+  }).sort((a,b)=>b.dataISO.localeCompare(a.dataISO));
   document.getElementById('count-label').textContent=fil.length+(fil.length!==1?' registros encontrados':' registro encontrado');
   const c=document.getElementById('lista-container');
   if(!fil.length){c.innerHTML='<div class="empty"><div class="empty-v">🔍</div><h4>Nenhum lançamento encontrado</h4><p>Adicione seu primeiro lançamento<br>para começar a organizar suas finanças.</p></div>';return;}
   c.innerHTML=fil.map(d=>{
     const cor=d.movimento==='Credito'?'var(--teal)':'var(--danger)';
     const s=d.movimento==='Credito'?'+':'-';
-    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" title="${d.descricao}">${d.descricao}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
+    const commentBadge=d.comentario?`<span class="has-comment" title="${d.comentario}" onclick="showCommentTooltip(event,'${d.comentario.replace(/'/g,"\\'")}')" style="margin-left:2px"></span>`:'';
+    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
   }).join('');
 }
 
@@ -1694,8 +1894,9 @@ function planCard(p){
   const s=p.movimento==='Credito'?'+':'-';
   const vH=isE?`<div><div class="pvp">R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="pvr" style="color:${cor}">${s} R$ ${p.valorReal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`:`<div class="pvr" style="color:var(--purple)">${s} R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>`;
   const rTag=p.recorrente?'<span class="tag tag-r">🔁 Rec.</span>':'';
+  const commentBadge=p.comentario?`<span class="has-comment" title="${p.comentario}" onclick="showCommentTooltip(event,'${p.comentario.replace(/'/g,"\\'")}')" style="margin-left:4px"></span>`:'';
   const acts=!isE?`<div class="pca"><button class="btn-exec" onclick="abrirSh(${p.id})">▶ Confirmar pagamento</button><button class="btn-dp" onclick="removerPlan(${p.id})">🗑</button></div>`:`<div class="pca"><div style="font-size:.68rem;color:var(--text3);flex:1">✅ Executado em ${p.dataExec}</div><button class="btn-dp" onclick="removerPlan(${p.id})">🗑</button></div>`;
-  return`<div class="pc ${p.status}"><div class="pct"><div class="pi ${ic2}">${ic}</div><div class="pb"><div class="pd" title="${p.descricao}">${p.descricao}</div><div class="pm"><span>${p.data}</span><span class="tag tag-p">${p.mes}</span>${rTag}<span>${p.categoria}</span></div></div><div class="pr">${vH}<span class="bs ${p.status}">${{pendente:'Pendente',executado:'Executado',vencido:'Vencido'}[p.status]}</span></div></div>${acts}</div>`;
+  return`<div class="pc ${p.status}"><div class="pct"><div class="pi ${ic2}">${ic}</div><div class="pb"><div class="pd" style="display:flex;align-items:center;gap:4px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.descricao}">${p.descricao}</span>${commentBadge}</div><div class="pm"><span>${p.data}</span><span class="tag tag-p">${p.mes}</span>${rTag}<span>${p.categoria}</span></div></div><div class="pr">${vH}<span class="bs ${p.status}">${{pendente:'Pendente',executado:'Executado',vencido:'Vencido'}[p.status]}</span></div></div>${acts}</div>`;
 }
 
 function atualizarStatsPlan(){
@@ -2192,7 +2393,8 @@ function addLancamento(){
   if(!cat)return toast('⚠️ Selecione a categoria',true);
   const[y,m,d]=data.split('-');
   const lancId=Date.now();
-  dados.push({id:lancId,data:`${d}/${m}/${y}`,dataISO:data,mes,descricao:desc.toUpperCase(),movimento:mov,valor:mov==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:cat,classificacao:mov==='Credito'?'Receita':'Despesas',tipo});
+  const comentario=(document.getElementById('inp-comment')?.value||'').trim();
+  dados.push({id:lancId,data:`${d}/${m}/${y}`,dataISO:data,mes,descricao:desc.toUpperCase(),movimento:mov,valor:mov==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:cat,classificacao:mov==='Credito'?'Receita':'Despesas',tipo,comentario:comentario||undefined});
   salvar();atualizarStats();
   // Verifica bolso destino
   const selDest=document.getElementById('inp-bolso-dest');
@@ -2211,6 +2413,9 @@ function addLancamento(){
   }
   document.getElementById('inp-desc').value='';
   document.getElementById('inp-valor').value='';
+  if(document.getElementById('inp-comment'))document.getElementById('inp-comment').value='';
+  const btn=document.getElementById('btn-toggle-comment-l');
+  if(btn){btn.classList.remove('has-text');document.getElementById('comment-field-l').classList.remove('show');}
   document.getElementById('inp-valor').focus();
 }
 
