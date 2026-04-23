@@ -109,7 +109,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .tab .tl{font-size:.52rem;letter-spacing:.2px}
 .tab.ativo{color:var(--accent);border-bottom-color:var(--accent)}
 .tab.plan-tab.ativo{color:var(--purple);border-bottom-color:var(--purple)}
-.tab-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;position:relative}
+.tab-content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;position:relative;touch-action:pan-y}
 .tab-pane{display:none;padding:12px 14px calc(var(--safe-bot)+80px)}
 .tab-pane.ativo{display:block}
 
@@ -642,7 +642,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 .sim-slider-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .sim-slider-label{font-size:.65rem;color:var(--text3)}
 .sim-slider-val{font-family:var(--mono);font-size:.88rem;color:var(--teal);font-weight:500}
-.sim-slider{width:100%;-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:var(--border2);outline:none;cursor:pointer}
+.sim-slider{width:100%;-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:var(--border2);outline:none;cursor:pointer;touch-action:pan-x}
 .sim-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);box-shadow:0 0 8px var(--accent-glow);cursor:pointer}
 .sim-resultado{background:var(--surface3);border-radius:10px;padding:11px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .sim-res-item .sl{font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
@@ -918,7 +918,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 </div>
 
 <!-- APP -->
-<div id="appRoot" style="display:none;flex:1;flex-direction:column;height:100%">
+<div id="appRoot" style="display:none;flex:1;flex-direction:column;height:100%;min-height:0;overflow:hidden">
 
 <div class="update-banner" id="updateBanner" onclick="aplicarUpdate()">🔄 Nova versão disponível — toque para atualizar</div>
 
