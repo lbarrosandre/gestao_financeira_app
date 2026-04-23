@@ -3369,7 +3369,8 @@ function calcConv(){
   resRate.textContent='Taxa: '+rateLabel;
 }
 
-
+/* ═══ DASH INSIGHTS ══════════════════════ */
+function dashInsights(base){
   const ins=[];
   const rec=base.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
   const desp=base.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
