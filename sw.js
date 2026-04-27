@@ -1,85 +1,83 @@
-/* =====================================================
-   BÚSSOLA — Service Worker v1.4
-   Altere CACHE_VERSION a cada deploy para forçar
-   atualização automática no celular.
-   ===================================================== */
+// ============================================================
+//  Bússola Finance — Service Worker
+//  Versão: 1.0.0
+//  Estratégia: Cache First para assets estáticos
+//              Network First para o index.html
+// ============================================================
 
-const CACHE_VERSION = 'bussola-v1.5';
+const CACHE_NAME = 'bussola-v1';
+const OFFLINE_URL = '/index.html';
 
-const CACHE_ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon-64.png',
-  './icon-192.png',
-  './icon-512.png'
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-64.png',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
-/* INSTALL: abre novo cache e já sinaliza skip */
+// ── INSTALL: pré-cacheia todos os assets estáticos ──────────
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_VERSION)
-      .then(cache => cache.addAll(CACHE_ASSETS))
-      .then(() => self.skipWaiting()) // assume controle imediatamente
+    caches.open(CACHE_NAME).then(cache => {
+      console.log('[Bússola SW] Pré-cacheando assets...');
+      return cache.addAll(STATIC_ASSETS);
+    }).then(() => self.skipWaiting())
   );
 });
 
-/* ACTIVATE: apaga caches antigos e assume todos os clientes */
+// ── ACTIVATE: remove caches antigos ─────────────────────────
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
+    caches.keys().then(keys =>
+      Promise.all(
         keys
-          .filter(k => k !== CACHE_VERSION)
-          .map(k => caches.delete(k))
-      ))
-      .then(() => self.clients.claim()) // controla todas as abas abertas
+          .filter(key => key !== CACHE_NAME)
+          .map(key => {
+            console.log('[Bússola SW] Removendo cache antigo:', key);
+            return caches.delete(key);
+          })
+      )
+    ).then(() => self.clients.claim())
   );
 });
 
-/* FETCH: network-first para HTML (sempre busca versão nova),
-   cache-first para assets estáticos */
+// ── FETCH: estratégia híbrida ────────────────────────────────
 self.addEventListener('fetch', event => {
+  // Ignora requisições não-GET e cross-origin
+  if (event.request.method !== 'GET') return;
+  if (!event.request.url.startsWith(self.location.origin)) return;
+
   const url = new URL(event.request.url);
 
-  // Ignora requisições não-GET e externas (Google Fonts etc.)
-  if (event.request.method !== 'GET') return;
-  if (!url.origin.startsWith(self.location.origin.split('/')[0])) {
-    // Permite fonts/CDN passar direto sem cache
-    if (url.hostname !== self.location.hostname) return;
-  }
-
-  // Navegação (HTML): sempre tenta rede primeiro
-  if (event.request.mode === 'navigate') {
+  // Network First para o index.html (sempre tenta buscar a versão mais recente)
+  if (url.pathname === '/' || url.pathname === '/index.html') {
     event.respondWith(
       fetch(event.request)
-        .then(resp => {
-          // Atualiza cache com resposta nova
-          const clone = resp.clone();
-          caches.open(CACHE_VERSION).then(c => c.put(event.request, clone));
-          return resp;
+        .then(response => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          return response;
         })
-        .catch(() => caches.match('./index.html'))
+        .catch(() => caches.match(OFFLINE_URL))
     );
     return;
   }
 
-  // Assets: cache-first com fallback para rede
+  // Cache First para todos os outros assets (ícones, manifest, etc.)
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
-      return fetch(event.request).then(resp => {
-        if (resp && resp.status === 200) {
-          const clone = resp.clone();
-          caches.open(CACHE_VERSION).then(c => c.put(event.request, clone));
+
+      return fetch(event.request).then(response => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
         }
-        return resp;
-      });
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return response;
+      }).catch(() => caches.match(OFFLINE_URL));
     })
   );
-});
-
-/* MENSAGEM: permite a página pedir reload manual */
-self.addEventListener('message', event => {
-  if (event.data === 'skipWaiting') self.skipWaiting();
 });

@@ -2,6 +2,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<style>html,body{background:#020617}</style>
+<script>try{var _t=localStorage.getItem('bussola_tema');if(_t==='light')document.documentElement.style.background='#F8FAFC';}catch(e){}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -12,6 +14,113 @@
 <title>Bússola</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- ═══ FIREBASE SDK ═══════════════════════════════════════════════════ -->
+<script type="module">
+// ─────────────────────────────────────────────────────────────────────
+//  ⚠️  SUBSTITUA os valores abaixo pelas credenciais do seu projeto Firebase
+//  Console: https://console.firebase.google.com → Configurações do projeto
+// ─────────────────────────────────────────────────────────────────────
+import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInAnonymously, onAuthStateChanged }
+                                   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence }
+                                   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyDZFYLuaGRbiTnc8WhRubQ9ypFb-nPuoVE",
+  authDomain:        "bussola-finance.firebaseapp.com",
+  projectId:         "bussola-finance",
+  storageBucket:     "bussola-finance.firebasestorage.app",
+  messagingSenderId: "263716810862",
+  appId:             "1:263716810862:web:b369a573358a210a6d367f"
+};
+
+// Inicializa Firebase
+const fbApp  = initializeApp(FIREBASE_CONFIG);
+const fbAuth = getAuth(fbApp);
+const fbDB   = getFirestore(fbApp);
+
+// Habilita persistência offline (IndexedDB)
+enableIndexedDbPersistence(fbDB).catch(()=>{});
+
+// ─── Expõe globalmente para o resto do app ───────────────────────────
+window._fb = { auth: fbAuth, db: fbDB, doc, getDoc, setDoc, onSnapshot, signInAnonymously, onAuthStateChanged };
+window._fbReady = false;
+window._fbUID   = null;
+
+// ─── Inicia autenticação anônima ─────────────────────────────────────
+onAuthStateChanged(fbAuth, async user => {
+  if (!user) {
+    try { await signInAnonymously(fbAuth); } catch(e) { console.warn('Firebase auth erro:', e); }
+    return;
+  }
+  window._fbUID   = user.uid;
+  window._fbReady = true;
+  console.log('✅ Firebase conectado · UID:', user.uid.slice(0,8)+'...');
+
+  // Notifica o app que Firebase está pronto
+  document.dispatchEvent(new CustomEvent('fb-ready', { detail: { uid: user.uid } }));
+
+  // Inicia listener em tempo real dos dados do usuário
+  const userRef = doc(fbDB, 'users', user.uid);
+  onSnapshot(userRef, snap => {
+    if (!snap.exists()) return;
+    const remote = snap.data();
+    const ts = remote._ts || 0;
+    const localTs = parseInt(localStorage.getItem('bussola_sync_ts') || '0');
+    // Só aplica dados remotos se forem mais novos
+    if (ts > localTs) {
+      if (remote.dados)     { localStorage.setItem('gastos_v2',           JSON.stringify(remote.dados));     window.dados    = remote.dados; }
+      if (remote.plan)      { localStorage.setItem('gastos_plan',         JSON.stringify(remote.plan));      window.plan     = remote.plan; }
+      if (remote.bolsos)    { localStorage.setItem('bussola_bolsos',      JSON.stringify(remote.bolsos));    window.bolsos   = remote.bolsos; }
+      if (remote.divida)    { localStorage.setItem('bussola_divida',      JSON.stringify(remote.divida));    window.dividaPai= remote.divida; }
+      if (remote.pagamentos){ localStorage.setItem('bussola_pagamentos',  JSON.stringify(remote.pagamentos));window.pagamentos=remote.pagamentos; }
+      localStorage.setItem('bussola_sync_ts', String(ts));
+      // Re-renderiza se o app já estiver aberto
+      if (typeof window.renderLista === 'function') {
+        window.renderLista(); window.renderPlan(); window.atualizarStats();
+        window.atualizarStatsPlan(); window.renderInvestimentos(); window.renderDividas();
+      }
+      window._fbSetSyncStatus('synced');
+    }
+  }, err => {
+    console.warn('Firestore snapshot erro:', err);
+    window._fbSetSyncStatus('error');
+  });
+});
+
+// ─── Função principal de sync para o Firestore ───────────────────────
+window._fbSync = async function(patch) {
+  if (!window._fbReady || !window._fbUID) {
+    window._fbSetSyncStatus('offline'); return;
+  }
+  window._fbSetSyncStatus('syncing');
+  try {
+    const userRef = doc(fbDB, 'users', window._fbUID);
+    const ts = Date.now();
+    await setDoc(userRef, { ...patch, _ts: ts }, { merge: true });
+    localStorage.setItem('bussola_sync_ts', String(ts));
+    window._fbSetSyncStatus('synced');
+  } catch(e) {
+    console.warn('Firestore write erro:', e);
+    window._fbSetSyncStatus('error');
+  }
+};
+
+// ─── Indicador visual de status ──────────────────────────────────────
+window._fbSetSyncStatus = function(status) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const map = {
+    syncing: { dot: '🔄', txt: 'Sincronizando...', color: 'var(--warn)' },
+    synced:  { dot: '☁️',  txt: 'Sincronizado',    color: 'var(--teal)' },
+    offline: { dot: '📴',  txt: 'Offline',          color: 'var(--text3)' },
+    error:   { dot: '⚠️',  txt: 'Erro de sync',     color: 'var(--danger)' }
+  };
+  const s = map[status] || map['offline'];
+  el.innerHTML = `<span>${s.dot}</span><span style="color:${s.color}">${s.txt}</span>`;
+};
+</script>
 <style>
 :root{
   --bg:#020617;--surface:#0B1120;--surface2:#111827;--surface3:#1A2236;
@@ -36,7 +145,8 @@ body.light{
   --gold:#CA8A04;
   --text:#0F172A;--text2:#475569;--text3:#94A3B8;
 }
-*{transition:background-color .25s,border-color .25s,color .18s}
+*{transition:border-color .25s,color .18s}
+body,#auth-screen,.topbar,.statsbar,.tab,.tab-pane,.surface,.fi input,.fi select{transition:background-color .25s,border-color .25s,color .18s}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex;flex-direction:column;overscroll-behavior:none}
@@ -560,6 +670,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .menu-item-end{font-size:.72rem;color:var(--text3);flex-shrink:0}
 .menu-divider{height:1px;background:var(--border);margin:4px 16px}
 .menu-ver{padding:12px 16px calc(var(--safe-bot)+12px);font-size:.65rem;color:var(--text3);text-align:center}
+/* ─── SYNC STATUS ────────────────────── */
+#sync-status{display:flex;align-items:center;gap:5px;font-size:.72rem}
+.sync-uid{font-family:var(--mono);font-size:.58rem;color:var(--text3);text-align:center;padding:0 18px 10px;word-break:break-all;opacity:.7}
 /* Info do app accordion */
 .info-acc{overflow:hidden}
 .info-acc-content{display:none;padding:8px 12px 4px;animation:fadeUp .2s ease}
@@ -758,6 +871,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 </style>
 </head>
 <body>
+<script>try{if(localStorage.getItem('bussola_tema')==='light')document.body.classList.add('light');}catch(e){}</script>
 
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
@@ -1534,6 +1648,22 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </div>
   </div>
 
+  <div class="menu-divider"></div>
+
+  <!-- SEÇÃO: FIREBASE SYNC -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Sincronização na nuvem</div>
+    <button class="menu-item" onclick="fbSyncManual()">
+      <div class="menu-item-ico" style="background:rgba(16,185,129,.12)">☁️</div>
+      <div class="menu-item-body">
+        <div class="menu-item-label">Firebase Sync</div>
+        <div id="sync-status"><span>📴</span><span style="color:var(--text3)">Aguardando...</span></div>
+      </div>
+      <div class="menu-item-end" id="sync-btn-lbl">⟳</div>
+    </button>
+    <div class="sync-uid" id="sync-uid-label"></div>
+  </div>
+
   <div class="menu-ver" id="menu-ver-label">Bússola v2.1 · Gestão Financeira</div>
 </div>
 
@@ -2219,10 +2349,23 @@ function aplicarVisibilidade(){
 }
 
 function remover(id){dados=dados.filter(d=>d.id!==id);salvar();renderLista();atualizarStats();toast('🗑 Removido');}
-function salvar(){localStorage.setItem('gastos_v2',JSON.stringify(dados));}
-function salvarPlan(){localStorage.setItem('gastos_plan',JSON.stringify(plan));}
-function salvarBolsos(){localStorage.setItem('bussola_bolsos',JSON.stringify(bolsos));}
-function salvarDivida(){localStorage.setItem('bussola_divida',JSON.stringify(dividaPai));localStorage.setItem('bussola_pagamentos',JSON.stringify(pagamentos));}
+function salvar(){
+  localStorage.setItem('gastos_v2',JSON.stringify(dados));
+  if(window._fbSync) window._fbSync({ dados });
+}
+function salvarPlan(){
+  localStorage.setItem('gastos_plan',JSON.stringify(plan));
+  if(window._fbSync) window._fbSync({ plan });
+}
+function salvarBolsos(){
+  localStorage.setItem('bussola_bolsos',JSON.stringify(bolsos));
+  if(window._fbSync) window._fbSync({ bolsos });
+}
+function salvarDivida(){
+  localStorage.setItem('bussola_divida',JSON.stringify(dividaPai));
+  localStorage.setItem('bussola_pagamentos',JSON.stringify(pagamentos));
+  if(window._fbSync) window._fbSync({ divida: dividaPai, pagamentos });
+}
 function confirmarLimpar(){document.getElementById('ov').classList.add('show');}
 function fecharDlg(){document.getElementById('ov').classList.remove('show');}
 function limparTudo(){dados=[];salvar();renderLista();atualizarStats();fecharDlg();toast('🗑 Lançamentos removidos');}
@@ -3183,6 +3326,38 @@ function dashPlanReal(){
       }
     }
   });
+}
+
+/* ═══ FIREBASE APP INTEGRATION ══════════ */
+// Escuta quando Firebase Auth estiver pronto
+document.addEventListener('fb-ready', (e) => {
+  const uid = e.detail.uid;
+  const lbl = document.getElementById('sync-uid-label');
+  if (lbl) lbl.textContent = 'ID: ' + uid.slice(0,16) + '...';
+  if (window._fbSetSyncStatus) window._fbSetSyncStatus('synced');
+  // Sync inicial: envia dados locais para o Firebase se não houver dados remotos
+  fbSyncTodos();
+});
+
+// Sync manual: envia todos os dados locais para o Firebase
+function fbSyncTodos() {
+  if (!window._fbSync) return;
+  window._fbSync({
+    dados,
+    plan,
+    bolsos,
+    divida: dividaPai,
+    pagamentos
+  });
+}
+
+function fbSyncManual() {
+  if (!window._fbReady) {
+    toast('📴 Firebase não conectado ainda...', true);
+    return;
+  }
+  fbSyncTodos();
+  toast('☁️ Sincronizando com Firebase...');
 }
 
 /* ═══ MENU HAMBÚRGUER ═══════════════════ */
