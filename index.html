@@ -81,6 +81,10 @@ onAuthStateChanged(fbAuth, async user => {
   // Listener Firestore em tempo real
   const userRef = doc(fbDB, 'users', user.uid);
   onSnapshot(userRef, async snap => {
+    // Ignora snapshots vindos do cache local do Firestore para evitar
+    // sobrescrever dados recém-adicionados (race condition com persistência offline)
+    if (snap.metadata.fromCache) return;
+
     if (!snap.exists()) {
       // Primeira vez que o usuário loga (ex: Google) — cria documento inicial
       try {
@@ -121,8 +125,10 @@ window._fbSync = async function(patch) {
   window._fbSetSyncStatus('syncing');
   try {
     const ts = Date.now();
-    await setDoc(doc(fbDB,'users',window._fbUID), {...patch,_ts:ts}, {merge:true});
+    // Define o timestamp ANTES do write para que o onSnapshot do cache
+    // não sobrescreva dados locais recém-adicionados (race condition)
     localStorage.setItem('bussola_sync_ts', String(ts));
+    await setDoc(doc(fbDB,'users',window._fbUID), {...patch,_ts:ts}, {merge:true});
     window._fbSetSyncStatus('synced');
   } catch(e) { window._fbSetSyncStatus('error'); }
 };
@@ -2330,7 +2336,7 @@ function confirmarExec(){
 
   if(origem==='cc'){
     dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente});
-    salvar();atualizarStats();
+    salvar();renderLista();atualizarStats();
   } else if(origem==='bolso'){
     const bid=parseInt(document.getElementById('sh-bolso-sel')?.value||'0');
     if(!bid)return toast('⚠️ Selecione o bolso origem',true);
