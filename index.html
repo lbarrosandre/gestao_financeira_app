@@ -16,15 +16,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- ═══ FIREBASE SDK ═══════════════════════════════════════════════════ -->
 <script type="module">
-// ─────────────────────────────────────────────────────────────────────
-//  ⚠️  SUBSTITUA os valores abaixo pelas credenciais do seu projeto Firebase
-//  Console: https://console.firebase.google.com → Configurações do projeto
-// ─────────────────────────────────────────────────────────────────────
 import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, signInAnonymously, onAuthStateChanged }
-                                   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {
+  getAuth, onAuthStateChanged,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
+  sendPasswordResetEmail, signOut, updateProfile
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence }
-                                   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDZFYLuaGRbiTnc8WhRubQ9ypFb-nPuoVE",
@@ -35,89 +35,98 @@ const FIREBASE_CONFIG = {
   appId:             "1:263716810862:web:b369a573358a210a6d367f"
 };
 
-// Inicializa Firebase
 const fbApp  = initializeApp(FIREBASE_CONFIG);
 const fbAuth = getAuth(fbApp);
 const fbDB   = getFirestore(fbApp);
-
-// Habilita persistência offline (IndexedDB)
 enableIndexedDbPersistence(fbDB).catch(()=>{});
 
-// ─── Expõe globalmente para o resto do app ───────────────────────────
-window._fb = { auth: fbAuth, db: fbDB, doc, getDoc, setDoc, onSnapshot, signInAnonymously, onAuthStateChanged };
+// ─── Expõe globalmente ────────────────────────────────────────────────
+window._fb = {
+  auth: fbAuth, db: fbDB,
+  doc, getDoc, setDoc, onSnapshot,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
+  sendPasswordResetEmail, signOut, updateProfile
+};
 window._fbReady = false;
 window._fbUID   = null;
 
-// ─── Inicia autenticação anônima ─────────────────────────────────────
+// ─── Verifica resultado de redirect Google (mobile) ──────────────────
+getRedirectResult(fbAuth).catch(e => {
+  if (e.code && e.code !== 'auth/popup-closed-by-user') {
+    console.warn('Google redirect error:', e.code);
+  }
+});
+
+// ─── Listener de autenticação ─────────────────────────────────────────
 onAuthStateChanged(fbAuth, async user => {
   if (!user) {
-    try { await signInAnonymously(fbAuth); } catch(e) { console.warn('Firebase auth erro:', e); }
+    // Não logado — mostra tela de auth
+    document.dispatchEvent(new CustomEvent('fb-no-user'));
     return;
   }
   window._fbUID   = user.uid;
   window._fbReady = true;
-  console.log('✅ Firebase conectado · UID:', user.uid.slice(0,8)+'...');
 
-  // Notifica o app que Firebase está pronto
-  document.dispatchEvent(new CustomEvent('fb-ready', { detail: { uid: user.uid } }));
+  // Atualiza info do usuário na UI
+  document.dispatchEvent(new CustomEvent('fb-user-ready', {
+    detail: {
+      uid:         user.uid,
+      email:       user.email || '',
+      displayName: user.displayName || '',
+      photoURL:    user.photoURL || ''
+    }
+  }));
 
-  // Inicia listener em tempo real dos dados do usuário
+  // Listener Firestore em tempo real
   const userRef = doc(fbDB, 'users', user.uid);
   onSnapshot(userRef, snap => {
     if (!snap.exists()) return;
     const remote = snap.data();
     const ts = remote._ts || 0;
     const localTs = parseInt(localStorage.getItem('bussola_sync_ts') || '0');
-    // Só aplica dados remotos se forem mais novos
     if (ts > localTs) {
-      if (remote.dados)     { localStorage.setItem('gastos_v2',           JSON.stringify(remote.dados));     window.dados    = remote.dados; }
-      if (remote.plan)      { localStorage.setItem('gastos_plan',         JSON.stringify(remote.plan));      window.plan     = remote.plan; }
-      if (remote.bolsos)    { localStorage.setItem('bussola_bolsos',      JSON.stringify(remote.bolsos));    window.bolsos   = remote.bolsos; }
-      if (remote.divida)    { localStorage.setItem('bussola_divida',      JSON.stringify(remote.divida));    window.dividaPai= remote.divida; }
-      if (remote.pagamentos){ localStorage.setItem('bussola_pagamentos',  JSON.stringify(remote.pagamentos));window.pagamentos=remote.pagamentos; }
+      if (remote.dados)     { localStorage.setItem('gastos_v2',          JSON.stringify(remote.dados));      window.dados     = remote.dados; }
+      if (remote.plan)      { localStorage.setItem('gastos_plan',        JSON.stringify(remote.plan));       window.plan      = remote.plan; }
+      if (remote.bolsos)    { localStorage.setItem('bussola_bolsos',     JSON.stringify(remote.bolsos));     window.bolsos    = remote.bolsos; }
+      if (remote.divida)    { localStorage.setItem('bussola_divida',     JSON.stringify(remote.divida));     window.dividaPai = remote.divida; }
+      if (remote.pagamentos){ localStorage.setItem('bussola_pagamentos', JSON.stringify(remote.pagamentos)); window.pagamentos= remote.pagamentos; }
       localStorage.setItem('bussola_sync_ts', String(ts));
-      // Re-renderiza se o app já estiver aberto
-      if (typeof window.renderLista === 'function') {
+      if (typeof window.renderLista==='function') {
+        window.dados=JSON.parse(localStorage.getItem('gastos_v2')||'[]');
+        window.plan=JSON.parse(localStorage.getItem('gastos_plan')||'[]');
+        window.bolsos=JSON.parse(localStorage.getItem('bussola_bolsos')||'[]');
+        window.dividaPai=JSON.parse(localStorage.getItem('bussola_divida')||'null');
+        window.pagamentos=JSON.parse(localStorage.getItem('bussola_pagamentos')||'[]');
         window.renderLista(); window.renderPlan(); window.atualizarStats();
         window.atualizarStatsPlan(); window.renderInvestimentos(); window.renderDividas();
       }
       window._fbSetSyncStatus('synced');
     }
-  }, err => {
-    console.warn('Firestore snapshot erro:', err);
-    window._fbSetSyncStatus('error');
-  });
+  }, () => window._fbSetSyncStatus('error'));
 });
 
-// ─── Função principal de sync para o Firestore ───────────────────────
 window._fbSync = async function(patch) {
-  if (!window._fbReady || !window._fbUID) {
-    window._fbSetSyncStatus('offline'); return;
-  }
+  if (!window._fbReady || !window._fbUID) { window._fbSetSyncStatus('offline'); return; }
   window._fbSetSyncStatus('syncing');
   try {
-    const userRef = doc(fbDB, 'users', window._fbUID);
     const ts = Date.now();
-    await setDoc(userRef, { ...patch, _ts: ts }, { merge: true });
+    await setDoc(doc(fbDB,'users',window._fbUID), {...patch,_ts:ts}, {merge:true});
     localStorage.setItem('bussola_sync_ts', String(ts));
     window._fbSetSyncStatus('synced');
-  } catch(e) {
-    console.warn('Firestore write erro:', e);
-    window._fbSetSyncStatus('error');
-  }
+  } catch(e) { window._fbSetSyncStatus('error'); }
 };
 
-// ─── Indicador visual de status ──────────────────────────────────────
 window._fbSetSyncStatus = function(status) {
   const el = document.getElementById('sync-status');
   if (!el) return;
   const map = {
-    syncing: { dot: '🔄', txt: 'Sincronizando...', color: 'var(--warn)' },
-    synced:  { dot: '☁️',  txt: 'Sincronizado',    color: 'var(--teal)' },
-    offline: { dot: '📴',  txt: 'Offline',          color: 'var(--text3)' },
-    error:   { dot: '⚠️',  txt: 'Erro de sync',     color: 'var(--danger)' }
+    syncing:{ dot:'🔄', txt:'Sincronizando...', color:'var(--warn)' },
+    synced: { dot:'☁️',  txt:'Sincronizado',     color:'var(--teal)' },
+    offline:{ dot:'📴', txt:'Offline',           color:'var(--text3)' },
+    error:  { dot:'⚠️',  txt:'Erro de sync',     color:'var(--danger)' }
   };
-  const s = map[status] || map['offline'];
+  const s = map[status]||map['offline'];
   el.innerHTML = `<span>${s.dot}</span><span style="color:${s.color}">${s.txt}</span>`;
 };
 </script>
@@ -388,77 +397,82 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 #auth-screen{
   position:fixed;inset:0;z-index:10000;
   background:var(--bg);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:24px 20px calc(var(--safe-bot)+24px);
+  display:flex;flex-direction:column;align-items:center;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
   transition:opacity .45s ease,transform .45s ease;
 }
-#auth-screen.hide{opacity:0;transform:scale(.96);pointer-events:none}
-.auth-bg-glow{
-  position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(16,185,129,.08) 0%,transparent 70%),
-             radial-gradient(ellipse 40% 30% at 80% 100%,rgba(59,130,246,.06) 0%,transparent 60%);
+#auth-screen.hide{
+  opacity:0;transform:scale(.96);
+  pointer-events:none;
+  /* Garante que o appRoot fique visível por baixo */
 }
-.auth-logo-wrap{position:relative;margin-bottom:28px;animation:sDrop .6s cubic-bezier(.22,1,.36,1) both}
-.auth-logo-wrap img{width:72px;height:72px;border-radius:18px;box-shadow:0 0 40px rgba(16,185,129,.3)}
-.auth-logo-ring{position:absolute;inset:-8px;border:1.5px solid rgba(16,185,129,.22);border-radius:26px;animation:sRing 2.2s ease-in-out infinite}
+#auth-screen.gone{ display:none; }
+.auth-bg-glow{
+  position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 70% 50% at 50% -10%,rgba(16,185,129,.1) 0%,transparent 65%),
+             radial-gradient(ellipse 40% 30% at 85% 95%,rgba(59,130,246,.07) 0%,transparent 55%);
+  z-index:0;
+}
+
+/* Landing hero */
+.auth-hero{
+  display:flex;flex-direction:column;align-items:center;
+  padding:calc(var(--safe-top)+40px) 24px 0;
+  text-align:center;position:relative;z-index:1;
+}
+.auth-logo-wrap{position:relative;margin-bottom:20px;animation:sDrop .6s cubic-bezier(.22,1,.36,1) both}
+.auth-logo-wrap img{width:80px;height:80px;border-radius:22px;box-shadow:0 0 48px rgba(16,185,129,.35)}
+.auth-logo-ring{position:absolute;inset:-9px;border:1.5px solid rgba(16,185,129,.25);border-radius:31px;animation:sRing 2.2s ease-in-out infinite}
+.auth-hero-title{font-size:1.9rem;font-weight:700;letter-spacing:-.03em;margin-bottom:6px;animation:sFadeUp .5s ease both .15s}
+.auth-hero-title em{color:var(--teal);font-style:normal}
+.auth-hero-sub{font-size:.82rem;color:var(--text3);line-height:1.6;max-width:280px;animation:sFadeUp .5s ease both .25s}
+.auth-features{display:flex;flex-direction:column;gap:8px;width:100%;max-width:320px;margin:20px 0;animation:sFadeUp .5s ease both .35s}
+.auth-feat{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px}
+.auth-feat-ico{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:14px;flex-shrink:0}
+.auth-feat-txt{font-size:.78rem;color:var(--text2);font-weight:500}
+
+/* Card auth */
 .auth-card{
   background:var(--surface);border:1px solid var(--border2);
-  border-radius:20px;padding:26px 22px;width:100%;max-width:340px;
-  box-shadow:0 24px 64px rgba(0,0,0,.5);
-  animation:sFadeUp .5s ease both .15s;
+  border-radius:20px;padding:24px 22px;width:calc(100% - 32px);max-width:360px;
+  box-shadow:0 24px 64px rgba(0,0,0,.4);
+  margin:16px 16px calc(var(--safe-bot)+24px);
+  position:relative;z-index:1;animation:sFadeUp .45s ease both .1s;
 }
-.auth-header{text-align:center;margin-bottom:20px}
-.auth-title{font-size:1.1rem;font-weight:700;margin-bottom:5px}
+.auth-tabs{display:flex;background:var(--surface2);border-radius:10px;padding:3px;margin-bottom:20px;gap:3px}
+.auth-tab-btn{flex:1;padding:8px;border:none;border-radius:8px;background:none;font-family:var(--sans);font-size:.82rem;font-weight:600;color:var(--text3);cursor:pointer;transition:.18s}
+.auth-tab-btn.ativo{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.auth-form{display:none}.auth-form.ativo{display:block}
+.auth-header{text-align:center;margin-bottom:18px}
+.auth-title{font-size:1.05rem;font-weight:700;margin-bottom:4px}
 .auth-title em{color:var(--teal);font-style:normal}
-.auth-sub{font-size:.76rem;color:var(--text3);line-height:1.5}
-.auth-steps{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
-.auth-step-dot{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:.25s}
-.auth-step-dot.ativo{background:var(--teal);width:18px;border-radius:3px}
-.auth-name-step .fi{margin-bottom:14px}
+.auth-sub{font-size:.74rem;color:var(--text3);line-height:1.5}
 .btn-auth-next{
   width:100%;padding:13px;border:none;border-radius:var(--r);
   background:var(--teal);color:#fff;font-family:var(--sans);
-  font-size:.9rem;font-weight:700;cursor:pointer;
-  box-shadow:0 4px 20px var(--teal-glow);transition:.15s;
+  font-size:.92rem;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 20px var(--teal-glow);transition:.15s;margin-top:4px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
 }
 .btn-auth-next:active{transform:scale(.98);box-shadow:none}
-.auth-pin-label{font-size:.62rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;text-align:center;margin-bottom:14px}
-.auth-dots{display:flex;gap:16px;justify-content:center;margin-bottom:24px}
-.auth-dot{
-  width:15px;height:15px;border-radius:50%;
-  border:2px solid var(--border2);background:transparent;
-  transition:all .2s cubic-bezier(.34,1.56,.64,1);
+.btn-auth-next:disabled{opacity:.6;pointer-events:none}
+.btn-google{
+  width:100%;padding:12px;border:1.5px solid var(--border2);border-radius:var(--r);
+  background:var(--surface2);color:var(--text);font-family:var(--sans);
+  font-size:.88rem;font-weight:600;cursor:pointer;transition:.15s;margin-bottom:12px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
 }
-.auth-dot.filled{background:var(--teal);border-color:var(--teal);box-shadow:0 0 10px var(--teal-glow);transform:scale(1.15)}
-.auth-dot.error{background:var(--danger);border-color:var(--danger);animation:authShake .35s ease}
-@keyframes authShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
-.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.pin-btn{
-  background:var(--surface2);border:1px solid var(--border2);
-  border-radius:var(--r);padding:0;height:56px;
-  color:var(--text);font-family:var(--mono);font-size:1.3rem;font-weight:500;
-  cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center;
-  user-select:none;-webkit-user-select:none;
-}
-.pin-btn:active{background:var(--surface3);transform:scale(.93);border-color:var(--teal);color:var(--teal)}
-.pin-btn.pin-empty{background:transparent;border:none;pointer-events:none}
-.pin-btn.pin-del{font-size:1rem;color:var(--text3)}
-.pin-btn.pin-del:active{color:var(--danger);border-color:var(--danger);background:rgba(239,68,68,.08)}
-.auth-avatar{
-  width:62px;height:62px;border-radius:50%;
-  background:linear-gradient(135deg,var(--teal) 0%,var(--accent) 100%);
-  display:flex;align-items:center;justify-content:center;
-  font-size:1.5rem;font-weight:700;color:#fff;
-  margin:0 auto 12px;box-shadow:0 0 24px var(--teal-glow);
-  letter-spacing:-.02em;
-}
-.auth-welcome{font-size:1.05rem;font-weight:700;text-align:center;margin-bottom:4px}
-.btn-troca{
-  display:block;width:100%;margin-top:16px;padding:0;border:none;background:none;
-  font-family:var(--sans);font-size:.72rem;color:var(--text3);cursor:pointer;text-align:center;
-  transition:color .15s;
-}
-.btn-troca:hover,.btn-troca:active{color:var(--danger)}
+.btn-google:active{transform:scale(.98)}
+.google-ico{width:18px;height:18px;flex-shrink:0}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:14px 0;font-size:.7rem;color:var(--text3)}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.auth-link{background:none;border:none;font-family:var(--sans);font-size:.75rem;color:var(--accent);cursor:pointer;padding:0;text-decoration:underline}
+.auth-err{font-size:.75rem;color:var(--danger);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:9px 12px;margin-bottom:12px;display:none;line-height:1.5}
+.auth-err.show{display:block}
+.auth-ok{font-size:.75rem;color:var(--teal);background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:9px 12px;margin-bottom:12px;display:none;line-height:1.5}
+.auth-ok.show{display:block}
+.auth-loading{display:none;text-align:center;padding:8px 0;font-size:.8rem;color:var(--text3)}
+.auth-loading.show{display:block}
 
 
 /* ─── AUTH PHOTO ─────────────────────── */
@@ -876,138 +890,85 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
   <div class="auth-bg-glow"></div>
-  <div class="auth-logo-wrap">
-    <img src="icon-192.png" alt="Bussola" onerror="this.src='icon-64.png'">
-    <div class="auth-logo-ring"></div>
+
+  <!-- Hero / Landing -->
+  <div class="auth-hero">
+    <div class="auth-logo-wrap">
+      <img src="icon-192.png" alt="Bussola" onerror="this.src='icon-64.png'">
+      <div class="auth-logo-ring"></div>
+    </div>
+    <div class="auth-hero-title">Bús<em>sola</em></div>
+    <div class="auth-hero-sub">Gestão financeira pessoal · Seus dados sincronizados em qualquer dispositivo</div>
+    <div class="auth-features">
+      <div class="auth-feat">
+        <div class="auth-feat-ico" style="background:rgba(16,185,129,.12)">📊</div>
+        <div class="auth-feat-txt">Dashboard completo com gráficos e insights</div>
+      </div>
+      <div class="auth-feat">
+        <div class="auth-feat-ico" style="background:rgba(59,130,246,.12)">☁️</div>
+        <div class="auth-feat-txt">Dados salvos na nuvem — acesse de qualquer lugar</div>
+      </div>
+      <div class="auth-feat">
+        <div class="auth-feat-ico" style="background:rgba(139,92,246,.12)">📅</div>
+        <div class="auth-feat-txt">Planejamento financeiro com alertas de vencimento</div>
+      </div>
+    </div>
   </div>
-  <!-- CARD: NOME -->
-  <div class="auth-card" id="ac-nome" style="display:none">
-    <div class="auth-steps">
-      <div class="auth-step-dot ativo"></div>
-      <div class="auth-step-dot"></div>
-      <div class="auth-step-dot"></div>
+
+  <!-- Card de login/cadastro -->
+  <div class="auth-card">
+    <!-- Tabs Login / Cadastro -->
+    <div class="auth-tabs">
+      <button class="auth-tab-btn ativo" id="tab-login" onclick="authMostrarTab('login')">Entrar</button>
+      <button class="auth-tab-btn" id="tab-cadastro" onclick="authMostrarTab('cadastro')">Criar conta</button>
     </div>
-    <div class="auth-header">
-      <div class="auth-title">Bem-vindo ao <em>Bussola</em></div>
-      <div class="auth-sub">Crie sua conta para proteger seus dados financeiros</div>
+
+    <!-- Alertas -->
+    <div class="auth-err" id="auth-err"></div>
+    <div class="auth-ok"  id="auth-ok"></div>
+    <div class="auth-loading" id="auth-loading">Aguarde...</div>
+
+    <!-- FORM: LOGIN -->
+    <div class="auth-form ativo" id="form-login">
+      <!-- Google -->
+      <button class="btn-google" onclick="authGoogle()">
+        <svg class="google-ico" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+        Continuar com Google
+      </button>
+      <div class="auth-divider">ou use seu e-mail</div>
+      <div class="fi"><label>E-mail</label><input type="email" id="login-email" placeholder="seuemail@gmail.com" autocomplete="email" inputmode="email"></div>
+      <div class="fi"><label>Senha</label><input type="password" id="login-senha" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="btn-auth-next" onclick="authLogin()">🔑 Entrar</button>
+      <div style="text-align:center;margin-top:12px">
+        <button class="auth-link" onclick="authMostrarReset()">Esqueci minha senha</button>
+      </div>
     </div>
-    <div class="fi" style="margin-bottom:16px">
-      <label>Seu nome</label>
-      <input type="text" id="auth-nome-inp" placeholder="Como quer ser chamado?" autocomplete="name" autocapitalize="words">
+
+    <!-- FORM: CADASTRO -->
+    <div class="auth-form" id="form-cadastro">
+      <button class="btn-google" onclick="authGoogle()">
+        <svg class="google-ico" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+        Cadastrar com Google
+      </button>
+      <div class="auth-divider">ou crie com e-mail</div>
+      <div class="fi"><label>Nome</label><input type="text" id="cad-nome" placeholder="Seu nome completo" autocomplete="name" autocapitalize="words"></div>
+      <div class="fi"><label>E-mail</label><input type="email" id="cad-email" placeholder="seuemail@gmail.com" autocomplete="email" inputmode="email"></div>
+      <div class="fi"><label>Senha (mínimo 6 caracteres)</label><input type="password" id="cad-senha" placeholder="••••••••" autocomplete="new-password"></div>
+      <button class="btn-auth-next" onclick="authCadastro()">✨ Criar conta</button>
     </div>
-    <button class="btn-auth-next" onclick="authIrPin()">Continuar</button>
-  </div>
-  <!-- CARD: CRIAR PIN -->
-  <div class="auth-card" id="ac-pin" style="display:none">
-    <div class="auth-steps">
-      <div class="auth-step-dot"></div>
-      <div class="auth-step-dot ativo"></div>
-      <div class="auth-step-dot"></div>
+
+    <!-- FORM: RESET SENHA -->
+    <div class="auth-form" id="form-reset">
+      <div class="auth-header">
+        <div class="auth-title">Recuperar <em>senha</em></div>
+        <div class="auth-sub">Enviaremos um link para redefinir sua senha</div>
+      </div>
+      <div class="fi"><label>Seu e-mail</label><input type="email" id="reset-email" placeholder="seuemail@gmail.com" inputmode="email"></div>
+      <button class="btn-auth-next" onclick="authResetSenha()">📧 Enviar link</button>
+      <div style="text-align:center;margin-top:12px">
+        <button class="auth-link" onclick="authMostrarTab('login')">← Voltar ao login</button>
+      </div>
     </div>
-    <div class="auth-header">
-      <div class="auth-title">Crie seu <em>PIN</em></div>
-      <div class="auth-sub">Escolha 4 digitos para proteger o acesso</div>
-    </div>
-    <div class="auth-pin-label">Digite o PIN</div>
-    <div class="auth-dots" id="dots-criar">
-      <div class="auth-dot"></div><div class="auth-dot"></div>
-      <div class="auth-dot"></div><div class="auth-dot"></div>
-    </div>
-    <div class="pin-grid" id="pad-criar"></div>
-  </div>
-  <!-- CARD: CONFIRMAR PIN -->
-  <div class="auth-card" id="ac-confirm" style="display:none">
-    <div class="auth-steps">
-      <div class="auth-step-dot"></div>
-      <div class="auth-step-dot"></div>
-      <div class="auth-step-dot ativo"></div>
-      <div class="auth-step-dot"></div>
-    </div>
-    <div class="auth-header">
-      <div class="auth-title">Confirme o <em>PIN</em></div>
-      <div class="auth-sub">Digite novamente para garantir que anotou certo</div>
-    </div>
-    <div class="auth-pin-label">Repita o PIN</div>
-    <div class="auth-dots" id="dots-confirm">
-      <div class="auth-dot"></div><div class="auth-dot"></div>
-      <div class="auth-dot"></div><div class="auth-dot"></div>
-    </div>
-    <div class="pin-grid" id="pad-confirm"></div>
-  </div>
-  <!-- CARD: PERGUNTA DE SEGURANCA -->
-  <div class="auth-card" id="ac-security" style="display:none">
-    <div class="auth-steps">
-      <div class="auth-step-dot"></div>
-      <div class="auth-step-dot"></div>
-      <div class="auth-step-dot"></div>
-      <div class="auth-step-dot ativo"></div>
-    </div>
-    <div class="auth-header">
-      <div class="auth-title">Pergunta de <em>seguranca</em></div>
-      <div class="auth-sub">Usada para recuperar o PIN caso esqueca</div>
-    </div>
-    <div class="fi" style="margin-bottom:10px">
-      <label>Pergunta</label>
-      <div class="sw"><select id="sec-pergunta">
-        <option value="Mae">Qual o nome da sua mae?</option>
-        <option value="Pet">Qual o nome do seu primeiro pet?</option>
-        <option value="Escola">Qual o nome da sua escola primaria?</option>
-        <option value="Cidade">Em qual cidade voce nasceu?</option>
-        <option value="Apelido">Qual o seu apelido de infancia?</option>
-      </select></div>
-    </div>
-    <div class="fi" style="margin-bottom:16px">
-      <label>Resposta</label>
-      <input type="text" id="sec-resp" placeholder="Sua resposta..." autocomplete="off">
-    </div>
-    <button class="btn-auth-next" onclick="authSalvarSeguranca()">Concluir cadastro</button>
-  </div>
-  <!-- CARD: LOGIN -->
-  <div class="auth-card" id="ac-login" style="display:none">
-    <div class="auth-photo-wrap" onclick="fotoClicar()" title="Alterar foto">
-      <div class="auth-photo-ini" id="login-avatar-ini">?</div>
-      <img id="login-avatar-img" class="auth-photo-img" style="display:none" alt="">
-      <div class="auth-photo-edit">📷</div>
-    </div>
-    <input type="file" id="foto-inp" accept="image/*" style="display:none" onchange="fotoCarregar(event)">
-    <div class="auth-welcome" id="login-nome">Ola!</div>
-    <div class="auth-header" style="margin-top:4px;margin-bottom:18px">
-      <div class="auth-sub">Digite seu PIN para entrar</div>
-    </div>
-    <div class="auth-dots" id="dots-login">
-      <div class="auth-dot"></div><div class="auth-dot"></div>
-      <div class="auth-dot"></div><div class="auth-dot"></div>
-    </div>
-    <div class="pin-grid" id="pad-login"></div>
-    <button class="btn-forgot" onclick="authEsqueceuPin()">Esqueci meu PIN</button>
-    <button class="btn-troca" onclick="authTrocarUsuario()">Trocar usuario</button>
-  </div>
-  <!-- CARD: RECUPERAR PIN -->
-  <div class="auth-card" id="ac-recovery" style="display:none">
-    <div class="auth-header">
-      <div class="auth-title">Recuperar <em>PIN</em></div>
-      <div class="auth-sub">Responda a pergunta de seguranca cadastrada</div>
-    </div>
-    <div id="rec-pergunta-txt" style="font-size:.82rem;font-weight:600;color:var(--text2);background:var(--surface2);border-radius:10px;padding:11px 13px;margin-bottom:12px;line-height:1.5"></div>
-    <div class="fi" style="margin-bottom:16px">
-      <label>Sua resposta</label>
-      <input type="text" id="rec-resp-inp" placeholder="Digite a resposta..." autocomplete="off">
-    </div>
-    <button class="btn-auth-next" onclick="authValidarResposta()">Confirmar</button>
-    <button class="btn-forgot" onclick="authShowCard('ac-login')">Voltar ao login</button>
-  </div>
-  <!-- CARD: NOVO PIN (recuperacao) -->
-  <div class="auth-card" id="ac-newpin" style="display:none">
-    <div class="auth-header">
-      <div class="auth-title">Novo <em>PIN</em></div>
-      <div class="auth-sub">Identidade confirmada! Crie um novo PIN</div>
-    </div>
-    <div class="auth-pin-label">Digite o novo PIN</div>
-    <div class="auth-dots" id="dots-newpin">
-      <div class="auth-dot"></div><div class="auth-dot"></div>
-      <div class="auth-dot"></div><div class="auth-dot"></div>
-    </div>
-    <div class="pin-grid" id="pad-newpin"></div>
   </div>
 </div>
 
@@ -1586,13 +1547,27 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <!-- CONTA E SEGURANÇA -->
   <div class="menu-section">
     <div class="menu-sec-label">Conta e segurança</div>
-    <button class="menu-item" onclick="fecharMenu();authTrocarUsuario()">
-      <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🔄</div>
-      <div class="menu-item-body"><div class="menu-item-label">Trocar usuário</div><div class="menu-item-sub">Remove PIN e redefine acesso</div></div>
+    <!-- Info do usuário logado -->
+    <div class="menu-item" style="cursor:default">
+      <div class="menu-item-ico" style="background:rgba(59,130,246,.12)">👤</div>
+      <div class="menu-item-body">
+        <div class="menu-item-label" id="menu-user-name">Carregando...</div>
+        <div class="menu-item-sub" id="menu-user-email">—</div>
+      </div>
+    </div>
+    <button class="menu-item" onclick="fecharMenu();authDesconectar()">
+      <div class="menu-item-ico" style="background:rgba(239,68,68,.12)">🚪</div>
+      <div class="menu-item-body">
+        <div class="menu-item-label" style="color:var(--danger)">Desconectar</div>
+        <div class="menu-item-sub">Sair e voltar para tela de login</div>
+      </div>
     </button>
     <button class="menu-item" onclick="fecharMenu();confirmarLimpar()">
-      <div class="menu-item-ico" style="background:rgba(239,68,68,.1)">🗑</div>
-      <div class="menu-item-body"><div class="menu-item-label" style="color:var(--danger)">Limpar todos os lançamentos</div><div class="menu-item-sub">Remove todos os registros financeiros</div></div>
+      <div class="menu-item-ico" style="background:rgba(239,68,68,.08)">🗑</div>
+      <div class="menu-item-body">
+        <div class="menu-item-label" style="color:var(--danger)">Limpar lançamentos</div>
+        <div class="menu-item-sub">Remove todos os registros financeiros</div>
+      </div>
     </button>
   </div>
 
@@ -1801,172 +1776,186 @@ function authShowCard(id){
   });
 }
 
-function authInit(){
-  const saved=localStorage.getItem(AUTH_KEY);
-  if(saved){
-    const u=JSON.parse(saved);
-    const ini=u.nome?u.nome.trim()[0].toUpperCase():'?';
-    const iniEl=document.getElementById('login-avatar-ini');
-    if(iniEl)iniEl.textContent=ini;
-    document.getElementById('login-nome').textContent='Ola, '+u.nome.split(' ')[0]+'!';
-    if(u.foto)authAplicarFoto(u.foto);
-    authBuildPad('pad-login',
-      d=>{ if(authPinLogin.length>=4)return; authPinLogin+=d; authUpdateDots('dots-login',authPinLogin); if(authPinLogin.length===4)authVerificarLogin(); },
-      ()=>{ authPinLogin=authPinLogin.slice(0,-1); authUpdateDots('dots-login',authPinLogin); }
-    );
-    authShowCard('ac-login');
-  } else {
-    authBuildPad('pad-criar',
-      d=>{ if(authPinCriar.length>=4)return; authPinCriar+=d; authUpdateDots('dots-criar',authPinCriar); if(authPinCriar.length===4)authIrConfirm(); },
-      ()=>{ authPinCriar=authPinCriar.slice(0,-1); authUpdateDots('dots-criar',authPinCriar); }
-    );
-    authBuildPad('pad-confirm',
-      d=>{ if(authPinConfirm.length>=4)return; authPinConfirm+=d; authUpdateDots('dots-confirm',authPinConfirm); if(authPinConfirm.length===4)authSalvarCadastro(); },
-      ()=>{ authPinConfirm=authPinConfirm.slice(0,-1); authUpdateDots('dots-confirm',authPinConfirm); }
-    );
-    authShowCard('ac-nome');
-    setTimeout(()=>document.getElementById('auth-nome-inp').focus(),300);
+/* ═══ AUTH FIREBASE ══════════════════════ */
+
+function authMostrarTab(tab){
+  ['login','cadastro','reset'].forEach(t=>{
+    document.getElementById('form-'+t)?.classList.toggle('ativo',t===tab);
+    document.getElementById('tab-'+t)?.classList.toggle('ativo',t===tab);
+  });
+  authLimparMensagens();
+}
+
+function authMostrarReset(){
+  authMostrarTab('reset');
+  const el=document.getElementById('reset-email');
+  const loginEmail=document.getElementById('login-email')?.value;
+  if(loginEmail)el.value=loginEmail;
+}
+
+function authSetLoading(on){
+  document.getElementById('auth-loading').classList.toggle('show',on);
+  document.querySelectorAll('.btn-auth-next,.btn-google').forEach(b=>b.disabled=on);
+}
+
+function authLimparMensagens(){
+  document.getElementById('auth-err').classList.remove('show');
+  document.getElementById('auth-ok').classList.remove('show');
+}
+
+function authErro(msg){
+  const el=document.getElementById('auth-err');
+  el.textContent=msg; el.classList.add('show');
+}
+
+function authOk(msg){
+  const el=document.getElementById('auth-ok');
+  el.textContent=msg; el.classList.add('show');
+}
+
+function authMensagemErroFirebase(code){
+  const map={
+    'auth/user-not-found':'E-mail não encontrado. Verifique ou crie uma conta.',
+    'auth/wrong-password':'Senha incorreta. Tente novamente.',
+    'auth/invalid-credential':'E-mail ou senha inválidos. Se você se cadastrou pelo Google, use o botão "Continuar com Google".',
+    'auth/email-already-in-use':'Este e-mail já está cadastrado. Faça login normalmente ou, se criou conta pelo Google, use o botão "Continuar com Google".',
+    'auth/weak-password':'Senha muito fraca. Use ao menos 6 caracteres.',
+    'auth/invalid-email':'E-mail inválido.',
+    'auth/popup-closed-by-user':'Login cancelado.',
+    'auth/popup-blocked':'Popup bloqueado pelo navegador. Tente novamente.',
+    'auth/network-request-failed':'Sem conexão. Verifique sua internet.',
+    'auth/too-many-requests':'Muitas tentativas. Aguarde alguns minutos.',
+    'auth/unauthorized-domain':'Domínio não autorizado no Firebase. Contate o administrador.'
+  };
+  return map[code]||'Erro inesperado ('+code+'). Tente novamente.';
+}
+
+async function authLogin(){
+  authLimparMensagens();
+  const email=document.getElementById('login-email').value.trim();
+  const senha=document.getElementById('login-senha').value;
+  if(!email||!senha)return authErro('Preencha e-mail e senha.');
+  if(!window._fb)return authErro('Aguarde o Firebase carregar...');
+  authSetLoading(true);
+  try{
+    await window._fb.signInWithEmailAndPassword(window._fb.auth,email,senha);
+    // onAuthStateChanged vai chamar authEntrar()
+  }catch(e){
+    authSetLoading(false);
+    authErro(authMensagemErroFirebase(e.code));
   }
 }
 
-function authIrPin(){
-  const nome=document.getElementById('auth-nome-inp').value.trim();
-  if(!nome)return authShakeCard();
-  authShowCard('ac-pin');
-}
-
-function authIrConfirm(){
-  authShowCard('ac-confirm');
-}
-
-async function authSalvarCadastro(){
-  if(authPinCriar!==authPinConfirm){
-    authPinConfirm='';
-    authUpdateDots('dots-confirm','',true);
-    setTimeout(()=>authUpdateDots('dots-confirm','',false),600);
-    return;
+async function authCadastro(){
+  authLimparMensagens();
+  const nome=document.getElementById('cad-nome').value.trim();
+  const email=document.getElementById('cad-email').value.trim();
+  const senha=document.getElementById('cad-senha').value;
+  if(!nome)return authErro('Informe seu nome.');
+  if(!email)return authErro('Informe seu e-mail.');
+  if(senha.length<6)return authErro('Senha deve ter pelo menos 6 caracteres.');
+  if(!window._fb)return authErro('Aguarde o Firebase carregar...');
+  authSetLoading(true);
+  try{
+    const cred=await window._fb.createUserWithEmailAndPassword(window._fb.auth,email,senha);
+    await window._fb.updateProfile(cred.user,{displayName:nome});
+    // Cria documento inicial no Firestore para o novo usuário
+    try{
+      await window._fb.setDoc(
+        window._fb.doc(window._fb.db,'users',cred.user.uid),
+        {dados:[],plan:[],bolsos:[],divida:null,pagamentos:[],_ts:Date.now(),_createdAt:Date.now(),_email:email,_nome:nome},
+        {merge:true}
+      );
+    }catch(fsErr){ console.warn('Firestore init doc error:',fsErr); }
+    // onAuthStateChanged vai chamar authEntrar()
+  }catch(e){
+    authSetLoading(false);
+    authErro(authMensagemErroFirebase(e.code));
   }
-  const nome=document.getElementById('auth-nome-inp').value.trim();
-  const hash=await authHash(authPinCriar);
-  localStorage.setItem(AUTH_KEY,JSON.stringify({nome,hash}));
-  authShowCard('ac-security');
 }
 
-async function authVerificarLogin(){
-  const saved=JSON.parse(localStorage.getItem(AUTH_KEY));
-  const hash=await authHash(authPinLogin);
-  if(hash===saved.hash){
-    authEntrar();
-  } else {
-    authPinLogin='';
-    authUpdateDots('dots-login','',true);
-    setTimeout(()=>authUpdateDots('dots-login','',false),600);
+async function authGoogle(){
+  authLimparMensagens();
+  if(!window._fb)return authErro('Aguarde o Firebase carregar...');
+  authSetLoading(true);
+  try{
+    const provider=new window._fb.GoogleAuthProvider();
+    await window._fb.signInWithPopup(window._fb.auth,provider);
+    // onAuthStateChanged vai chamar authEntrar()
+  }catch(e){
+    authSetLoading(false);
+    if(e.code!=='auth/popup-closed-by-user') authErro(authMensagemErroFirebase(e.code));
+  }
+}
+
+async function authResetSenha(){
+  authLimparMensagens();
+  const email=document.getElementById('reset-email').value.trim();
+  if(!email)return authErro('Informe seu e-mail.');
+  if(!window._fb)return authErro('Aguarde o Firebase carregar...');
+  authSetLoading(true);
+  try{
+    await window._fb.sendPasswordResetEmail(window._fb.auth,email);
+    authSetLoading(false);
+    authOk('✅ E-mail enviado! Verifique sua caixa de entrada.');
+  }catch(e){
+    authSetLoading(false);
+    authErro(authMensagemErroFirebase(e.code));
   }
 }
 
 function authEntrar(){
   const as=document.getElementById('auth-screen');
+  if(!as)return iniciarApp();
   as.classList.add('hide');
-  setTimeout(()=>{as.remove();},500);
-  iniciarApp();
+  setTimeout(()=>{ as.classList.add('gone'); iniciarApp(); },480);
 }
 
-function authTrocarUsuario(){
-  if(!confirm('Remover usuario e PIN salvos? Os dados financeiros serao mantidos.'))return;
-  localStorage.removeItem(AUTH_KEY);
-  location.reload();
+function authDesconectar(){
+  if(!window._fb){ location.reload(); return; }
+  if(!confirm('Desconectar da conta?')) return;
+  window._fb.signOut(window._fb.auth)
+    .then(()=>{
+      // Limpa cache de sync local para forçar reload dos dados na próxima vez
+      localStorage.removeItem('bussola_sync_ts');
+      location.reload();
+    })
+    .catch(()=> location.reload());
 }
 
-function authShakeCard(){
-  const c=document.getElementById('auth-nome-inp');
-  c.style.borderColor='var(--danger)';
-  c.focus();
-  setTimeout(()=>c.style.borderColor='',800);
-}
+// Mantém compatibilidade com chamadas antigas
+function authTrocarUsuario(){ authDesconectar(); }
 
-/* ── FOTO DE PERFIL ── */
-function fotoClicar(){document.getElementById('foto-inp').click();}
-function fotoCarregar(evt){
-  const file=evt.target.files[0];if(!file)return;
-  const r=new FileReader();
-  r.onload=e=>{
-    const data64=e.target.result;
-    const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
-    saved.foto=data64;
-    localStorage.setItem(AUTH_KEY,JSON.stringify(saved));
-    authAplicarFoto(data64);
-  };
-  r.readAsDataURL(file);
-}
-function authAplicarFoto(src){
-  const img=document.getElementById('login-avatar-img');
-  const ini=document.getElementById('login-avatar-ini');
-  if(src){img.src=src;img.style.display='block';ini.style.display='none';}
-  else{img.style.display='none';ini.style.display='flex';}
-}
+// Listener: Firebase pronto com usuário
+document.addEventListener('fb-user-ready',(e)=>{
+  const {uid,email,displayName,photoURL}=e.detail;
 
-/* ── PERGUNTA DE SEGURANÇA (cadastro) ── */
-async function authSalvarCadastroOriginal(){} // placeholder
-async function authSalvarSeguranca(){
-  const resp=document.getElementById('sec-resp').value.trim();
-  if(!resp)return;
-  const pergunta=document.getElementById('sec-pergunta').value;
-  const hResp=await authHash(resp.toLowerCase());
-  const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
-  saved.secPergunta=pergunta;
-  saved.secHash=hResp;
-  localStorage.setItem(AUTH_KEY,JSON.stringify(saved));
+  // Atualiza info no menu
+  const nameEl  = document.getElementById('menu-user-name');
+  const emailEl = document.getElementById('menu-user-email');
+  if(nameEl)  nameEl.textContent  = displayName || email || 'Usuário';
+  if(emailEl) emailEl.textContent = email || uid.slice(0,16)+'...';
+
+  // Atualiza rodapé do menu com UID
+  const lbl=document.getElementById('sync-uid-label');
+  if(lbl) lbl.textContent = 'ID: '+uid.slice(0,12)+'...';
+
+  if(window._fbSetSyncStatus) window._fbSetSyncStatus('synced');
+
+  // Sobe dados locais para Firebase
+  if(typeof fbSyncTodos==='function') fbSyncTodos();
+
+  // Entra no app
   authEntrar();
-}
+});
 
-/* ── RECUPERAÇÃO DE PIN ── */
-const PERGUNTAS={
-  Mae:'Qual o nome da sua mae?',
-  Pet:'Qual o nome do seu primeiro pet?',
-  Escola:'Qual o nome da sua escola primaria?',
-  Cidade:'Em qual cidade voce nasceu?',
-  Apelido:'Qual o seu apelido de infancia?'
-};
-function authEsqueceuPin(){
-  const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
-  if(!saved.secPergunta){
-    toast('⚠️ Nenhuma pergunta cadastrada. Use "Trocar usuario".', true);
-    return;
-  }
-  document.getElementById('rec-pergunta-txt').textContent=PERGUNTAS[saved.secPergunta]||saved.secPergunta;
-  authShowCard('ac-recovery');
-}
-async function authValidarResposta(){
-  const resp=document.getElementById('rec-resp-inp').value.trim();
-  if(!resp)return;
-  const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
-  const hResp=await authHash(resp.toLowerCase());
-  if(hResp!==saved.secHash){
-    document.getElementById('rec-resp-inp').style.borderColor='var(--danger)';
-    setTimeout(()=>document.getElementById('rec-resp-inp').style.borderColor='',800);
-    toast('❌ Resposta incorreta',true);
-    return;
-  }
-  // Correto — ir para novo PIN
-  let newPin='';
-  authBuildPad('pad-newpin',
-    d=>{
-      if(newPin.length>=4)return;
-      newPin+=d;
-      authUpdateDots('dots-newpin',newPin);
-      if(newPin.length===4)authSalvarNovoPin(newPin);
-    },
-    ()=>{ newPin=newPin.slice(0,-1); authUpdateDots('dots-newpin',newPin); }
-  );
-  authShowCard('ac-newpin');
-}
-async function authSalvarNovoPin(pin){
-  const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
-  saved.hash=await authHash(pin);
-  localStorage.setItem(AUTH_KEY,JSON.stringify(saved));
-  toast('✅ PIN redefinido!');
-  authEntrar();
-}
+// Listener: sem usuário logado — mostra tela de auth
+document.addEventListener('fb-no-user',()=>{
+  // mostra tela de auth (já está visível por padrão)
+  authMostrarTab('login');
+});
+
+
 
 
 /* ═══ MÁSCARA DE MOEDA ══════════════════ */
@@ -2002,7 +1991,17 @@ function syncMesFromData(dataId,mesId){
 }
 
 window.addEventListener('load',()=>{
-  authInit();
+  // Garante que a tela de auth está visível enquanto Firebase verifica sessão
+  const as = document.getElementById('auth-screen');
+  if(as) as.classList.remove('hide','gone');
+
+  // Se Firebase demorar mais de 5s sem responder, mostra login normalmente
+  setTimeout(()=>{
+    if(!window._fbReady){
+      document.getElementById('auth-loading')?.classList.remove('show');
+      authMostrarTab('login');
+    }
+  },5000);
   registrarSW();
 });
 
