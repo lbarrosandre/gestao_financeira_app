@@ -80,8 +80,18 @@ onAuthStateChanged(fbAuth, async user => {
 
   // Listener Firestore em tempo real
   const userRef = doc(fbDB, 'users', user.uid);
-  onSnapshot(userRef, snap => {
-    if (!snap.exists()) return;
+  onSnapshot(userRef, async snap => {
+    if (!snap.exists()) {
+      // Primeira vez que o usuário loga (ex: Google) — cria documento inicial
+      try {
+        await setDoc(userRef, {
+          dados:[], plan:[], bolsos:[], divida:null, pagamentos:[],
+          _ts: Date.now(), _createdAt: Date.now(),
+          _email: user.email || '', _nome: user.displayName || ''
+        }, {merge:true});
+      } catch(e){ console.warn('Firestore create doc error:', e); }
+      return;
+    }
     const remote = snap.data();
     const ts = remote._ts || 0;
     const localTs = parseInt(localStorage.getItem('bussola_sync_ts') || '0');
@@ -1817,8 +1827,8 @@ function authMensagemErroFirebase(code){
   const map={
     'auth/user-not-found':'E-mail não encontrado. Verifique ou crie uma conta.',
     'auth/wrong-password':'Senha incorreta. Tente novamente.',
-    'auth/invalid-credential':'E-mail ou senha inválidos. Se você se cadastrou pelo Google, use o botão "Continuar com Google".',
-    'auth/email-already-in-use':'Este e-mail já está cadastrado. Faça login normalmente ou, se criou conta pelo Google, use o botão "Continuar com Google".',
+    'auth/invalid-credential':'E-mail ou senha inválidos. Se criou conta pelo Google, use o botão "Continuar com Google".',
+    'auth/email-already-in-use':'Este e-mail já está cadastrado. Acesse via "Entrar" ou, se criou conta pelo Google, clique em "Continuar com Google".',
     'auth/weak-password':'Senha muito fraca. Use ao menos 6 caracteres.',
     'auth/invalid-email':'E-mail inválido.',
     'auth/popup-closed-by-user':'Login cancelado.',
@@ -1874,17 +1884,30 @@ async function authCadastro(){
   }
 }
 
+function _isMobile(){
+  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+}
+
 async function authGoogle(){
   authLimparMensagens();
   if(!window._fb)return authErro('Aguarde o Firebase carregar...');
   authSetLoading(true);
-  try{
-    const provider=new window._fb.GoogleAuthProvider();
-    await window._fb.signInWithPopup(window._fb.auth,provider);
-    // onAuthStateChanged vai chamar authEntrar()
-  }catch(e){
-    authSetLoading(false);
-    if(e.code!=='auth/popup-closed-by-user') authErro(authMensagemErroFirebase(e.code));
+  const provider=new window._fb.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  if(_isMobile()){
+    try{
+      await window._fb.signInWithRedirect(window._fb.auth,provider);
+    }catch(e){
+      authSetLoading(false);
+      authErro(authMensagemErroFirebase(e.code));
+    }
+  } else {
+    try{
+      await window._fb.signInWithPopup(window._fb.auth,provider);
+    }catch(e){
+      authSetLoading(false);
+      if(e.code!=='auth/popup-closed-by-user') authErro(authMensagemErroFirebase(e.code));
+    }
   }
 }
 
@@ -1897,16 +1920,23 @@ async function authResetSenha(){
   try{
     await window._fb.sendPasswordResetEmail(window._fb.auth,email);
     authSetLoading(false);
-    authOk('✅ E-mail enviado! Verifique sua caixa de entrada.');
+    authOk('✅ E-mail enviado! Verifique sua caixa de entrada e a pasta de spam. ⚠️ Se criou conta pelo Google, use o botão "Continuar com Google".');
   }catch(e){
     authSetLoading(false);
-    authErro(authMensagemErroFirebase(e.code));
+    if(e.code==='auth/user-not-found'||e.code==='auth/invalid-email'){
+      authErro('E-mail não encontrado ou inválido. Verifique e tente novamente.');
+    } else {
+      authErro(authMensagemErroFirebase(e.code));
+    }
   }
 }
 
+let _authEntrarChamado=false;
 function authEntrar(){
+  if(_authEntrarChamado) return; // evita dupla inicialização
+  _authEntrarChamado=true;
   const as=document.getElementById('auth-screen');
-  if(!as)return iniciarApp();
+  if(!as||as.classList.contains('gone')) return iniciarApp();
   as.classList.add('hide');
   setTimeout(()=>{ as.classList.add('gone'); iniciarApp(); },480);
 }
@@ -1916,7 +1946,6 @@ function authDesconectar(){
   if(!confirm('Desconectar da conta?')) return;
   window._fb.signOut(window._fb.auth)
     .then(()=>{
-      // Limpa cache de sync local para forçar reload dos dados na próxima vez
       localStorage.removeItem('bussola_sync_ts');
       location.reload();
     })
@@ -1951,7 +1980,9 @@ document.addEventListener('fb-user-ready',(e)=>{
 
 // Listener: sem usuário logado — mostra tela de auth
 document.addEventListener('fb-no-user',()=>{
-  // mostra tela de auth (já está visível por padrão)
+  _authEntrarChamado=false; // reseta guard para próximo login
+  const as=document.getElementById('auth-screen');
+  if(as){ as.classList.remove('hide','gone'); }
   authMostrarTab('login');
 });
 
@@ -3328,16 +3359,6 @@ function dashPlanReal(){
 }
 
 /* ═══ FIREBASE APP INTEGRATION ══════════ */
-// Escuta quando Firebase Auth estiver pronto
-document.addEventListener('fb-ready', (e) => {
-  const uid = e.detail.uid;
-  const lbl = document.getElementById('sync-uid-label');
-  if (lbl) lbl.textContent = 'ID: ' + uid.slice(0,16) + '...';
-  if (window._fbSetSyncStatus) window._fbSetSyncStatus('synced');
-  // Sync inicial: envia dados locais para o Firebase se não houver dados remotos
-  fbSyncTodos();
-});
-
 // Sync manual: envia todos os dados locais para o Firebase
 function fbSyncTodos() {
   if (!window._fbSync) return;
