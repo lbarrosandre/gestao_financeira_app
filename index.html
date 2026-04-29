@@ -87,12 +87,26 @@ onAuthStateChanged(fbAuth, async user => {
 
     if (!snap.exists()) {
       // Primeira vez que o usuário loga (ex: Google) — cria documento inicial
+      // IMPORTANTE: salvar _ts no localStorage ANTES do setDoc para que o
+      // próximo onSnapshot não sobrescreva dados locais com arrays vazios
+      const initTs = Date.now();
+      localStorage.setItem('bussola_sync_ts', String(initTs));
       try {
         await setDoc(userRef, {
           dados:[], plan:[], bolsos:[], divida:null, pagamentos:[],
-          _ts: Date.now(), _createdAt: Date.now(),
+          _ts: initTs, _createdAt: initTs,
           _email: user.email || '', _nome: user.displayName || ''
         }, {merge:true});
+        // Após criar o doc vazio, subir imediatamente os dados locais caso existam
+        const dadosLocais = JSON.parse(localStorage.getItem('gastos_v2')||'[]');
+        const planLocal   = JSON.parse(localStorage.getItem('gastos_plan')||'[]');
+        const bolsosLocal = JSON.parse(localStorage.getItem('bussola_bolsos')||'[]');
+        const dividaLocal = JSON.parse(localStorage.getItem('bussola_divida')||'null');
+        const pagLocal    = JSON.parse(localStorage.getItem('bussola_pagamentos')||'[]');
+        const temDados = dadosLocais.length||planLocal.length||bolsosLocal.length||dividaLocal||pagLocal.length;
+        if (temDados && window._fbSync) {
+          await window._fbSync({ dados:dadosLocais, plan:planLocal, bolsos:bolsosLocal, divida:dividaLocal, pagamentos:pagLocal });
+        }
       } catch(e){ console.warn('Firestore create doc error:', e); }
       return;
     }
@@ -100,11 +114,12 @@ onAuthStateChanged(fbAuth, async user => {
     const ts = remote._ts || 0;
     const localTs = parseInt(localStorage.getItem('bussola_sync_ts') || '0');
     if (ts > localTs) {
-      if (remote.dados)     { localStorage.setItem('gastos_v2',          JSON.stringify(remote.dados));      window.dados     = remote.dados; }
-      if (remote.plan)      { localStorage.setItem('gastos_plan',        JSON.stringify(remote.plan));       window.plan      = remote.plan; }
-      if (remote.bolsos)    { localStorage.setItem('bussola_bolsos',     JSON.stringify(remote.bolsos));     window.bolsos    = remote.bolsos; }
-      if (remote.divida)    { localStorage.setItem('bussola_divida',     JSON.stringify(remote.divida));     window.dividaPai = remote.divida; }
-      if (remote.pagamentos){ localStorage.setItem('bussola_pagamentos', JSON.stringify(remote.pagamentos)); window.pagamentos= remote.pagamentos; }
+      // Só sobrescreve cada array se o Firestore tiver dados (nunca apaga com array vazio)
+      if (remote.dados      && remote.dados.length      >= 0) { localStorage.setItem('gastos_v2',          JSON.stringify(remote.dados));      window.dados     = remote.dados; }
+      if (remote.plan       && remote.plan.length       >= 0) { localStorage.setItem('gastos_plan',        JSON.stringify(remote.plan));       window.plan      = remote.plan; }
+      if (remote.bolsos     && remote.bolsos.length     >= 0) { localStorage.setItem('bussola_bolsos',     JSON.stringify(remote.bolsos));     window.bolsos    = remote.bolsos; }
+      if (remote.divida  !== undefined)                        { localStorage.setItem('bussola_divida',     JSON.stringify(remote.divida));     window.dividaPai = remote.divida; }
+      if (remote.pagamentos && remote.pagamentos.length >= 0) { localStorage.setItem('bussola_pagamentos', JSON.stringify(remote.pagamentos)); window.pagamentos= remote.pagamentos; }
       localStorage.setItem('bussola_sync_ts', String(ts));
       if (typeof window.renderLista==='function') {
         window.dados=JSON.parse(localStorage.getItem('gastos_v2')||'[]');
@@ -2436,17 +2451,40 @@ function exportarBackup(){
 function importarBackup(event){
   const arq=event.target.files[0];if(!arq)return;
   const r=new FileReader();
-  r.onload=function(e){
+  r.onload=async function(e){
     try{
       const bk=JSON.parse(e.target.result);
-      if(bk.gastos)localStorage.setItem('gastos_v2',bk.gastos);
-      if(bk.planejamento)localStorage.setItem('gastos_plan',bk.planejamento);
-      if(bk.bolsos)localStorage.setItem('bussola_bolsos',bk.bolsos);
-      if(bk.divida)localStorage.setItem('bussola_divida',bk.divida);
-      if(bk.pagamentos)localStorage.setItem('bussola_pagamentos',bk.pagamentos);
-      toast('📥 Backup restaurado!');
-      setTimeout(()=>location.reload(),1000);
-    }catch{toast('❌ Backup inválido',true);}
+      // Salva no localStorage
+      if(bk.gastos)     localStorage.setItem('gastos_v2',        bk.gastos);
+      if(bk.planejamento)localStorage.setItem('gastos_plan',     bk.planejamento);
+      if(bk.bolsos)     localStorage.setItem('bussola_bolsos',   bk.bolsos);
+      if(bk.divida)     localStorage.setItem('bussola_divida',   bk.divida);
+      if(bk.pagamentos) localStorage.setItem('bussola_pagamentos',bk.pagamentos);
+
+      // Atualiza timestamp para que o onSnapshot não sobrescreva os dados importados
+      const tsImport = Date.now();
+      localStorage.setItem('bussola_sync_ts', String(tsImport));
+
+      // Sobe os dados importados para o Firestore (resolve o backup entre contas)
+      if(window._fbSync && window._fbReady){
+        try{
+          const dadosImp  = JSON.parse(bk.gastos      || '[]');
+          const planImp   = JSON.parse(bk.planejamento || '[]');
+          const bolsosImp = JSON.parse(bk.bolsos       || '[]');
+          const dividaImp = JSON.parse(bk.divida        || 'null');
+          const pagImp    = JSON.parse(bk.pagamentos   || '[]');
+          await window._fbSync({ dados:dadosImp, plan:planImp, bolsos:bolsosImp, divida:dividaImp, pagamentos:pagImp });
+          toast('📥 Backup importado e sincronizado com a nuvem!');
+        }catch(syncErr){
+          console.warn('Sync após importação falhou:', syncErr);
+          toast('📥 Backup restaurado localmente (sincronização pendente)');
+        }
+      } else {
+        toast('📥 Backup restaurado!');
+      }
+
+      setTimeout(()=>location.reload(),1500);
+    }catch{ toast('❌ Backup inválido. Verifique o arquivo e tente novamente.',true); }
   };
   r.readAsText(arq);
 }
