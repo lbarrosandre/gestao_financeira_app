@@ -14,141 +14,36 @@
 <title>Bússola</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<!-- ═══ FIREBASE SDK ═══════════════════════════════════════════════════ -->
-<script type="module">
-import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import {
-  getAuth, onAuthStateChanged,
-  createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
-  sendPasswordResetEmail, signOut, updateProfile
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence }
-  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+<!-- ═══ SUPABASE SDK ═══════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ─────────────────────────────────────────────────────
+   SUPABASE CONFIG
+   Substitua URL e ANON_KEY pelas suas credenciais do
+   projeto Supabase (Settings → API)
+───────────────────────────────────────────────────── */
+const SUPA_URL  = 'https://iocpvtruwheumbwolxtd.supabase.co';
+const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvY3B2dHJ1d2hldW1id29seHRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwOTg5MTIsImV4cCI6MjA5NDY3NDkxMn0.vs_kVkbzFLlT0NUhIEgENH_Zxvz8muG-OFNYHfR1ZCA';
 
-const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyDZFYLuaGRbiTnc8WhRubQ9ypFb-nPuoVE",
-  authDomain:        "bussola-finance.firebaseapp.com",
-  projectId:         "bussola-finance",
-  storageBucket:     "bussola-finance.firebasestorage.app",
-  messagingSenderId: "263716810862",
-  appId:             "1:263716810862:web:b369a573358a210a6d367f"
-};
-
-const fbApp  = initializeApp(FIREBASE_CONFIG);
-const fbAuth = getAuth(fbApp);
-const fbDB   = getFirestore(fbApp);
-enableIndexedDbPersistence(fbDB).catch(()=>{});
-
-// ─── Expõe globalmente ────────────────────────────────────────────────
-window._fb = {
-  auth: fbAuth, db: fbDB,
-  doc, getDoc, setDoc, onSnapshot,
-  createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
-  sendPasswordResetEmail, signOut, updateProfile
-};
-window._fbReady = false;
-window._fbUID   = null;
-
-// ─── Verifica resultado de redirect Google (mobile) ──────────────────
-getRedirectResult(fbAuth).catch(e => {
-  if (e.code && e.code !== 'auth/popup-closed-by-user') {
-    console.warn('Google redirect error:', e.code);
+// Fix: Supabase OAuth retorna ##access_token — normaliza para #access_token
+if (window.location.href.includes('##access_token')) {
+  window.location.replace(window.location.href.replace('##access_token', '#access_token'));
+}
+const _supa = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
   }
 });
 
-// ─── Listener de autenticação ─────────────────────────────────────────
-onAuthStateChanged(fbAuth, async user => {
-  if (!user) {
-    // Não logado — mostra tela de auth
-    document.dispatchEvent(new CustomEvent('fb-no-user'));
-    return;
-  }
-  window._fbUID   = user.uid;
-  window._fbReady = true;
+// Estado global de sync
+window._sbReady = false;
+window._sbUID   = null;
+let _sbChannel  = null;   // realtime channel
 
-  // Atualiza info do usuário na UI
-  document.dispatchEvent(new CustomEvent('fb-user-ready', {
-    detail: {
-      uid:         user.uid,
-      email:       user.email || '',
-      displayName: user.displayName || '',
-      photoURL:    user.photoURL || ''
-    }
-  }));
-
-  // Listener Firestore em tempo real
-  const userRef = doc(fbDB, 'users', user.uid);
-  onSnapshot(userRef, async snap => {
-    // Ignora snapshots vindos do cache local do Firestore para evitar
-    // sobrescrever dados recém-adicionados (race condition com persistência offline)
-    if (snap.metadata.fromCache) return;
-
-    if (!snap.exists()) {
-      // Primeira vez que o usuário loga (ex: Google) — cria documento inicial
-      // IMPORTANTE: salvar _ts no localStorage ANTES do setDoc para que o
-      // próximo onSnapshot não sobrescreva dados locais com arrays vazios
-      const initTs = Date.now();
-      localStorage.setItem('bussola_sync_ts', String(initTs));
-      try {
-        await setDoc(userRef, {
-          dados:[], plan:[], bolsos:[], divida:null, pagamentos:[],
-          _ts: initTs, _createdAt: initTs,
-          _email: user.email || '', _nome: user.displayName || ''
-        }, {merge:true});
-        // Após criar o doc vazio, subir imediatamente os dados locais caso existam
-        const dadosLocais = JSON.parse(localStorage.getItem('gastos_v2')||'[]');
-        const planLocal   = JSON.parse(localStorage.getItem('gastos_plan')||'[]');
-        const bolsosLocal = JSON.parse(localStorage.getItem('bussola_bolsos')||'[]');
-        const dividaLocal = JSON.parse(localStorage.getItem('bussola_divida')||'null');
-        const pagLocal    = JSON.parse(localStorage.getItem('bussola_pagamentos')||'[]');
-        const temDados = dadosLocais.length||planLocal.length||bolsosLocal.length||dividaLocal||pagLocal.length;
-        if (temDados && window._fbSync) {
-          await window._fbSync({ dados:dadosLocais, plan:planLocal, bolsos:bolsosLocal, divida:dividaLocal, pagamentos:pagLocal });
-        }
-      } catch(e){ console.warn('Firestore create doc error:', e); }
-      return;
-    }
-    const remote = snap.data();
-    const ts = remote._ts || 0;
-    const localTs = parseInt(localStorage.getItem('bussola_sync_ts') || '0');
-    if (ts > localTs) {
-      // Só sobrescreve cada array se o Firestore tiver dados (nunca apaga com array vazio)
-      if (remote.dados      && remote.dados.length      >= 0) { localStorage.setItem('gastos_v2',          JSON.stringify(remote.dados));      window.dados     = remote.dados; }
-      if (remote.plan       && remote.plan.length       >= 0) { localStorage.setItem('gastos_plan',        JSON.stringify(remote.plan));       window.plan      = remote.plan; }
-      if (remote.bolsos     && remote.bolsos.length     >= 0) { localStorage.setItem('bussola_bolsos',     JSON.stringify(remote.bolsos));     window.bolsos    = remote.bolsos; }
-      if (remote.divida  !== undefined)                        { localStorage.setItem('bussola_divida',     JSON.stringify(remote.divida));     window.dividaPai = remote.divida; }
-      if (remote.pagamentos && remote.pagamentos.length >= 0) { localStorage.setItem('bussola_pagamentos', JSON.stringify(remote.pagamentos)); window.pagamentos= remote.pagamentos; }
-      localStorage.setItem('bussola_sync_ts', String(ts));
-      if (typeof window.renderLista==='function') {
-        window.dados=JSON.parse(localStorage.getItem('gastos_v2')||'[]');
-        window.plan=JSON.parse(localStorage.getItem('gastos_plan')||'[]');
-        window.bolsos=JSON.parse(localStorage.getItem('bussola_bolsos')||'[]');
-        window.dividaPai=JSON.parse(localStorage.getItem('bussola_divida')||'null');
-        window.pagamentos=JSON.parse(localStorage.getItem('bussola_pagamentos')||'[]');
-        window.renderLista(); window.renderPlan(); window.atualizarStats();
-        window.atualizarStatsPlan(); window.renderInvestimentos(); window.renderDividas();
-      }
-      window._fbSetSyncStatus('synced');
-    }
-  }, () => window._fbSetSyncStatus('error'));
-});
-
-window._fbSync = async function(patch) {
-  if (!window._fbReady || !window._fbUID) { window._fbSetSyncStatus('offline'); return; }
-  window._fbSetSyncStatus('syncing');
-  try {
-    const ts = Date.now();
-    // Define o timestamp ANTES do write para que o onSnapshot do cache
-    // não sobrescreva dados locais recém-adicionados (race condition)
-    localStorage.setItem('bussola_sync_ts', String(ts));
-    await setDoc(doc(fbDB,'users',window._fbUID), {...patch,_ts:ts}, {merge:true});
-    window._fbSetSyncStatus('synced');
-  } catch(e) { window._fbSetSyncStatus('error'); }
-};
-
-window._fbSetSyncStatus = function(status) {
+/* ── Status visual de sync ── */
+window._sbSetSyncStatus = function(status) {
   const el = document.getElementById('sync-status');
   if (!el) return;
   const map = {
@@ -157,9 +52,255 @@ window._fbSetSyncStatus = function(status) {
     offline:{ dot:'📴', txt:'Offline',           color:'var(--text3)' },
     error:  { dot:'⚠️',  txt:'Erro de sync',     color:'var(--danger)' }
   };
-  const s = map[status]||map['offline'];
+  const s = map[status] || map['offline'];
   el.innerHTML = `<span>${s.dot}</span><span style="color:${s.color}">${s.txt}</span>`;
 };
+
+/* ── Escuta mudanças de sessão ── */
+
+// onAuthStateChange registrado no window.load — ver script no final do arquivo
+/* ── Realtime — escuta INSERTs/UPDATEs/DELETEs em todas as tabelas ── */
+function sbIniciarRealtime() {
+  if (_sbChannel) _supa.removeChannel(_sbChannel);
+  _sbChannel = _supa.channel('bussola:' + window._sbUID)
+    .on('postgres_changes',{ event:'*', schema:'public', table:'lancamentos',       filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
+    .on('postgres_changes',{ event:'*', schema:'public', table:'planejamentos',     filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
+    .on('postgres_changes',{ event:'*', schema:'public', table:'bolsos',            filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
+    .on('postgres_changes',{ event:'*', schema:'public', table:'bolso_movimentos',  filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
+    .on('postgres_changes',{ event:'*', schema:'public', table:'dividas',           filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
+    .on('postgres_changes',{ event:'*', schema:'public', table:'pagamentos_divida', filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
+    .subscribe();
+}
+
+/* ── Reload leve após evento realtime ── */
+async function sbReloadDados() {
+  await sbCarregarDados();
+}
+
+/* ══════════════════════════════════════════════
+   CARREGAR DADOS — lê todas as tabelas relacionais
+══════════════════════════════════════════════ */
+async function sbCarregarDados() {
+  if (!window._sbUID) return;
+  window._sbSetSyncStatus('syncing');
+  try {
+    const uid = window._sbUID;
+
+    // Paralelo: busca todas as tabelas ao mesmo tempo
+    const [rLanc, rPlan, rBolsos, rMovs, rDiv, rPag] = await Promise.all([
+      _supa.from('lancamentos').select('*').eq('uid', uid).order('data_lancto', { ascending: false }),
+      _supa.from('planejamentos').select('*').eq('uid', uid).order('data_prevista', { ascending: true }),
+      _supa.from('bolsos').select('*').eq('uid', uid).order('created_at', { ascending: true }),
+      _supa.from('bolso_movimentos').select('*').eq('uid', uid).order('data_mov', { ascending: false }),
+      _supa.from('dividas').select('*').eq('uid', uid).order('criado_em', { ascending: false }),
+      _supa.from('pagamentos_divida').select('*').eq('uid', uid).order('data_pag', { ascending: false }),
+    ]);
+
+    // Converte formato Supabase → formato app
+    if (rLanc.data) {
+      window.dados = rLanc.data.map(sbLancToApp);
+      localStorage.setItem('gastos_v2', JSON.stringify(window.dados));
+    }
+    if (rPlan.data) {
+      window.plan = rPlan.data.map(sbPlanToApp);
+      localStorage.setItem('gastos_plan', JSON.stringify(window.plan));
+    }
+    if (rBolsos.data) {
+      // Injeta movimentos em cada bolso
+      const movs = rMovs.data || [];
+      window.bolsos = rBolsos.data.map(b => ({
+        id: b.id, nome: b.nome, meta: b.meta || 0,
+        ico: b.ico || '💼', cor: b.cor || '#3B82F6',
+        saldo: b.saldo || 0, rendimento: b.rendimento || 0,
+        movimentos: movs.filter(m => m.bolso_id === b.id).map(sbMovToApp)
+      }));
+      localStorage.setItem('bussola_bolsos', JSON.stringify(window.bolsos));
+    }
+    if (rDiv.data && rDiv.data.length > 0) {
+      const d = rDiv.data[0];
+      window.dividaPai = { id: d.id, nome: d.nome, total: d.total, saldo: d.saldo, criado: d.criado_em };
+      localStorage.setItem('bussola_divida', JSON.stringify(window.dividaPai));
+    }
+    if (rPag.data) {
+      window.pagamentos = rPag.data.map(sbPagToApp);
+      localStorage.setItem('bussola_pagamentos', JSON.stringify(window.pagamentos));
+    }
+
+    // Atualiza UI
+    if (typeof window.renderLista === 'function') {
+      window.renderLista(); window.renderPlan(); window.atualizarStats();
+      window.atualizarStatsPlan(); window.renderInvestimentos(); window.renderDividas();
+      if (typeof window.renderDash === 'function') window.renderDash();
+    }
+    window._sbSetSyncStatus('synced');
+  } catch(e) {
+    console.error('sbCarregarDados error:', e);
+    window._sbSetSyncStatus('error');
+  }
+}
+
+/* ══════════════════════════════════════════════
+   CONVERTERS — Supabase → App
+══════════════════════════════════════════════ */
+function sbLancToApp(r) {
+  const [y,m,d] = (r.data_lancto||'').split('-');
+  return {
+    id: r.id, data: d?`${d}/${m}/${y}`:'', dataISO: r.data_lancto||'',
+    mes: r.mes_ref, descricao: r.descricao, movimento: r.movimento,
+    valor: parseFloat(r.valor), valorAbs: parseFloat(r.valor_abs),
+    tipo: r.tipo, categoria: r.categoria, classificacao: r.classificacao,
+    comentario: r.comentario||undefined, dePlan: r.de_plan||false,
+    recorrente: r.recorrente||false
+  };
+}
+function sbPlanToApp(r) {
+  const [y,m,d] = (r.data_prevista||'').split('-');
+  return {
+    id: r.id, data: d?`${d}/${m}/${y}`:'', dataISO: r.data_prevista||'',
+    mes: r.mes_ref, descricao: r.descricao, movimento: r.movimento,
+    valorPlanejado: parseFloat(r.valor_planejado||0),
+    valorReal: parseFloat(r.valor_real||0),
+    tipo: r.tipo, categoria: r.categoria, classificacao: r.classificacao,
+    status: r.status, dataExec: r.data_exec||undefined,
+    dataExecISO: r.data_exec_iso||undefined, lancId: r.lanc_id||null,
+    recorrente: r.recorrente||false, grupoRec: r.grupo_rec||null,
+    comentario: r.comentario||undefined
+  };
+}
+function sbMovToApp(r) {
+  return { id: r.id, tipo: r.tipo, valor: parseFloat(r.valor||0),
+           descricao: r.descricao||'', data: r.data_mov, mesRef: r.mes_ref||'', lancId: r.lanc_id||null };
+}
+function sbPagToApp(r) {
+  const [y,m,d] = (r.data_pag||'').split('-');
+  return { id: r.id, valor: parseFloat(r.valor||0),
+           data: d?`${d}/${m}/${y}`:'', dataISO: r.data_pag||'',
+           descricao: r.descricao||'', lancId: r.lanc_id||null };
+}
+
+/* ══════════════════════════════════════════════
+   PERSISTÊNCIA — App → Supabase (tabelas relacionais)
+══════════════════════════════════════════════ */
+
+/* Lançamento individual */
+window._sbSync = async function(patch) {
+  if (!window._sbReady || !window._sbUID) { window._sbSetSyncStatus('offline'); return; }
+  window._sbSetSyncStatus('syncing');
+  try {
+    const uid = window._sbUID;
+
+    if (patch.dados) {
+      // Upsert todos os lançamentos
+      const rows = (patch.dados).map(d => ({
+        id: d.id, uid,
+        data_lancto: d.dataISO, mes_ref: d.mes,
+        descricao: d.descricao, movimento: d.movimento,
+        valor: d.valor, valor_abs: d.valorAbs,
+        tipo: d.tipo, categoria: d.categoria, classificacao: d.classificacao,
+        comentario: d.comentario||null, de_plan: d.dePlan||false,
+        recorrente: d.recorrente||false
+      }));
+      if (rows.length > 0) {
+        await _supa.from('lancamentos').upsert(rows, { onConflict: 'id' });
+      }
+      // Remove excluídos: busca IDs remotos e deleta os que não estão no local
+      const { data: remote } = await _supa.from('lancamentos').select('id').eq('uid', uid);
+      if (remote) {
+        const localIds = new Set((patch.dados).map(d => d.id));
+        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+        if (toDelete.length > 0) await _supa.from('lancamentos').delete().in('id', toDelete).eq('uid', uid);
+      }
+    }
+
+    if (patch.plan) {
+      const rows = (patch.plan).map(p => ({
+        id: p.id, uid,
+        data_prevista: p.dataISO, mes_ref: p.mes,
+        descricao: p.descricao, movimento: p.movimento,
+        valor_planejado: p.valorPlanejado, valor_real: p.valorReal||0,
+        tipo: p.tipo, categoria: p.categoria, classificacao: p.classificacao,
+        status: p.status, data_exec: p.dataExecISO||null,
+        data_exec_iso: p.dataExecISO||null, lanc_id: p.lancId||null,
+        recorrente: p.recorrente||false, grupo_rec: p.grupoRec||null,
+        comentario: p.comentario||null
+      }));
+      if (rows.length > 0) await _supa.from('planejamentos').upsert(rows, { onConflict: 'id' });
+      const { data: remote } = await _supa.from('planejamentos').select('id').eq('uid', uid);
+      if (remote) {
+        const localIds = new Set((patch.plan).map(p => p.id));
+        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+        if (toDelete.length > 0) await _supa.from('planejamentos').delete().in('id', toDelete).eq('uid', uid);
+      }
+    }
+
+    if (patch.bolsos) {
+      for (const b of patch.bolsos) {
+        await _supa.from('bolsos').upsert({
+          id: b.id, uid, nome: b.nome, meta: b.meta||0,
+          ico: b.ico||'💼', cor: b.cor||'#3B82F6',
+          saldo: b.saldo||0, rendimento: b.rendimento||0
+        }, { onConflict: 'id' });
+        if (b.movimentos?.length > 0) {
+          const movRows = b.movimentos.map(m => ({
+            id: m.id, bolso_id: b.id, uid,
+            tipo: m.tipo, valor: m.valor, descricao: m.descricao||null,
+            data_mov: m.data||new Date().toISOString().split('T')[0],
+            mes_ref: m.mesRef||null, lanc_id: m.lancId||null
+          }));
+          await _supa.from('bolso_movimentos').upsert(movRows, { onConflict: 'id' });
+        }
+      }
+      // Remove bolsos excluídos
+      const { data: remote } = await _supa.from('bolsos').select('id').eq('uid', uid);
+      if (remote) {
+        const localIds = new Set((patch.bolsos).map(b => b.id));
+        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+        if (toDelete.length > 0) await _supa.from('bolsos').delete().in('id', toDelete).eq('uid', uid);
+      }
+    }
+
+    if (patch.divida && patch.divida.id) {
+      await _supa.from('dividas').upsert({
+        id: patch.divida.id, uid,
+        nome: patch.divida.nome, total: patch.divida.total,
+        saldo: patch.divida.saldo, criado_em: patch.divida.criado||new Date().toISOString()
+      }, { onConflict: 'id' });
+    }
+
+    if (patch.pagamentos) {
+      const divId = window.dividaPai?.id;
+      if (divId) {
+        const rows = (patch.pagamentos).map(p => ({
+          id: p.id, divida_id: divId, uid,
+          valor: p.valor, data_pag: p.dataISO||new Date().toISOString().split('T')[0],
+          descricao: p.descricao||null, lanc_id: p.lancId||null
+        }));
+        if (rows.length > 0) await _supa.from('pagamentos_divida').upsert(rows, { onConflict: 'id' });
+        const { data: remote } = await _supa.from('pagamentos_divida').select('id').eq('uid', uid);
+        if (remote) {
+          const localIds = new Set((patch.pagamentos).map(p => p.id));
+          const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+          if (toDelete.length > 0) await _supa.from('pagamentos_divida').delete().in('id', toDelete).eq('uid', uid);
+        }
+      }
+    }
+
+    window._sbSetSyncStatus('synced');
+  } catch(e) {
+    console.error('_sbSync error:', e);
+    window._sbSetSyncStatus('error');
+  }
+};
+
+/* Sobe tudo de uma vez (chamado no login) */
+window.sbSyncTodos = async function() {
+  if (!window._sbReady) return;
+  await window._sbSync({
+    dados: window.dados, plan: window.plan, bolsos: window.bolsos,
+    divida: window.dividaPai, pagamentos: window.pagamentos
+  });
+};
+
 </script>
 <style>
 :root{
@@ -401,14 +542,43 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .sh-cancel{background:var(--surface2);color:var(--text2);border:1px solid var(--border2)!important}
 .sh-ok{background:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow)}
 
+
+/* ─── EDIT SHEET ─────────────────────── */
+.sh-edit-ov{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;z-index:302;backdrop-filter:blur(5px)}
+.sh-edit-ov.show{display:block}
+.sh-edit{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+28px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:303;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sh-edit.show{transform:none}
+.sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 /* ─── DIALOG ─────────────────────────── */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;place-items:center;z-index:200;backdrop-filter:blur(6px)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;place-items:center;z-index:600;backdrop-filter:blur(6px)}
 .ov.show{display:grid}
-.dlg{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:24px 20px;max-width:300px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,.7)}
+.dlg{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:24px 20px;max-width:300px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,.7);position:relative;z-index:601}
 .dlg h3{font-size:.95rem;margin-bottom:8px}
 .dlg p{font-size:.82rem;color:var(--text2);margin-bottom:18px;line-height:1.6}
 .dlg-btns{display:flex;gap:8px}
 .dlg-btns button{flex:1;padding:11px;border-radius:9px;border:none;font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer}
+
+/* ─── DATA ACTIONS ───────────────────── */
+.data-tog{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 16px 4px}
+.data-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  padding:12px 8px;border-radius:var(--r);border:1.5px solid var(--border2);
+  background:var(--surface2);cursor:pointer;transition:all .18s;
+  font-family:var(--sans);color:var(--text2);
+}
+.data-btn:active{transform:scale(.96)}
+.data-btn.export{border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.08);color:var(--teal)}
+.data-btn.import{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.08);color:var(--accent)}
+.data-btn-ico{font-size:1.4rem}
+.data-btn-lbl{font-size:.72rem;font-weight:700}
+.data-btn-sub{font-size:.58rem;color:var(--text3);text-align:center;line-height:1.3}
+
+/* ─── DIALOG ANIMAÇÃO ───────────────────── */
+.ov{animation:none}
+.dlg{animation:dlgPop .22s cubic-bezier(.34,1.56,.64,1)}
+@keyframes dlgPop{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
+.dlg h3{text-align:center;font-size:1rem;margin-bottom:6px}
+
 .btn-cx{background:var(--surface2);color:var(--text2);border:1px solid var(--border2)!important}
 .btn-cf{background:var(--danger);color:#fff}
 
@@ -1020,7 +1190,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="splash-dot"></div>
     <div class="splash-dot"></div>
   </div>
-  <div class="splash-ver">v2.1</div>
+  <div class="splash-ver">v3.0</div>
 </div>
 
 <!-- APP -->
@@ -1268,8 +1438,6 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="dash-insight" id="dash-insights"></div>
 
   </div>
-  </div><!-- /pane-dash -->
-
   <!-- ABA INFO / COTAÇÕES ══════════════ -->
   <div class="tab-pane" id="pane-info">
 
@@ -1551,26 +1719,20 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
   <!-- DADOS E EXPORTAÇÃO -->
   <div class="menu-section">
-    <div class="menu-sec-label">Dados e exportação</div>
-    <button class="menu-item" onclick="exportarBackup();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">💾</div>
-      <div class="menu-item-body"><div class="menu-item-label">Exportar backup</div><div class="menu-item-sub">Salva todos os dados em JSON</div></div>
+    <div class="menu-sec-label">Dados</div>
+  </div>
+  <div class="data-tog">
+    <button class="data-btn export" onclick="exportarCSV();fecharMenu()">
+      <span class="data-btn-ico">💾</span>
+      <span class="data-btn-lbl">Backup</span>
+      <span class="data-btn-sub">Exportar CSV<br>para o Excel</span>
     </button>
-    <button class="menu-item" onclick="document.getElementById('impArq').click();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(59,130,246,.12)">📥</div>
-      <div class="menu-item-body"><div class="menu-item-label">Restaurar backup</div><div class="menu-item-sub">Importa arquivo JSON salvo</div></div>
-    </button>
-    <button class="menu-item" onclick="exportarCSV();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(16,185,129,.12)">📊</div>
-      <div class="menu-item-body"><div class="menu-item-label">Exportar CSV</div><div class="menu-item-sub">Para reconciliar no Excel</div></div>
-    </button>
-    <button class="menu-item" onclick="document.getElementById('impCSV').click();fecharMenu()">
-      <div class="menu-item-ico" style="background:rgba(234,179,8,.12)">📤</div>
-      <div class="menu-item-body"><div class="menu-item-label">Importar histórico CSV</div><div class="menu-item-sub">Carrega todo o histórico disponível</div></div>
+    <button class="data-btn import" onclick="document.getElementById('impCSV').click();fecharMenu()">
+      <span class="data-btn-ico">📤</span>
+      <span class="data-btn-lbl">Upload</span>
+      <span class="data-btn-sub">Importar histórico<br>CSV salvo</span>
     </button>
   </div>
-
-  <input type="file" id="impArq" accept=".json" style="display:none" onchange="importarBackup(event)">
   <input type="file" id="impCSV" accept=".csv,.txt" style="display:none" onchange="importarCSV(event)">
 
   <div class="menu-divider"></div>
@@ -1586,7 +1748,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="menu-item-sub" id="menu-user-email">—</div>
       </div>
     </div>
-    <button class="menu-item" onclick="fecharMenu();authDesconectar()">
+    <button class="menu-item" onclick="authDesconectar()">
       <div class="menu-item-ico" style="background:rgba(239,68,68,.12)">🚪</div>
       <div class="menu-item-body">
         <div class="menu-item-label" style="color:var(--danger)">Desconectar</div>
@@ -1654,23 +1816,38 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </div>
   </div>
 
-  <div class="menu-divider"></div>
+  <!-- sync-status oculto (usado internamente) -->
+  <span id="sync-status" style="display:none"></span>
+  <span id="sync-uid-label" style="display:none"></span>
 
-  <!-- SEÇÃO: FIREBASE SYNC -->
-  <div class="menu-section">
-    <div class="menu-sec-label">Sincronização na nuvem</div>
-    <button class="menu-item" onclick="fbSyncManual()">
-      <div class="menu-item-ico" style="background:rgba(16,185,129,.12)">☁️</div>
-      <div class="menu-item-body">
-        <div class="menu-item-label">Firebase Sync</div>
-        <div id="sync-status"><span>📴</span><span style="color:var(--text3)">Aguardando...</span></div>
-      </div>
-      <div class="menu-item-end" id="sync-btn-lbl">⟳</div>
-    </button>
-    <div class="sync-uid" id="sync-uid-label"></div>
+  <div class="menu-ver" id="menu-ver-label">Bússola v3.0 · Gestão Financeira</div>
+</div>
+
+
+<!-- EDIT SHEET -->
+<div class="sh-edit-ov" id="sh-edit-ov" onclick="fecharEditSh()"></div>
+<div class="sh-edit" id="sh-edit">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">✏️ Editar lançamento</div>
+  <div class="r2">
+    <div class="fi"><label>Data</label><input type="date" id="edit-data" oninput="syncMesFromData('edit-data','edit-mes')"></div>
+    <div class="fi"><label>Mês Ref.</label><div class="sw"><select id="edit-mes"></select></div></div>
   </div>
-
-  <div class="menu-ver" id="menu-ver-label">Bússola v2.1 · Gestão Financeira</div>
+  <div class="fi"><label>Valor R$</label><input type="text" id="edit-valor" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this)" style="font-family:var(--mono);font-size:1.1rem;color:var(--teal)"></div>
+  <div class="fi"><label>Descrição</label><input type="text" id="edit-desc" autocomplete="off"></div>
+  <div class="fi"><label>Tipo</label><div class="sw"><select id="edit-tipo" onchange="atualizarCats('edit-tipo','edit-cat','e')">
+    <option value="">Selecione o tipo</option>
+    <option>Receita</option>
+    <option value="Despesas fixas">Despesas fixas</option>
+    <option value="Despesas variaveis">Despesas variáveis</option>
+    <option value="Despesas eventuais">Despesas eventuais</option>
+  </select></div></div>
+  <div class="fi"><label>Categoria</label><div class="sw"><select id="edit-cat"></select></div></div>
+  <div class="fi"><label>Comentário (opcional)</label><textarea id="edit-comment" placeholder="Observações..." maxlength="280" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.85rem;padding:9px 12px;outline:none;width:100%;resize:none;min-height:60px"></textarea></div>
+  <div class="sh-btns">
+    <button class="sh-cancel" onclick="fecharEditSh()">Cancelar</button>
+    <button class="sh-ok" style="background:var(--gold)" onclick="salvarEdicao()">💾 Salvar</button>
+  </div>
 </div>
 
 <!-- SHEET -->
@@ -1700,12 +1877,16 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div id="bolso-detalhe-content"></div>
 </div>
 
-<!-- DIALOG -->
-<div class="ov" id="ov">
+<!-- DIALOG UNIVERSAL DE CONFIRMAÇÃO -->
+<div class="ov" id="ov" onclick="if(event.target===this)fecharDlg()">
   <div class="dlg">
-    <h3>⚠️ Limpar tudo?</h3>
-    <p>Todos os lançamentos serão removidos. Exporte o backup antes se quiser guardar os dados.</p>
-    <div class="dlg-btns"><button class="btn-cx" onclick="fecharDlg()">Cancelar</button><button class="btn-cf" onclick="limparTudo()">Limpar</button></div>
+    <div id="dlg-icon" style="font-size:2rem;text-align:center;margin-bottom:10px">⚠️</div>
+    <h3 id="dlg-title" style="text-align:center">Confirmar exclusão?</h3>
+    <p id="dlg-msg" style="text-align:center">Esta ação não pode ser desfeita.</p>
+    <div class="dlg-btns">
+      <button class="btn-cx" onclick="fecharDlg()">Cancelar</button>
+      <button class="btn-cf" id="dlg-confirm-btn" onclick="">Confirmar</button>
+    </div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -1751,9 +1932,16 @@ function toggleInfoAcc(id){
   if(ico)ico.style.transform=isOpen?'rotate(90deg)':'';
 }
 
-const APP_VERSION='2.0';
+const APP_VERSION='3.0';
 const CATS={'Receita':['Renda do Trabalho','Trabalho Autônomo / Freelance','Rendimentos Financeiros','Benefícios e Transferências','Receitas Eventuais'],'Despesas fixas':['Moradia','Serviços Essenciais','Saúde e Proteção','Educação','Assinaturas e Serviços Digitais','Compromissos Financeiros'],'Despesas variaveis':['Alimentação','Transporte','Higiene e Cuidados Pessoais','Vestuário','Lazer e Entretenimento','Família e Dependentes'],'Despesas eventuais':['Manutenção e Reparos','Saúde Eventual','Datas Especiais e Sociais','Obrigações Anuais','Viagens e Turismo','Compras Não Recorrentes']};
-const MESES=['jan/26','fev/26','mar/26','abr/26','mai/26','jun/26','jul/26','ago/26','set/26','out/26','nov/26','dez/26'];
+// Gera MESES dinamicamente para o ano corrente e suporta anos passados nos dados
+const _ANO=new Date().getFullYear();
+const _MESES_BASE=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const MESES=_MESES_BASE.map(m=>m+'/'+String(_ANO).slice(2));
+// MESES_ALL: anos 2024-2029 para suportar dados históricos importados
+const MESES_ALL=[];
+for(let y=2024;y<=2029;y++){_MESES_BASE.forEach(m=>MESES_ALL.push(m+'/'+String(y).slice(2)));}
+function isMesValido(m){return MESES_ALL.includes(m)||MESES.includes(m);}
 const ICONS={Receita:'💰','Despesas fixas':'🏠','Despesas variaveis':'🛒','Despesas eventuais':'⚡'};
 let dados=JSON.parse(localStorage.getItem('gastos_v2')||'[]');
 let plan=JSON.parse(localStorage.getItem('gastos_plan')||'[]');
@@ -1807,7 +1995,7 @@ function authShowCard(id){
   });
 }
 
-/* ═══ AUTH FIREBASE ══════════════════════ */
+/* ═══ AUTH SUPABASE ══════════════════════ */
 
 function authMostrarTab(tab){
   ['login','cadastro','reset'].forEach(t=>{
@@ -1844,21 +2032,16 @@ function authOk(msg){
   el.textContent=msg; el.classList.add('show');
 }
 
-function authMensagemErroFirebase(code){
-  const map={
-    'auth/user-not-found':'E-mail não encontrado. Verifique ou crie uma conta.',
-    'auth/wrong-password':'Senha incorreta. Tente novamente.',
-    'auth/invalid-credential':'E-mail ou senha inválidos. Se criou conta pelo Google, use o botão "Continuar com Google".',
-    'auth/email-already-in-use':'Este e-mail já está cadastrado. Acesse via "Entrar" ou, se criou conta pelo Google, clique em "Continuar com Google".',
-    'auth/weak-password':'Senha muito fraca. Use ao menos 6 caracteres.',
-    'auth/invalid-email':'E-mail inválido.',
-    'auth/popup-closed-by-user':'Login cancelado.',
-    'auth/popup-blocked':'Popup bloqueado pelo navegador. Tente novamente.',
-    'auth/network-request-failed':'Sem conexão. Verifique sua internet.',
-    'auth/too-many-requests':'Muitas tentativas. Aguarde alguns minutos.',
-    'auth/unauthorized-domain':'Domínio não autorizado no Firebase. Contate o administrador.'
-  };
-  return map[code]||'Erro inesperado ('+code+'). Tente novamente.';
+function authMensagemErroSupa(error){
+  const msg = error?.message || '';
+  if(msg.includes('Invalid login'))    return 'E-mail ou senha incorretos.';
+  if(msg.includes('Email not confirmed')) return 'Confirme seu e-mail antes de entrar.';
+  if(msg.includes('already registered')) return 'Este e-mail já possui conta. Faça login.';
+  if(msg.includes('Password should'))  return 'Senha deve ter pelo menos 6 caracteres.';
+  if(msg.includes('Unable to validate')) return 'Credenciais inválidas. Tente novamente.';
+  if(msg.includes('rate limit'))       return 'Muitas tentativas. Aguarde alguns minutos.';
+  if(msg.includes('network'))          return 'Sem conexão. Verifique sua internet.';
+  return msg || 'Erro inesperado. Tente novamente.';
 }
 
 async function authLogin(){
@@ -1866,14 +2049,15 @@ async function authLogin(){
   const email=document.getElementById('login-email').value.trim();
   const senha=document.getElementById('login-senha').value;
   if(!email||!senha)return authErro('Preencha e-mail e senha.');
-  if(!window._fb)return authErro('Aguarde o Firebase carregar...');
   authSetLoading(true);
   try{
-    await window._fb.signInWithEmailAndPassword(window._fb.auth,email,senha);
-    // onAuthStateChanged vai chamar authEntrar()
-  }catch(e){
-    authSetLoading(false);
-    authErro(authMensagemErroFirebase(e.code));
+    const { error } = await _supa.auth.signInWithPassword({ email, password: senha });
+    if(error) authErro(authMensagemErroSupa(error));
+    // se ok: onAuthStateChange SIGNED_IN cuida do resto
+  } catch(e){
+    authErro('Erro de conexão. Verifique sua internet.');
+  } finally {
+    authSetLoading(false); // SEMPRE reabilita os botões
   }
 }
 
@@ -1882,130 +2066,76 @@ async function authCadastro(){
   const nome=document.getElementById('cad-nome').value.trim();
   const email=document.getElementById('cad-email').value.trim();
   const senha=document.getElementById('cad-senha').value;
-  if(!nome)return authErro('Informe seu nome.');
-  if(!email)return authErro('Informe seu e-mail.');
-  if(senha.length<6)return authErro('Senha deve ter pelo menos 6 caracteres.');
-  if(!window._fb)return authErro('Aguarde o Firebase carregar...');
+  if(!nome)  return authErro('Informe seu nome.');
+  if(!email) return authErro('Informe seu e-mail.');
+  if(senha.length<6) return authErro('Senha deve ter pelo menos 6 caracteres.');
   authSetLoading(true);
   try{
-    const cred=await window._fb.createUserWithEmailAndPassword(window._fb.auth,email,senha);
-    await window._fb.updateProfile(cred.user,{displayName:nome});
-    // Cria documento inicial no Firestore para o novo usuário
-    try{
-      await window._fb.setDoc(
-        window._fb.doc(window._fb.db,'users',cred.user.uid),
-        {dados:[],plan:[],bolsos:[],divida:null,pagamentos:[],_ts:Date.now(),_createdAt:Date.now(),_email:email,_nome:nome},
-        {merge:true}
-      );
-    }catch(fsErr){ console.warn('Firestore init doc error:',fsErr); }
-    // onAuthStateChanged vai chamar authEntrar()
-  }catch(e){
+    const { error } = await _supa.auth.signUp({
+      email, password: senha,
+      options: { data: { full_name: nome } }
+    });
+    if(error){ authErro(authMensagemErroSupa(error)); return; }
+    authOk('✅ Conta criada! Verifique seu e-mail para confirmar o cadastro.');
+  } catch(e){
+    authErro('Erro de conexão. Verifique sua internet.');
+  } finally {
     authSetLoading(false);
-    authErro(authMensagemErroFirebase(e.code));
   }
-}
-
-function _isMobile(){
-  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
 }
 
 async function authGoogle(){
   authLimparMensagens();
-  if(!window._fb)return authErro('Aguarde o Firebase carregar...');
   authSetLoading(true);
-  const provider=new window._fb.GoogleAuthProvider();
-  provider.setCustomParameters({prompt:'select_account'});
-  if(_isMobile()){
-    try{
-      await window._fb.signInWithRedirect(window._fb.auth,provider);
-    }catch(e){
-      authSetLoading(false);
-      authErro(authMensagemErroFirebase(e.code));
-    }
-  } else {
-    try{
-      await window._fb.signInWithPopup(window._fb.auth,provider);
-    }catch(e){
-      authSetLoading(false);
-      if(e.code!=='auth/popup-closed-by-user') authErro(authMensagemErroFirebase(e.code));
-    }
-  }
+  const { error } = await _supa.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href }
+  });
+  if(error){ authSetLoading(false); authErro(authMensagemErroSupa(error)); }
+  // Redireciona para Google — onAuthStateChange vai lidar ao voltar
 }
 
 async function authResetSenha(){
   authLimparMensagens();
   const email=document.getElementById('reset-email').value.trim();
-  if(!email)return authErro('Informe seu e-mail.');
-  if(!window._fb)return authErro('Aguarde o Firebase carregar...');
+  if(!email) return authErro('Informe seu e-mail.');
   authSetLoading(true);
-  try{
-    await window._fb.sendPasswordResetEmail(window._fb.auth,email);
-    authSetLoading(false);
-    authOk('✅ E-mail enviado! Verifique sua caixa de entrada e a pasta de spam. ⚠️ Se criou conta pelo Google, use o botão "Continuar com Google".');
-  }catch(e){
-    authSetLoading(false);
-    if(e.code==='auth/user-not-found'||e.code==='auth/invalid-email'){
-      authErro('E-mail não encontrado ou inválido. Verifique e tente novamente.');
-    } else {
-      authErro(authMensagemErroFirebase(e.code));
-    }
-  }
+  const { error } = await _supa.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.href + '?reset=1'
+  });
+  authSetLoading(false);
+  if(error){ authErro(authMensagemErroSupa(error)); return; }
+  authOk('✅ E-mail enviado! Verifique sua caixa de entrada.');
 }
 
-let _authEntrarChamado=false;
 function authEntrar(){
-  if(_authEntrarChamado) return; // evita dupla inicialização
-  _authEntrarChamado=true;
-  const as=document.getElementById('auth-screen');
-  if(!as||as.classList.contains('gone')) return iniciarApp();
-  as.classList.add('hide');
-  setTimeout(()=>{ as.classList.add('gone'); iniciarApp(); },480);
+  // Mantido por compatibilidade — onAuthStateChange agora controla tudo
+  // Esta função não é mais chamada diretamente
 }
 
-function authDesconectar(){
-  if(!window._fb){ location.reload(); return; }
-  if(!confirm('Desconectar da conta?')) return;
-  window._fb.signOut(window._fb.auth)
-    .then(()=>{
-      localStorage.removeItem('bussola_sync_ts');
+async function authDesconectar(){
+  fecharMenu();
+  confirmar({
+    icone:'🔒',
+    titulo:'Desconectar da conta?',
+    msg:'Você será desconectado. Seus dados ficam salvos no Supabase.',
+    btnTxt:'Desconectar',
+    cor:'var(--purple)',
+    fn: async ()=>{
+      // SignOut + reload garante estado limpo para o próximo login
+      try { await _supa.auth.signOut(); } catch(e){ console.error('signOut error:',e); }
+      // Força limpeza de sessão no localStorage
+      Object.keys(localStorage).forEach(k => {
+        if(k.startsWith('sb-') || k.includes('supabase')) localStorage.removeItem(k);
+      });
       location.reload();
-    })
-    .catch(()=> location.reload());
+    }
+  });
 }
 
-// Mantém compatibilidade com chamadas antigas
 function authTrocarUsuario(){ authDesconectar(); }
 
-// Listener: Firebase pronto com usuário
-document.addEventListener('fb-user-ready',(e)=>{
-  const {uid,email,displayName,photoURL}=e.detail;
-
-  // Atualiza info no menu
-  const nameEl  = document.getElementById('menu-user-name');
-  const emailEl = document.getElementById('menu-user-email');
-  if(nameEl)  nameEl.textContent  = displayName || email || 'Usuário';
-  if(emailEl) emailEl.textContent = email || uid.slice(0,16)+'...';
-
-  // Atualiza rodapé do menu com UID
-  const lbl=document.getElementById('sync-uid-label');
-  if(lbl) lbl.textContent = 'ID: '+uid.slice(0,12)+'...';
-
-  if(window._fbSetSyncStatus) window._fbSetSyncStatus('synced');
-
-  // Sobe dados locais para Firebase
-  if(typeof fbSyncTodos==='function') fbSyncTodos();
-
-  // Entra no app
-  authEntrar();
-});
-
-// Listener: sem usuário logado — mostra tela de auth
-document.addEventListener('fb-no-user',()=>{
-  _authEntrarChamado=false; // reseta guard para próximo login
-  const as=document.getElementById('auth-screen');
-  if(as){ as.classList.remove('hide','gone'); }
-  authMostrarTab('login');
-});
+// onAuthStateChange é o único controlador de UI — listeners legados removidos
 
 
 
@@ -2043,18 +2173,96 @@ function syncMesFromData(dataId,mesId){
 }
 
 window.addEventListener('load',()=>{
-  // Garante que a tela de auth está visível enquanto Firebase verifica sessão
+
+  // Registra onAuthStateChange após todas as funções estarem disponíveis
+  _supa.auth.onAuthStateChange(async (event, session) => {
+  console.log('[Auth]', event, session?.user?.email);
+
+  if (event === 'SIGNED_OUT' || !session) {
+    // ── DESCONECTADO ──────────────────────────────
+    window._sbReady = false;
+    window._sbUID   = null;
+    if (_sbChannel) { try { _supa.removeChannel(_sbChannel); } catch(e){} _sbChannel = null; }
+    // Mostra tela de login
+    const app  = document.getElementById('appRoot');
+    const auth = document.getElementById('auth-screen');
+    if (app)  app.style.display  = 'none';
+    if (auth) {
+      auth.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;';
+      auth.classList.remove('hide','gone');
+    }
+    authMostrarTab('login');
+    authLimparMensagens();
+    authSetLoading(false);
+    ['login-email','login-senha'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value = '';
+    });
+    return;
+  }
+
+  if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+    // ── CONECTADO ─────────────────────────────────
+    const user = session.user;
+    window._sbUID   = user.id;
+    window._sbReady = true;
+
+    // Atualiza info do menu
+    const nameEl  = document.getElementById('menu-user-name');
+    const emailEl = document.getElementById('menu-user-email');
+    const dn = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+    if (nameEl)  nameEl.textContent  = dn;
+    if (emailEl) emailEl.textContent = user.email || '';
+
+    if (event === 'SIGNED_IN') {
+      // Esconde auth, mostra app
+      const auth = document.getElementById('auth-screen');
+      const app  = document.getElementById('appRoot');
+      if (auth) {
+        auth.classList.add('hide');
+        setTimeout(() => { auth.style.display = 'none'; auth.classList.add('gone'); }, 450);
+      }
+      if (app) {
+        app.style.cssText = 'display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden;';
+      }
+      // Inicializa app se necessário
+      try {
+        const selMes = document.getElementById('inp-mes');
+        if (!selMes || selMes.options.length <= 1) {
+          init();
+        } else {
+          renderLista(); renderPlan(); atualizarStats(); atualizarStatsPlan();
+          renderInvestimentos(); renderDividas();
+          if (typeof populateDashFilters === 'function') populateDashFilters();
+          if (typeof carregarTema === 'function') carregarTema();
+        }
+      } catch(e){ console.error('init error:', e); }
+      finally { authSetLoading(false); }
+    }
+
+    // Carrega dados e inicia realtime
+    await sbCarregarDados();
+    sbIniciarRealtime();
+  }
+});
+
+  // Garante que a tela de auth está visível enquanto Supabase verifica sessão
   const as = document.getElementById('auth-screen');
   if(as) as.classList.remove('hide','gone');
 
-  // Se Firebase demorar mais de 5s sem responder, mostra login normalmente
+  // Se Supabase demorar mais de 5s sem responder, mostra login normalmente
   setTimeout(()=>{
-    if(!window._fbReady){
+    if(!window._sbReady){
       document.getElementById('auth-loading')?.classList.remove('show');
       authMostrarTab('login');
     }
   },5000);
   registrarSW();
+
+  // Remove splash screen após 1.8s independente do estado de auth
+  setTimeout(()=>{
+    const sp = document.getElementById('splash');
+    if(sp){ sp.classList.add('hide'); setTimeout(()=>{ try{sp.remove();}catch(e){} },600); }
+  }, 1800);
 });
 
 function iniciarApp(){
@@ -2074,8 +2282,11 @@ function iniciarApp(){
 
 function init(){
   const hoje=new Date(),hISO=hoje.toISOString().split('T')[0];
-  ['inp-mes','plan-mes','pf-mes','f-mes-l'].forEach(id=>{
+  ['inp-mes','plan-mes','pf-mes','f-mes-l','edit-mes'].forEach(id=>{
     const el=document.getElementById(id);
+    // Limpa antes de popular para evitar duplicatas no segundo login
+    while(el.options.length > (el.options[0]?.value==='' ? 1 : 0)) el.remove(el.options.length-1);
+    if(el.options.length===0){const def=document.createElement('option');def.value='';def.textContent='Mês';el.appendChild(def);}
     MESES.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;el.appendChild(o);});
   });
   document.getElementById('inp-data').value=hISO;
@@ -2222,7 +2433,7 @@ function addPlanejamento(){
   const comentarioPlan=(document.getElementById('plan-comment')?.value||'').trim();
   listaMeses.forEach((mesAlvo,idx)=>{
     const mi=MESES.indexOf(mesAlvo);
-    const ano=2026;
+    const ano=_ANO;
     const dISO=`${ano}-${String(mi+1).padStart(2,'0')}-${d}`;
     plan.push({id:Date.now()+idx,data:`${d}/${String(mi+1).padStart(2,'0')}/${ano}`,dataISO:dISO,mes:mesAlvo,descricao:desc.toUpperCase(),movimento:planMov,valorPlanejado:Math.abs(vp),valorReal:0,categoria:cat,classificacao:planMov==='Credito'?'Receita':'Despesas',tipo,status:'pendente',lancId:null,recorrente:swRec,grupoRec,comentario:comentarioPlan||undefined});
   });
@@ -2262,7 +2473,7 @@ function renderLista(){
     const cor=d.movimento==='Credito'?'var(--teal)':'var(--danger)';
     const s=d.movimento==='Credito'?'+':'-';
     const commentBadge=d.comentario?`<span class="has-comment" title="${d.comentario}" onclick="showCommentTooltip(event,'${d.comentario.replace(/'/g,"\\'")}')" style="margin-left:2px"></span>`:'';
-    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
+    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
   }).join('');
 }
 
@@ -2351,7 +2562,7 @@ function confirmarExec(){
 
   if(origem==='cc'){
     dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente});
-    salvar();renderLista();atualizarStats();
+    salvar();atualizarStats();
   } else if(origem==='bolso'){
     const bid=parseInt(document.getElementById('sh-bolso-sel')?.value||'0');
     if(!bid)return toast('⚠️ Selecione o bolso origem',true);
@@ -2399,33 +2610,75 @@ function aplicarVisibilidade(){
     :'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 }
 
-function remover(id){dados=dados.filter(d=>d.id!==id);salvar();renderLista();atualizarStats();toast('🗑 Removido');}
+function remover(id){
+  const d=dados.find(x=>x.id===id);
+  if(!d)return;
+  confirmar({
+    icone:'🗑️',
+    titulo:'Excluir lançamento?',
+    msg:`"${d.descricao}" — ${d.data} · R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}`,
+    btnTxt:'Excluir',
+    cor:'var(--danger)',
+    fn:()=>{ dados=dados.filter(x=>x.id!==id); salvar(); renderLista(); atualizarStats(); toast('🗑 Lançamento removido'); }
+  });
+}
 function salvar(){
   localStorage.setItem('gastos_v2',JSON.stringify(dados));
-  if(window._fbSync) window._fbSync({ dados });
+  if(window._sbSync) window._sbSync({ dados });
 }
 function salvarPlan(){
   localStorage.setItem('gastos_plan',JSON.stringify(plan));
-  if(window._fbSync) window._fbSync({ plan });
+  if(window._sbSync) window._sbSync({ plan });
 }
 function salvarBolsos(){
   localStorage.setItem('bussola_bolsos',JSON.stringify(bolsos));
-  if(window._fbSync) window._fbSync({ bolsos });
+  if(window._sbSync) window._sbSync({ bolsos });
 }
 function salvarDivida(){
   localStorage.setItem('bussola_divida',JSON.stringify(dividaPai));
   localStorage.setItem('bussola_pagamentos',JSON.stringify(pagamentos));
-  if(window._fbSync) window._fbSync({ divida: dividaPai, pagamentos });
+  if(window._sbSync) window._sbSync({ divida: dividaPai, pagamentos });
 }
-function confirmarLimpar(){document.getElementById('ov').classList.add('show');}
-function fecharDlg(){document.getElementById('ov').classList.remove('show');}
-function limparTudo(){dados=[];salvar();renderLista();atualizarStats();fecharDlg();toast('🗑 Lançamentos removidos');}
-document.getElementById('ov').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharDlg();});
+/* ── Dialog universal ── */
+function confirmar({icone='⚠️', titulo='Confirmar?', msg='Esta ação não pode ser desfeita.', btnTxt='Excluir', cor='var(--danger)', fn}){
+  document.getElementById('dlg-icon').textContent = icone;
+  document.getElementById('dlg-title').textContent = titulo;
+  document.getElementById('dlg-msg').textContent = msg;
+  const btn = document.getElementById('dlg-confirm-btn');
+  btn.textContent = btnTxt;
+  btn.style.background = cor;
+  btn.onclick = async ()=>{ fecharDlg(); await fn(); };
+  document.getElementById('ov').classList.add('show');
+}
+function fecharDlg(){ document.getElementById('ov').classList.remove('show'); }
+
+/* ── Limpar todos os lançamentos ── */
+function confirmarLimpar(){
+  confirmar({
+    icone:'🗑️',
+    titulo:'Limpar todos os lançamentos?',
+    msg:'Todos os registros serão removidos permanentemente. Exporte o backup antes se quiser guardar os dados.',
+    btnTxt:'Limpar tudo',
+    cor:'var(--danger)',
+    fn: limparTudo
+  });
+}
+function limparTudo(){ dados=[]; salvar(); renderLista(); atualizarStats(); toast('🗑 Lançamentos removidos'); }
 function removerPlan(id){
   const p=plan.find(x=>x.id===id);
-  if(p?.lancId)dados=dados.filter(d=>d.id!==p.lancId);
-  plan=plan.filter(x=>x.id!==id);
-  salvar();salvarPlan();renderPlan();atualizarStats();atualizarStatsPlan();toast('🗑 Removido');
+  if(!p)return;
+  confirmar({
+    icone:'📅',
+    titulo:'Excluir agendamento?',
+    msg:`"${p.descricao}" — ${p.mes} · R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}`,
+    btnTxt:'Excluir',
+    cor:'var(--danger)',
+    fn:()=>{
+      if(p.lancId)dados=dados.filter(d=>d.id!==p.lancId);
+      plan=plan.filter(x=>x.id!==id);
+      salvar();salvarPlan();renderPlan();atualizarStats();atualizarStatsPlan();toast('🗑 Agendamento removido');
+    }
+  });
 }
 
 function exportarCSV(){
@@ -2451,40 +2704,17 @@ function exportarBackup(){
 function importarBackup(event){
   const arq=event.target.files[0];if(!arq)return;
   const r=new FileReader();
-  r.onload=async function(e){
+  r.onload=function(e){
     try{
       const bk=JSON.parse(e.target.result);
-      // Salva no localStorage
-      if(bk.gastos)     localStorage.setItem('gastos_v2',        bk.gastos);
-      if(bk.planejamento)localStorage.setItem('gastos_plan',     bk.planejamento);
-      if(bk.bolsos)     localStorage.setItem('bussola_bolsos',   bk.bolsos);
-      if(bk.divida)     localStorage.setItem('bussola_divida',   bk.divida);
-      if(bk.pagamentos) localStorage.setItem('bussola_pagamentos',bk.pagamentos);
-
-      // Atualiza timestamp para que o onSnapshot não sobrescreva os dados importados
-      const tsImport = Date.now();
-      localStorage.setItem('bussola_sync_ts', String(tsImport));
-
-      // Sobe os dados importados para o Firestore (resolve o backup entre contas)
-      if(window._fbSync && window._fbReady){
-        try{
-          const dadosImp  = JSON.parse(bk.gastos      || '[]');
-          const planImp   = JSON.parse(bk.planejamento || '[]');
-          const bolsosImp = JSON.parse(bk.bolsos       || '[]');
-          const dividaImp = JSON.parse(bk.divida        || 'null');
-          const pagImp    = JSON.parse(bk.pagamentos   || '[]');
-          await window._fbSync({ dados:dadosImp, plan:planImp, bolsos:bolsosImp, divida:dividaImp, pagamentos:pagImp });
-          toast('📥 Backup importado e sincronizado com a nuvem!');
-        }catch(syncErr){
-          console.warn('Sync após importação falhou:', syncErr);
-          toast('📥 Backup restaurado localmente (sincronização pendente)');
-        }
-      } else {
-        toast('📥 Backup restaurado!');
-      }
-
-      setTimeout(()=>location.reload(),1500);
-    }catch{ toast('❌ Backup inválido. Verifique o arquivo e tente novamente.',true); }
+      if(bk.gastos)localStorage.setItem('gastos_v2',bk.gastos);
+      if(bk.planejamento)localStorage.setItem('gastos_plan',bk.planejamento);
+      if(bk.bolsos)localStorage.setItem('bussola_bolsos',bk.bolsos);
+      if(bk.divida)localStorage.setItem('bussola_divida',bk.divida);
+      if(bk.pagamentos)localStorage.setItem('bussola_pagamentos',bk.pagamentos);
+      toast('📥 Backup restaurado!');
+      setTimeout(()=>location.reload(),1000);
+    }catch{toast('❌ Backup inválido',true);}
   };
   r.readAsText(arq);
 }
@@ -2755,9 +2985,16 @@ function addMovBolso(){
 }
 
 function removerBolso(id){
-  if(!confirm('Remover este bolso e todo seu histórico?'))return;
-  bolsos=bolsos.filter(b=>b.id!==id);
-  salvarBolsos();renderInvestimentos();fecharBolsoDetalhe();toast('🗑 Bolso removido');
+  const b=bolsos.find(x=>x.id===id);
+  if(!b)return;
+  confirmar({
+    icone:'💼',
+    titulo:'Excluir bolso?',
+    msg:`O bolso "${b.nome}" e todo seu histórico serão removidos permanentemente.`,
+    btnTxt:'Excluir bolso',
+    cor:'var(--danger)',
+    fn:()=>{ bolsos=bolsos.filter(x=>x.id!==id); salvarBolsos(); renderInvestimentos(); fecharBolsoDetalhe(); toast('🗑 Bolso removido'); }
+  });
 }
 
 function abrirBolsoDetalhe(id){
@@ -3002,12 +3239,20 @@ function addPagamento(){
 function removerPagamento(id){
   const pag=pagamentos.find(p=>p.id===id);
   if(!pag)return;
-  if(!confirm('Remover este pagamento? O saldo devedor será restaurado.'))return;
-  dividaPai.saldo=Math.min(dividaPai.total,(dividaPai.saldo||0)+pag.valor);
-  pagamentos=pagamentos.filter(p=>p.id!==id);
-  dados=dados.filter(d=>d.id!==id);
-  salvar();salvarDivida();atualizarStats();renderDividas();
-  toast('🗑 Pagamento removido');
+  confirmar({
+    icone:'💳',
+    titulo:'Remover pagamento?',
+    msg:`R$ ${pag.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})} em ${pag.data}. O saldo devedor será restaurado.`,
+    btnTxt:'Remover',
+    cor:'var(--warn)',
+    fn:()=>{
+      dividaPai.saldo=Math.min(dividaPai.total,(dividaPai.saldo||0)+pag.valor);
+      pagamentos=pagamentos.filter(p=>p.id!==id);
+      dados=dados.filter(d=>d.id!==id);
+      salvar();salvarDivida();atualizarStats();renderDividas();
+      toast('🗑 Pagamento removido');
+    }
+  });
 }
 
 function atualizarSimulador(){
@@ -3402,27 +3647,7 @@ function dashPlanReal(){
   });
 }
 
-/* ═══ FIREBASE APP INTEGRATION ══════════ */
-// Sync manual: envia todos os dados locais para o Firebase
-function fbSyncTodos() {
-  if (!window._fbSync) return;
-  window._fbSync({
-    dados,
-    plan,
-    bolsos,
-    divida: dividaPai,
-    pagamentos
-  });
-}
-
-function fbSyncManual() {
-  if (!window._fbReady) {
-    toast('📴 Firebase não conectado ainda...', true);
-    return;
-  }
-  fbSyncTodos();
-  toast('☁️ Sincronizando com Firebase...');
-}
+/* ═══ FIM DO BLOCO DE SINCRONIZAÇÃO ══════ */
 
 /* ═══ MENU HAMBÚRGUER ═══════════════════ */
 function abrirMenu(){
@@ -3909,6 +4134,87 @@ function dashInsights(base){
     '<div class="dash-insight-title">💡 Insights do período</div>'+
     ins.map(i=>`<div class="dash-insight-row"><span class="dash-insight-ico">${i.ic}</span><span>${i.txt}</span></div>`).join('');
 }
+
+/* ═══ EDIÇÃO DE LANÇAMENTOS ════════════ */
+let editId = null;
+
+function abrirEditSh(id){
+  const d = dados.find(x => x.id === id);
+  if(!d) return;
+  editId = id;
+  document.getElementById('edit-data').value  = d.dataISO;
+  document.getElementById('edit-mes').value   = d.mes;
+  // Preenche valor formatado
+  const vFmt = d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('edit-valor').value = vFmt;
+  document.getElementById('edit-desc').value  = d.descricao;
+  document.getElementById('edit-tipo').value  = d.tipo || '';
+  atualizarCats('edit-tipo','edit-cat','e');
+  setTimeout(()=>{ document.getElementById('edit-cat').value = d.categoria || ''; }, 50);
+  document.getElementById('edit-comment').value = d.comentario || '';
+  document.getElementById('sh-edit-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-edit').classList.add('show'),10);
+}
+
+function fecharEditSh(){
+  document.getElementById('sh-edit').classList.remove('show');
+  document.getElementById('sh-edit-ov').classList.remove('show');
+  editId = null;
+}
+
+function salvarEdicao(){
+  if(editId === null) return;
+  const d = dados.find(x => x.id === editId);
+  if(!d) return;
+  const novaData = document.getElementById('edit-data').value;
+  const novoVal  = parseCurrency(document.getElementById('edit-valor').value);
+  const novaDesc = document.getElementById('edit-desc').value.trim();
+  const novoTipo = document.getElementById('edit-tipo').value;
+  const novaCat  = document.getElementById('edit-cat').value;
+  const novoMes  = document.getElementById('edit-mes').value;
+  const novaCom  = document.getElementById('edit-comment').value.trim();
+  if(!novaData) return toast('⚠️ Informe a data',true);
+  if(!novoVal||novoVal<=0) return toast('⚠️ Valor inválido',true);
+  if(!novaDesc) return toast('⚠️ Informe a descrição',true);
+  if(!novoTipo) return toast('⚠️ Selecione o tipo',true);
+  if(!novaCat)  return toast('⚠️ Selecione a categoria',true);
+  const[y,m,dv]=novaData.split('-');
+  d.data      = `${dv}/${m}/${y}`;
+  d.dataISO   = novaData;
+  d.mes       = novoMes;
+  d.descricao = novaDesc.toUpperCase();
+  d.valorAbs  = Math.abs(novoVal);
+  d.valor     = d.movimento === 'Debito' ? -Math.abs(novoVal) : Math.abs(novoVal);
+  d.tipo      = novoTipo;
+  d.categoria = novaCat;
+  d.classificacao = d.movimento === 'Credito' ? 'Receita' : 'Despesas';
+  d.comentario = novaCom || undefined;
+  salvar(); atualizarStats(); renderLista(); fecharEditSh();
+  toast('✅ Lançamento atualizado!');
+}
+
+// Estende atualizarCats para contexto 'e' (edição)
+const _origAtualizarCats = atualizarCats;
+function atualizarCats(tId, cId, ctx) {
+  const tipo = document.getElementById(tId).value;
+  const sel  = document.getElementById(cId);
+  sel.innerHTML = '<option value="">Selecione a categoria</option>';
+  if(tipo && CATS[tipo]) CATS[tipo].forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  if(ctx==='l'){
+    if(tipo==='Receita'){mov='Credito';document.getElementById('btn-debito').className='tog debito';document.getElementById('btn-credito').className='tog credito ativo';}
+    else if(tipo){mov='Debito';document.getElementById('btn-debito').className='tog debito ativo';document.getElementById('btn-credito').className='tog credito';}
+  }
+  if(ctx==='p'){
+    if(tipo==='Receita'){planMov='Credito';document.getElementById('plan-btn-deb').className='tog debito';document.getElementById('plan-btn-cred').className='tog credito ativo';}
+    else if(tipo){planMov='Debito';document.getElementById('plan-btn-deb').className='tog debito ativo';document.getElementById('plan-btn-cred').className='tog credito';}
+  }
+  // ctx==='e' : edição — sem alterar mov global
+}
 </script>
+
+</div></div><!-- /tab-content /appRoot -->
+
 </body>
 </html>
+
+
