@@ -80,6 +80,24 @@ async function sbReloadDados() {
 /* ══════════════════════════════════════════════
    CARREGAR DADOS — lê todas as tabelas relacionais
 ══════════════════════════════════════════════ */
+
+/* ── Garante linha em profiles (cria se não existir) ── */
+async function sbGarantirPerfil(user) {
+  try {
+    const { data: existing } = await _supa.from('profiles').select('uid').eq('uid', user.id).maybeSingle();
+    if (!existing) {
+      await _supa.from('profiles').upsert({
+        uid: user.id,
+        nome: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário',
+        email: user.email || '',
+        foto_url: user.user_metadata?.avatar_url || null
+      }, { onConflict: 'uid' });
+    }
+  } catch(e) {
+    console.error('sbGarantirPerfil error:', e);
+  }
+}
+
 async function sbCarregarDados() {
   if (!window._sbUID) return;
   window._sbSetSyncStatus('syncing');
@@ -2212,6 +2230,9 @@ window.addEventListener('load',()=>{
     const dn = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
     if (nameEl)  nameEl.textContent  = dn;
     if (emailEl) emailEl.textContent = user.email || '';
+
+    // Garante que existe uma linha em profiles (FK obrigatória para todas as outras tabelas)
+    await sbGarantirPerfil(user);
 
     if (event === 'SIGNED_IN') {
       // Esconde auth, mostra app
