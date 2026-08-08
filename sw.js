@@ -43,6 +43,11 @@ self.addEventListener('activate', event => {
   );
 });
 
+// ── MESSAGE: recebe o pedido de ativação imediata do app ────
+self.addEventListener('message', event => {
+  if (event.data === 'skipWaiting') self.skipWaiting();
+});
+
 // ── FETCH: estratégia híbrida ────────────────────────────────
 self.addEventListener('fetch', event => {
   // Ignora requisições não-GET e cross-origin
