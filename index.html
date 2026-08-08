@@ -1191,6 +1191,141 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
 /* ─ Tab dash cor ─ */
 #tab-dash.ativo{color:var(--gold);border-bottom-color:var(--gold)}
+
+/* ════════════════════════════════════════
+   LAYOUT DESKTOP / NOTEBOOK (≥960px)
+   O app ocupa a TELA TODA (sem moldura, sem
+   centralização): topbar full-width no topo,
+   navegação lateral (sidebar) à esquerda e
+   área de conteúdo com scroll próprio.
+   Abaixo de 960px absolutamente nada muda.
+════════════════════════════════════════ */
+@media (min-width:960px){
+
+  /* ─── SHELL EM CSS GRID ───────────────
+     O grid mora no #appRoot (e não no body) porque topbar /
+     notif-banner / statsbar / tabs / tab-content são filhos DELE.
+     Os filhos diretos do <body> são só overlays position:fixed
+     (auth, splash, drawer, sheets, modais, toast) — eles ficam
+     fixos em relação à janela em qualquer largura.
+
+     display:grid precisa de !important porque o JS escreve
+     display:flex inline no #appRoot ao revelar o app; o
+     :not([style*="none"]) garante que o estado ESCONDIDO
+     (display:none inline, durante splash/auth) continue valendo. */
+  #appRoot:not([style*="none"]){
+    display:grid!important;
+    grid-template-columns:240px 1fr;
+    grid-template-rows:auto auto auto auto 1fr;
+    width:100%;
+    height:100%;
+    min-height:0;
+    overflow:hidden;
+  }
+
+  /* Posicionamento explícito — independe da ordem no DOM */
+  .update-banner{grid-column:1/-1;grid-row:1}
+  .topbar       {grid-column:1/-1;grid-row:2;padding:calc(var(--safe-top)+13px) 24px 13px}
+  .tabs         {grid-column:1;grid-row:3/-1}
+  .notif-banner {grid-column:2;grid-row:3;padding:12px 24px}
+  .statsbar     {grid-column:2;grid-row:4}
+  /* min-height:0 é obrigatório: sem ele o item 1fr não encolhe
+     e o overflow do conteúdo estoura em vez de rolar */
+  .tab-content  {grid-column:2;grid-row:5;min-height:0;overflow-y:auto}
+
+  /* ─── SIDEBAR DE NAVEGAÇÃO ─────────── */
+  .tabs{
+    flex-direction:column;
+    align-items:stretch;
+    gap:3px;
+    padding:14px 10px;
+    border-bottom:none;
+    border-right:1px solid var(--border);
+    overflow-x:hidden;
+    overflow-y:auto;      /* segurança em telas baixas */
+    min-height:0;
+  }
+  .tab{
+    flex:0 0 auto;
+    width:100%;
+    min-width:0;
+    flex-direction:row;   /* ícone e label lado a lado */
+    align-items:center;
+    justify-content:flex-start;
+    gap:11px;
+    text-align:left;
+    padding:12px 14px;
+    border-radius:10px;
+    border-bottom:none;   /* indicador vira borda lateral */
+    border-left:3px solid transparent;
+    font-size:.84rem;
+  }
+  .tab .ti{font-size:1.15rem;line-height:1}
+  .tab .tl{font-size:.84rem;font-weight:600;letter-spacing:.1px}
+  .tab:hover{background:var(--surface2)}
+  .tab.ativo{background:var(--accent-glow);border-left-color:var(--accent)}
+  .tab.plan-tab.ativo{background:var(--purple-glow);border-left-color:var(--purple)}
+  #tab-dash.ativo{background:rgba(234,179,8,.14);border-left-color:var(--gold)}
+
+  /* ─── STATSBAR COM MAIS RESPIRO ─────── */
+  .stat{padding:16px 14px}
+  .stat .s-label{font-size:.6rem;margin-bottom:5px}
+  .stat .s-val{font-size:1.05rem}
+
+  /* ─── CONTEÚDO ──────────────────────── */
+  /* o padding-bottom gigante do mobile (safe-area) não faz sentido aqui */
+  .tab-pane{padding:18px 24px 32px}
+
+  /* ─── GRIDS REPETITIVOS: MAIS COLUNAS ─ */
+  .dash-kpi-row{grid-template-columns:repeat(4,1fr)}  /* 4 KPIs numa linha */
+  .bolsos-grid {grid-template-columns:repeat(4,1fr)}  /* cards de bolso */
+  .meses-grid  {grid-template-columns:repeat(6,1fr)}  /* 12 meses em 2 linhas */
+
+  /* ─── TELA DE LOGIN / CADASTRO: 2 COLUNAS ───
+     Hero à esquerda, card do formulário à direita.
+     Diferente do app (que ocupa a tela toda), aqui o conjunto
+     fica CENTRALIZADO e limitado a ~980px: um formulário de
+     login esticado num monitor ultrawide fica ruim.
+     980 ≈ 480 (hero) + 80 (gap) + 420 (card).
+
+     align-items:safe center evita que o topo do conteúdo seja
+     cortado em janelas baixas (o container tem overflow-y:auto);
+     navegadores sem suporte a `safe` ignoram a 2ª linha e ficam
+     com o `center` normal. */
+  #auth-screen{
+    flex-direction:row;
+    align-items:center;
+    align-items:safe center;
+    justify-content:center;
+    gap:80px;
+    padding:48px 32px;
+  }
+
+  /* Coluna esquerda — texto à esquerda e mais largo.
+     flex:1 1 0 deixa o hero encolher antes do card quando a
+     janela está perto dos 960px. O padding com safe-area do
+     mobile (empilhamento) não faz sentido lado a lado. */
+  .auth-hero{
+    flex:1 1 0;
+    max-width:480px;
+    align-items:flex-start;
+    text-align:left;
+    padding:0;
+  }
+  .auth-hero-title{font-size:2.5rem;margin-bottom:10px}
+  .auth-hero-sub{font-size:.88rem;max-width:400px}
+  .auth-features{max-width:440px;margin:28px 0 0}
+
+  /* Coluna direita — card um pouco maior e sem as margens
+     de empilhamento vertical (incl. safe-area inferior). */
+  .auth-card{
+    flex:0 0 auto;
+    width:420px;
+    max-width:420px;
+    margin:0;
+    padding:28px 26px;
+  }
+}
 </style>
 </head>
 <body>
@@ -2299,7 +2434,7 @@ function authMostrarLogin(){
   const auth = document.getElementById('auth-screen');
   if (app)  app.style.display  = 'none';
   if (auth) {
-    auth.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;';
+    auth.style.display = 'flex';
     auth.classList.remove('hide','gone');
   }
   document.getElementById('auth-tabs-wrap')?.style.removeProperty('display');
@@ -2360,7 +2495,7 @@ function authMostrarNovaSenha(){
   const app  = document.getElementById('appRoot');
   if (app) app.style.display = 'none';
   if (auth) {
-    auth.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;';
+    auth.style.display = 'flex';
     auth.classList.remove('hide','gone');
   }
   document.getElementById('auth-tabs-wrap')?.style.setProperty('display','none');
