@@ -199,13 +199,21 @@ async function sbCarregarDados() {
 ══════════════════════════════════════════════ */
 function sbLancToApp(r) {
   const [y,m,d] = (r.data_lancto||'').split('-');
+  // valor/valor_abs nulos ou inválidos viravam NaN e quebravam .toLocaleString()
+  // na renderização inteira da lista — normaliza já na origem.
+  const _v  = parseFloat(r.valor);
+  const _va = parseFloat(r.valor_abs);
+  const valor    = isNaN(_v) ? 0 : _v;
+  const valorAbs = isNaN(_va) ? Math.abs(valor) : _va;
   return {
     id: r.id, data: d?`${d}/${m}/${y}`:'', dataISO: r.data_lancto||'',
     mes: r.mes_ref, descricao: r.descricao, movimento: r.movimento,
-    valor: parseFloat(r.valor), valorAbs: parseFloat(r.valor_abs),
+    valor: valor, valorAbs: valorAbs,
     tipo: r.tipo, categoria: r.categoria, classificacao: r.classificacao,
     comentario: r.comentario||undefined, dePlan: r.de_plan||false,
-    recorrente: r.recorrente||false
+    recorrente: r.recorrente||false,
+    // Transferência interna CC↔bolso: só existe se a coluna estiver criada no banco.
+    deBolso: r.de_bolso||false, bolsoId: r.bolso_id||null
   };
 }
 function sbPlanToApp(r) {
@@ -1424,6 +1432,27 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="fi"><label>Confirmar nova senha</label><input type="password" id="nova-senha2" placeholder="••••••••" autocomplete="new-password"></div>
       <button class="btn-auth-next" onclick="authSalvarNovaSenha()">🔒 Salvar nova senha</button>
     </div>
+
+    <!-- FORM: COMPLETAR PERFIL (obrigatório antes de liberar o app) -->
+    <div class="auth-form" id="form-perfil">
+      <div class="auth-header">
+        <div class="auth-title">Complete seu <em>perfil</em></div>
+        <div class="auth-sub">Precisamos desses dados antes de liberar o aplicativo</div>
+      </div>
+      <div class="fi"><label>Nome completo</label><input type="text" id="perfil-nome" placeholder="Seu nome completo" autocomplete="name" autocapitalize="words"></div>
+      <div class="fi"><label>CPF</label><input type="text" id="perfil-cpf" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" autocomplete="off" oninput="maskCPF(this)"></div>
+      <div class="r2">
+        <div class="fi"><label>CEP</label><input type="text" id="perfil-cep" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code" oninput="maskCEP(this)"></div>
+        <div class="fi"><label>Número</label><input type="text" id="perfil-numero" placeholder="123" autocomplete="off"></div>
+      </div>
+      <div class="fi"><label>Rua</label><input type="text" id="perfil-rua" placeholder="Rua / Avenida" autocomplete="address-line1" autocapitalize="words"></div>
+      <div class="r2">
+        <div class="fi"><label>Cidade</label><input type="text" id="perfil-cidade" placeholder="Sua cidade" autocomplete="address-level2" autocapitalize="words"></div>
+        <div class="fi"><label>UF</label><div class="sw"><select id="perfil-uf"><option value="">UF</option></select></div></div>
+      </div>
+      <div class="fi"><label>Objetivo de uso do app</label><textarea id="perfil-objetivo" placeholder="Ex: quero controlar meus gastos mensais e sair das dívidas" maxlength="280" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.85rem;padding:9px 12px;outline:none;width:100%;resize:none;min-height:70px"></textarea></div>
+      <button class="btn-auth-next" onclick="salvarCompletarPerfil()">💾 Salvar e continuar</button>
+    </div>
   </div>
 </div>
 
@@ -2009,6 +2038,13 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="menu-item-sub">Entrar também com o Google nesta conta</div>
       </div>
     </button>
+    <button class="menu-item" onclick="abrirPerfilEdicao()">
+      <div class="menu-item-ico" style="background:rgba(16,185,129,.12)">📇</div>
+      <div class="menu-item-body">
+        <div class="menu-item-label">Meu Perfil</div>
+        <div class="menu-item-sub">Nome, CPF, endereço e objetivo</div>
+      </div>
+    </button>
     <button class="menu-item" onclick="authDesconectar()">
       <div class="menu-item-ico" style="background:rgba(239,68,68,.12)">🚪</div>
       <div class="menu-item-body">
@@ -2111,6 +2147,29 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
 </div>
 
+<!-- PERFIL SHEET (edição opcional dentro do app) -->
+<div class="sh-edit-ov" id="sh-perfil-ov" onclick="fecharPerfilEdicao()"></div>
+<div class="sh-edit" id="sh-perfil">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">📇 Meu Perfil</div>
+  <div class="fi"><label>Nome completo</label><input type="text" id="perfil-edit-nome" placeholder="Seu nome completo" autocomplete="name" autocapitalize="words"></div>
+  <div class="fi"><label>CPF</label><input type="text" id="perfil-edit-cpf" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" autocomplete="off" oninput="maskCPF(this)"></div>
+  <div class="r2">
+    <div class="fi"><label>CEP</label><input type="text" id="perfil-edit-cep" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code" oninput="maskCEP(this)"></div>
+    <div class="fi"><label>Número</label><input type="text" id="perfil-edit-numero" placeholder="123" autocomplete="off"></div>
+  </div>
+  <div class="fi"><label>Rua</label><input type="text" id="perfil-edit-rua" placeholder="Rua / Avenida" autocomplete="address-line1" autocapitalize="words"></div>
+  <div class="r2">
+    <div class="fi"><label>Cidade</label><input type="text" id="perfil-edit-cidade" placeholder="Sua cidade" autocomplete="address-level2" autocapitalize="words"></div>
+    <div class="fi"><label>UF</label><div class="sw"><select id="perfil-edit-uf"><option value="">UF</option></select></div></div>
+  </div>
+  <div class="fi"><label>Objetivo de uso do app</label><textarea id="perfil-edit-objetivo" placeholder="Ex: quero controlar meus gastos mensais e sair das dívidas" maxlength="280" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.85rem;padding:9px 12px;outline:none;width:100%;resize:none;min-height:70px"></textarea></div>
+  <div class="sh-btns">
+    <button class="sh-cancel" onclick="fecharPerfilEdicao()">Cancelar</button>
+    <button class="sh-ok" onclick="salvarPerfilEdicao()">💾 Salvar</button>
+  </div>
+</div>
+
 <!-- SHEET -->
 <div class="sh-ov" id="sh-ov" onclick="fecharSh()"></div>
 <div class="sh" id="sh">
@@ -2203,6 +2262,56 @@ const MESES=_MESES_BASE.map(m=>m+'/'+String(_ANO).slice(2));
 const MESES_ALL=[];
 for(let y=2024;y<=2029;y++){_MESES_BASE.forEach(m=>MESES_ALL.push(m+'/'+String(y).slice(2)));}
 function isMesValido(m){return MESES_ALL.includes(m)||MESES.includes(m);}
+
+/* ═══════════════════════════════════════════
+   UTILITÁRIOS DE ID / MÊS / CÁLCULO
+   (fonte única de verdade — não duplicar estas fórmulas)
+═══════════════════════════════════════════ */
+
+/* ID inteiro (nunca float — compatível com bigint no Postgres) e com
+   colisão muito improvável mesmo em ações disparadas no mesmo ms. */
+function novoId(){return Date.now()*1000+Math.floor(Math.random()*1000);}
+
+/* 'jan/26' → 2026 (fallback quando o rótulo não tiver sufixo de ano) */
+function anoDoMesRef(mesRef,fallback){
+  const p=String(mesRef||'').split('/')[1];
+  const n=parseInt(p,10);
+  return isNaN(n)?(fallback||_ANO):(n<100?2000+n:n);
+}
+/* 'jan/26' → 0 (índice 0-11); -1 se não reconhecido */
+function mesIndexDoMesRef(mesRef){return _MESES_BASE.indexOf(String(mesRef||'').split('/')[0]);}
+/* '2025-03-14' → 'mar/25' (usa o ANO REAL da data, não o ano corrente) */
+function mesRefDeISO(iso){
+  const p=String(iso||'').split('-');
+  if(p.length<2)return'';
+  const i=parseInt(p[1],10)-1;
+  return _MESES_BASE[i]?_MESES_BASE[i]+'/'+String(p[0]).slice(2):'';
+}
+/* Universo de meses que os gráficos conseguem plotar (MESES = ano corrente).
+   KPIs e gráficos precisam usar EXATAMENTE o mesmo filtro. */
+function isMesDoGrafico(m){return MESES.includes(m);}
+
+/* Lançamentos "reais": exclui transferências internas CC↔bolso (deBolso),
+   que não são receita nem despesa de verdade. */
+function lancEfetivos(lista){return (lista||APP.dados).filter(d=>!d.deBolso);}
+
+/* Soma canônica de receitas/despesas/saldo/taxa sobre uma lista de lançamentos. */
+function somaRecDesp(lista){
+  const l=lancEfetivos(lista);
+  const rec=l.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+(Number(d.valorAbs)||0),0);
+  const desp=l.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+(Number(d.valorAbs)||0),0);
+  const saldo=rec-desp;
+  return{rec,desp,saldo,taxa:rec>0?(saldo/rec)*100:0,lista:l};
+}
+/* Atalho: receitas − despesas de uma lista qualquer. */
+function calcularSaldoDe(lista){return somaRecDesp(lista).saldo;}
+
+/* ── Dívida: total pago e saldo são DERIVADOS dos pagamentos ──
+   dividaPai.saldo continua sendo gravado (compatibilidade externa),
+   mas nunca é lido como fonte de verdade. */
+function totalPagoDivida(){return APP.pagamentos.reduce((s,p)=>s+(Number(p.valor)||0),0);}
+function saldoDividaAtual(){return APP.dividaPai?((Number(APP.dividaPai.total)||0)-totalPagoDivida()):0;}
+
 const ICONS={Receita:'💰','Despesas fixas':'🏠','Despesas variaveis':'🛒','Despesas eventuais':'⚡'};
 APP.dados=JSON.parse(localStorage.getItem('gastos_v2')||'[]');
 APP.plan=JSON.parse(localStorage.getItem('gastos_plan')||'[]');
@@ -2263,6 +2372,8 @@ function authMostrarTab(tab){
     document.getElementById('form-'+t)?.classList.toggle('ativo',t===tab);
     document.getElementById('tab-'+t)?.classList.toggle('ativo',t===tab);
   });
+  // form-perfil não faz parte das abas — nunca pode ficar visível junto
+  document.getElementById('form-perfil')?.classList.remove('ativo');
   authLimparMensagens();
 }
 
@@ -2322,6 +2433,10 @@ async function authLogin(){
   }
 }
 
+// Enquanto true, o onAuthStateChange ignora os eventos gerados pelo próprio cadastro
+// (SIGNED_IN automático + SIGNED_OUT imediato) para não piscar o app nem apagar a mensagem.
+let authCadastroPendente = false;
+
 async function authCadastro(){
   authLimparMensagens();
   const nome=document.getElementById('cad-nome').value.trim();
@@ -2331,6 +2446,7 @@ async function authCadastro(){
   if(!email) return authErro('Informe seu e-mail.');
   if(senha.length<6) return authErro('Senha deve ter pelo menos 6 caracteres.');
   authSetLoading(true);
+  authCadastroPendente = true;
   try{
     const { data, error } = await _supa.auth.signUp({
       email, password: senha,
@@ -2342,10 +2458,21 @@ async function authCadastro(){
       authErro('Este e-mail já possui cadastro. Faça login ou recupere sua senha.');
       return;
     }
+    // Confirmação de e-mail DESLIGADA no projeto: o Supabase já devolve sessão ativa.
+    // Deslogamos na hora para o usuário sempre passar pela tela de login.
+    if(data?.session){
+      try { await _supa.auth.signOut(); } catch(e){ console.error('signOut pós-cadastro:', e); }
+      authMostrarTab('login');
+      const el=document.getElementById('login-email'); if(el) el.value = email;
+      authOk('✅ Conta criada! Faça login para continuar.');
+      return;
+    }
+    // Confirmação de e-mail LIGADA: não há sessão para deslogar
     authOk('✅ Conta criada! Verifique seu e-mail para confirmar o cadastro.');
   } catch(e){
     authErro('Erro de conexão. Verifique sua internet.');
   } finally {
+    authCadastroPendente = false;
     authSetLoading(false);
   }
 }
@@ -2429,6 +2556,8 @@ function authRecoveryPendente(){
 function authMostrarLogin(){
   window._sbReady = false;
   window._sbUID   = null;
+  authEmCompletarPerfil = false;
+  _perfilUserPendente   = null;
   if (_sbChannel) { try { _supa.removeChannel(_sbChannel); } catch(e){} _sbChannel = null; }
   const app  = document.getElementById('appRoot');
   const auth = document.getElementById('auth-screen');
@@ -2460,6 +2589,31 @@ async function authLiberarApp(user, revelarUI){
   // Garante que existe uma linha em profiles (FK obrigatória para todas as outras tabelas)
   await sbGarantirPerfil(user);
 
+  // Gate de perfil: vale para QUALQUER login (e-mail/senha, Google, sessão restaurada).
+  // Falha de rede/RLS na leitura não pode trancar o usuário fora do app → segue o fluxo normal.
+  let perfil = null, perfilLido = false;
+  try{
+    const { data, error } = await _supa.from('profiles').select('*').eq('uid', user.id).maybeSingle();
+    if (error) console.error('authLiberarApp perfil select error:', error);
+    else { perfil = data; perfilLido = true; }
+  } catch(e){ console.error('authLiberarApp perfil select error:', e); }
+
+  if (perfil?.nome && nameEl) nameEl.textContent = perfil.nome;
+
+  if (perfilLido && !perfilEstaCompleto(perfil)) {
+    authMostrarCompletarPerfil(user, perfil);
+    return;
+  }
+
+  await revelarApp(user, revelarUI);
+}
+
+/* ── Revela o app e carrega os dados (perfil já validado) ── */
+async function revelarApp(user, revelarUI = true){
+  if(!user) return;
+  window._sbUID   = user.id;
+  window._sbReady = true;
+
   if (revelarUI) {
     const auth = document.getElementById('auth-screen');
     const app  = document.getElementById('appRoot');
@@ -2487,6 +2641,213 @@ async function authLiberarApp(user, revelarUI){
   await sbCarregarDados();
   sbIniciarRealtime();
   authAtualizarBotaoVincular();
+}
+
+/* ═══ PERFIL DO USUÁRIO ══════════════════
+   Compartilhado entre a tela obrigatória (#form-perfil, ids "perfil-")
+   e o sheet de edição (#sh-perfil, ids "perfil-edit-").
+════════════════════════════════════════ */
+
+const UFS_BR = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
+                'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+
+const PERFIL_CAMPOS = ['nome','cpf','endereco_cep','endereco_rua','endereco_numero','endereco_cidade','endereco_uf','objetivo'];
+
+/* ── Máscaras ── */
+function maskCPF(input){
+  const d = input.value.replace(/\D/g,'').slice(0,11);
+  let out = d;
+  if(d.length > 9)      out = d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6,9)+'-'+d.slice(9);
+  else if(d.length > 6) out = d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6);
+  else if(d.length > 3) out = d.slice(0,3)+'.'+d.slice(3);
+  input.value = out;
+}
+
+function maskCEP(input){
+  const d = input.value.replace(/\D/g,'').slice(0,8);
+  input.value = d.length > 5 ? d.slice(0,5)+'-'+d.slice(5) : d;
+}
+
+/* ── Validação de CPF (módulo 11) ── */
+function validarCPF(cpf){
+  const d = String(cpf||'').replace(/\D/g,'');
+  if(d.length !== 11) return false;
+  if(/^(\d)\1{10}$/.test(d)) return false;      // 00000000000, 11111111111, ...
+  let soma = 0;
+  for(let i=0;i<9;i++) soma += parseInt(d[i],10) * (10-i);
+  let dig = (soma*10) % 11;
+  if(dig === 10 || dig === 11) dig = 0;
+  if(dig !== parseInt(d[9],10)) return false;
+  soma = 0;
+  for(let i=0;i<10;i++) soma += parseInt(d[i],10) * (11-i);
+  dig = (soma*10) % 11;
+  if(dig === 10 || dig === 11) dig = 0;
+  return dig === parseInt(d[10],10);
+}
+
+/* ── Perfil completo? ── */
+function perfilEstaCompleto(perfil){
+  if(!perfil) return false;
+  return PERFIL_CAMPOS.every(k => String(perfil[k] ?? '').trim() !== '');
+}
+
+/* ── Popula o <select> de UF uma única vez ── */
+function perfilPopularUF(sel){
+  if(!sel || sel.options.length > 1) return;
+  UFS_BR.forEach(uf => {
+    const o = document.createElement('option');
+    o.value = uf; o.textContent = uf;
+    sel.appendChild(o);
+  });
+}
+
+/* ── Lê os campos de um dos dois formulários ── */
+function perfilLerForm(pref){
+  const v = s => (document.getElementById(pref+s)?.value || '').trim();
+  return {
+    nome:             v('nome'),
+    cpf:              v('cpf'),
+    endereco_cep:     v('cep'),
+    endereco_rua:     v('rua'),
+    endereco_numero:  v('numero'),
+    endereco_cidade:  v('cidade'),
+    endereco_uf:      v('uf'),
+    objetivo:         v('objetivo')
+  };
+}
+
+/* ── Preenche um dos dois formulários ── */
+function perfilPreencherForm(pref, perfil, user){
+  perfilPopularUF(document.getElementById(pref+'uf'));
+  const set = (s,val) => { const el = document.getElementById(pref+s); if(el) el.value = val || ''; };
+  set('nome',     perfil?.nome || user?.user_metadata?.full_name || '');
+  set('cpf',      perfil?.cpf);
+  set('cep',      perfil?.endereco_cep);
+  set('rua',      perfil?.endereco_rua);
+  set('numero',   perfil?.endereco_numero);
+  set('cidade',   perfil?.endereco_cidade);
+  set('uf',       perfil?.endereco_uf);
+  set('objetivo', perfil?.objetivo);
+  const cpfEl = document.getElementById(pref+'cpf'); if(cpfEl) maskCPF(cpfEl);
+  const cepEl = document.getElementById(pref+'cep'); if(cepEl) maskCEP(cepEl);
+}
+
+/* ── Validação comum; retorna mensagem de erro ou null ── */
+function perfilValidarForm(p){
+  if(!p.nome)                                     return 'Informe seu nome completo.';
+  if(!p.cpf)                                      return 'Informe seu CPF.';
+  if(!validarCPF(p.cpf))                          return 'CPF inválido. Confira os números digitados.';
+  if(!p.endereco_cep)                             return 'Informe o CEP.';
+  if(p.endereco_cep.replace(/\D/g,'').length !== 8) return 'CEP inválido. Use o formato 00000-000.';
+  if(!p.endereco_rua)                             return 'Informe a rua.';
+  if(!p.endereco_numero)                          return 'Informe o número.';
+  if(!p.endereco_cidade)                          return 'Informe a cidade.';
+  if(!p.endereco_uf)                              return 'Selecione o estado (UF).';
+  if(!p.objetivo)                                 return 'Conte qual é seu objetivo com o app.';
+  return null;
+}
+
+/* ── Busca a linha de profiles do usuário ── */
+async function perfilBuscar(uid){
+  try{
+    const { data, error } = await _supa.from('profiles').select('*').eq('uid', uid).maybeSingle();
+    if(error){ console.error('perfilBuscar error:', error); return null; }
+    return data;
+  }catch(e){ console.error('perfilBuscar error:', e); return null; }
+}
+
+/* ═══ TELA OBRIGATÓRIA DE COMPLETAR PERFIL ═══ */
+let authEmCompletarPerfil = false;
+let _perfilUserPendente   = null;
+
+function authMostrarCompletarPerfil(user, perfil){
+  authEmCompletarPerfil = true;
+  _perfilUserPendente   = user;
+  const auth = document.getElementById('auth-screen');
+  const app  = document.getElementById('appRoot');
+  if (app) app.style.display = 'none';
+  if (auth) {
+    auth.style.display = 'flex';
+    auth.classList.remove('hide','gone');
+  }
+  document.getElementById('auth-tabs-wrap')?.style.setProperty('display','none');
+  ['login','cadastro','reset','nova-senha'].forEach(t =>
+    document.getElementById('form-'+t)?.classList.remove('ativo'));
+  authLimparMensagens();
+  perfilPreencherForm('perfil-', perfil, user);
+  document.getElementById('form-perfil')?.classList.add('ativo');
+  authSetLoading(false);
+}
+
+async function salvarCompletarPerfil(){
+  authLimparMensagens();
+  const user = _perfilUserPendente;
+  if(!user) return authErro('Sessão expirada. Faça login novamente.');
+  const p = perfilLerForm('perfil-');
+  const erro = perfilValidarForm(p);
+  if(erro) return authErro('⚠️ '+erro);
+  authSetLoading(true);
+  try{
+    const { error } = await _supa.from('profiles')
+      .upsert({ uid: user.id, email: user.email || '', ...p }, { onConflict: 'uid' });
+    if(error){
+      console.error('salvarCompletarPerfil upsert error:', error);
+      authErro('Não foi possível salvar seu perfil. Tente novamente.');
+      return;
+    }
+    authEmCompletarPerfil = false;
+    _perfilUserPendente   = null;
+    document.getElementById('form-perfil')?.classList.remove('ativo');
+    document.getElementById('auth-tabs-wrap')?.style.removeProperty('display');
+    const nameEl = document.getElementById('menu-user-name');
+    if(nameEl) nameEl.textContent = p.nome;
+    authOk('✅ Perfil salvo! Entrando...');
+    await revelarApp(user, true);
+  } catch(e){
+    console.error('salvarCompletarPerfil error:', e);
+    authErro('Erro de conexão. Verifique sua internet.');
+  } finally {
+    authSetLoading(false);
+  }
+}
+
+/* ═══ SHEET DE EDIÇÃO DE PERFIL (dentro do app) ═══ */
+async function abrirPerfilEdicao(){
+  if(typeof fecharMenu === 'function') fecharMenu();
+  const uid = window._sbUID;
+  if(!uid) return toast('⚠️ Faça login para editar o perfil.', true);
+  const perfil = await perfilBuscar(uid);
+  perfilPreencherForm('perfil-edit-', perfil, null);
+  document.getElementById('sh-perfil-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-perfil').classList.add('show'),10);
+}
+
+function fecharPerfilEdicao(){
+  document.getElementById('sh-perfil').classList.remove('show');
+  document.getElementById('sh-perfil-ov').classList.remove('show');
+}
+
+async function salvarPerfilEdicao(){
+  const uid = window._sbUID;
+  if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+  const p = perfilLerForm('perfil-edit-');
+  const erro = perfilValidarForm(p);
+  if(erro) return toast('⚠️ '+erro, true);
+  try{
+    const { error } = await _supa.from('profiles')
+      .upsert({ uid, ...p }, { onConflict: 'uid' });
+    if(error){
+      console.error('salvarPerfilEdicao upsert error:', error);
+      return toast('⚠️ Não foi possível salvar o perfil.', true);
+    }
+    const nameEl = document.getElementById('menu-user-name');
+    if(nameEl) nameEl.textContent = p.nome;
+    fecharPerfilEdicao();
+    toast('✅ Perfil atualizado!');
+  }catch(e){
+    console.error('salvarPerfilEdicao error:', e);
+    toast('⚠️ Erro de conexão ao salvar o perfil.', true);
+  }
 }
 
 function authMostrarNovaSenha(){
@@ -2603,6 +2964,10 @@ window.addEventListener('load',()=>{
   _supa.auth.onAuthStateChange((event, session) => {
     console.log('[Auth]', event, session?.user?.email);
 
+    // Cadastro em andamento: o SIGNED_IN automático e o SIGNED_OUT logo em seguida
+    // são efeitos colaterais do próprio authCadastro() — a função cuida da UI.
+    if (authCadastroPendente) return;
+
     if (event === 'PASSWORD_RECOVERY') {
       setTimeout(() => { authMostrarNovaSenha(); }, 0);
       return;
@@ -2622,6 +2987,8 @@ window.addEventListener('load',()=>{
 
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
       if (authEmRecuperacao) return;
+      // Tela obrigatória de perfil aberta: não reprocessa (apagaria o que já foi digitado)
+      if (authEmCompletarPerfil) return;
       const revelar = (event === 'SIGNED_IN');
       setTimeout(() => { authLiberarApp(session.user, revelar); }, 0);
     }
@@ -2813,11 +3180,15 @@ function addPlanejamento(){
   const[,, d]=data.split('-');
   const grupoRec=swRec?`rec_${Date.now()}`:null;
   const comentarioPlan=(document.getElementById('plan-comment')?.value||'').trim();
+  const anoDaData=parseInt(String(data).split('-')[0],10)||_ANO;
   listaMeses.forEach((mesAlvo,idx)=>{
-    const mi=MESES.indexOf(mesAlvo);
-    const ano=_ANO;
+    // Mês/ano vêm do próprio rótulo escolhido (ex. 'jan/26'); o ano da data
+    // informada é só fallback. Antes o ano era forçado para o ano corrente.
+    const miRef=mesIndexDoMesRef(mesAlvo);
+    const mi=miRef>=0?miRef:MESES.indexOf(mesAlvo);
+    const ano=anoDoMesRef(mesAlvo,anoDaData);
     const dISO=`${ano}-${String(mi+1).padStart(2,'0')}-${d}`;
-    APP.plan.push({id:Date.now()+idx,data:`${d}/${String(mi+1).padStart(2,'0')}/${ano}`,dataISO:dISO,mes:mesAlvo,descricao:desc.toUpperCase(),movimento:planMov,valorPlanejado:Math.abs(vp),valorReal:0,categoria:cat,classificacao:planMov==='Credito'?'Receita':'Despesas',tipo,status:'pendente',lancId:null,recorrente:swRec,grupoRec,comentario:comentarioPlan||undefined});
+    APP.plan.push({id:novoId()+idx,data:`${d}/${String(mi+1).padStart(2,'0')}/${ano}`,dataISO:dISO,mes:mesAlvo,descricao:desc.toUpperCase(),movimento:planMov,valorPlanejado:Math.abs(vp),valorReal:0,categoria:cat,classificacao:planMov==='Credito'?'Receita':'Despesas',tipo,status:'pendente',lancId:null,recorrente:swRec,grupoRec,comentario:comentarioPlan||undefined});
   });
   salvarPlan();renderPlan();atualizarStatsPlan();
   document.getElementById('plan-desc').value='';
@@ -2863,8 +3234,11 @@ function renderPlan(){
   const hoje=new Date();hoje.setHours(0,0,0,0);
   const fM=document.getElementById('pf-mes').value;
   const fS=document.getElementById('pf-status').value;
-  APP.plan.forEach(p=>{if(p.status==='pendente'){const dp=new Date(p.dataISO);dp.setHours(0,0,0,0);if(dp<hoje)p.status='vencido';}});
-  salvarPlan();
+  // Só persiste se ALGUM item realmente mudou de pendente→vencido.
+  // Salvar a cada render disparava sync no Supabase e podia formar loop com o realtime.
+  let mudouStatus=false;
+  APP.plan.forEach(p=>{if(p.status==='pendente'){const dp=new Date(p.dataISO);dp.setHours(0,0,0,0);if(dp<hoje){p.status='vencido';mudouStatus=true;}}});
+  if(mudouStatus)salvarPlan();
   const lista=[...APP.plan].filter(p=>(!fM||p.mes===fM)&&(!fS||p.status===fS)).sort((a,b)=>{const o={vencido:0,pendente:1,executado:2};return o[a.status]!==o[b.status]?o[a.status]-o[b.status]:a.dataISO.localeCompare(b.dataISO);});
   atualizarStatsPlan();
   const c=document.getElementById('plan-container');
@@ -2938,19 +3312,29 @@ function confirmarExec(){
   if(!vr||vr<=0)return toast('⚠️ Informe o valor real',true);
   if(!de)return toast('⚠️ Informe a data',true);
   const p=APP.plan.find(x=>x.id===execId);if(!p)return;
+
+  // Valida a origem ANTES de mutar o plano (senão um retorno antecipado
+  // deixava o plano marcado como executado sem lançamento nenhum).
+  let bolsoOrigem=null;
+  if(origem==='bolso'){
+    const bid=parseInt(document.getElementById('sh-bolso-sel')?.value||'0');
+    if(!bid)return toast('⚠️ Selecione o bolso origem',true);
+    bolsoOrigem=APP.bolsos.find(x=>x.id===bid);
+    if(!bolsoOrigem)return toast('⚠️ Bolso não encontrado',true);
+    if(Math.abs(vr)>bolsoOrigem.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${bolsoOrigem.nome}"`,true);
+  }
+
   p.status='executado';p.valorReal=Math.abs(vr);
   const[y,m,d]=de.split('-');p.dataExec=`${d}/${m}/${y}`;p.dataExecISO=de;
-  const lId=Date.now();p.lancId=lId;
+  const lId=novoId();p.lancId=lId;
+  // Guarda a origem para permitir estorno correto em removerPlan().
+  p.origem=origem;p.bolsoId=bolsoOrigem?bolsoOrigem.id:null;
 
   if(origem==='cc'){
     APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente});
     salvar();atualizarStats();
   } else if(origem==='bolso'){
-    const bid=parseInt(document.getElementById('sh-bolso-sel')?.value||'0');
-    if(!bid)return toast('⚠️ Selecione o bolso origem',true);
-    const b=APP.bolsos.find(x=>x.id===bid);
-    if(!b)return toast('⚠️ Bolso não encontrado',true);
-    if(Math.abs(vr)>b.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${b.nome}"`,true);
+    const b=bolsoOrigem;
     b.saldo-=Math.abs(vr);
     if(!b.movimentos)b.movimentos=[];
     b.movimentos.unshift({id:lId,tipo:'retirada',valor:Math.abs(vr),desc:p.descricao,data:de,delta:-Math.abs(vr),origemCC:false,dePlan:true});
@@ -2967,9 +3351,8 @@ let valoresVisiveis=false;
 function fmtStat(v){return'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function atualizarStats(filteredDados){
   const base=filteredDados||APP.dados;
-  const rec=base.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
-  const desp=base.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
-  const sal=rec-desp;
+  // Fonte única (já exclui transferências internas CC↔bolso)
+  const{rec,desp,saldo:sal}=somaRecDesp(base);
   document.getElementById('stat-rec').querySelector('.val-txt').textContent=fmtStat(rec);
   document.getElementById('stat-desp').querySelector('.val-txt').textContent=fmtStat(desp);
   const el=document.getElementById('stat-saldo');
