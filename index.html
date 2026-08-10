@@ -494,6 +494,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .topbar-logo{width:36px;height:36px;border-radius:10px;overflow:hidden;flex-shrink:0}
 .topbar-logo img{width:100%;height:100%;object-fit:cover}
 .topbar-title{font-size:1rem;font-weight:700;color:var(--text)}
+.topbar-text{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.topbar-greeting{font-size:.68rem;font-weight:500;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .topbar-ver{font-size:.62rem;font-weight:600;background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:2px 8px;border-radius:20px;flex-shrink:0}
 .topbar-actions{display:flex;gap:7px;align-items:center;flex-shrink:0}
 .btn-top{display:flex;align-items:center;gap:5px;border:none;border-radius:9px;padding:8px 12px;font-family:var(--sans);font-size:.75rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s}
@@ -1484,7 +1486,10 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 <div class="topbar">
   <div class="topbar-brand">
     <div class="topbar-logo"><img src="icon-64.png" alt="B" onerror="this.parentElement.innerHTML='🧭'"></div>
-    <span class="topbar-title">Bússola</span>
+    <div class="topbar-text">
+      <span class="topbar-title">Bússola</span>
+      <span class="topbar-greeting" id="topbar-greeting"></span>
+    </div>
   </div>
   <div class="topbar-actions">
     <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores" style="position:static;transform:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
@@ -2575,6 +2580,11 @@ function authMostrarLogin(){
   });
 }
 
+function atualizarSaudacaoTopbar(nome){
+  const el = document.getElementById('topbar-greeting');
+  if(el) el.textContent = nome ? ('Olá, '+nome+'! Seja bem-vindo.') : '';
+}
+
 async function authLiberarApp(user, revelarUI){
   if(!user) return;
   window._sbUID   = user.id;
@@ -2599,6 +2609,7 @@ async function authLiberarApp(user, revelarUI){
   } catch(e){ console.error('authLiberarApp perfil select error:', e); }
 
   if (perfil?.nome && nameEl) nameEl.textContent = perfil.nome;
+  atualizarSaudacaoTopbar(perfil?.nome || dn);
 
   if (perfilLido && !perfilEstaCompleto(perfil)) {
     authMostrarCompletarPerfil(user, perfil);
@@ -2834,6 +2845,7 @@ async function salvarCompletarPerfil(){
     document.getElementById('auth-tabs-wrap')?.style.removeProperty('display');
     const nameEl = document.getElementById('menu-user-name');
     if(nameEl) nameEl.textContent = p.nome;
+    atualizarSaudacaoTopbar(p.nome);
     authOk('✅ Perfil salvo! Entrando...');
     await revelarApp(user, true);
   } catch(e){
@@ -2875,6 +2887,7 @@ async function salvarPerfilEdicao(){
     }
     const nameEl = document.getElementById('menu-user-name');
     if(nameEl) nameEl.textContent = p.nome;
+    atualizarSaudacaoTopbar(p.nome);
     fecharPerfilEdicao();
     toast('✅ Perfil atualizado!');
   }catch(e){
