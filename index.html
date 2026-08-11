@@ -700,6 +700,26 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .btn-cx{background:var(--surface2);color:var(--text2);border:1px solid var(--border2)!important}
 .btn-cf{background:var(--danger);color:#fff}
 
+/* ─── EDITOR DE RECORTE DO AVATAR ───────── */
+.crop-dlg{max-width:320px}
+.crop-dlg h3{margin-bottom:14px}
+.crop-visor{
+  position:relative;width:240px;max-width:100%;height:240px;margin:0 auto;
+  border-radius:50%;overflow:hidden;background:var(--surface2);
+  border:1px solid var(--border2);box-shadow:0 0 0 3px var(--accent-glow);
+  touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;
+}
+.crop-visor:active{cursor:grabbing}
+.crop-visor img{
+  position:absolute;left:0;top:0;transform-origin:0 0;
+  max-width:none;max-height:none;pointer-events:none;
+  -webkit-user-drag:none;user-select:none;will-change:transform;
+}
+.crop-hint{font-size:.66rem;color:var(--text3);text-align:center;margin:12px 0 8px}
+.crop-zoom-row{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.crop-zoom-row span{font-size:.8rem;line-height:1;flex-shrink:0}
+.dlg-btns button:disabled{opacity:.55;cursor:default}
+
 /* ─── TOAST ──────────────────────────── */
 .toast{position:fixed;bottom:calc(var(--safe-bot)+20px);left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface2);border:1px solid var(--border2);border-left:3px solid var(--teal);padding:10px 18px;border-radius:10px;font-size:.82rem;transition:transform .28s,opacity .28s;opacity:0;z-index:999;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.6)}
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
@@ -2073,7 +2093,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       </div>
       <div class="menu-item-end" id="acc-ico-conta">›</div>
     </div>
-    <input type="file" id="avatarFile" accept="image/*" style="display:none" onchange="trocarAvatar(this.files&&this.files[0]);this.value=''">
+    <input type="file" id="avatarFile" accept="image/*" style="display:none" onchange="abrirCropAvatar(this.files&&this.files[0]);this.value=''">
     <div class="menu-conta-sub" id="menu-conta-sub">
     <button class="menu-item" id="menu-link-google" style="display:none" onclick="authVincularGoogle()">
       <div class="menu-item-ico" style="background:rgba(66,133,244,.12)">🔗</div>
@@ -2253,6 +2273,28 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="dlg-btns">
       <button class="btn-cx" onclick="fecharDlg()">Cancelar</button>
       <button class="btn-cf" id="dlg-confirm-btn" onclick="">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDITOR DE RECORTE DA FOTO DE PERFIL -->
+<div class="ov" id="ov-crop" onclick="if(event.target===this)fecharCropAvatar()">
+  <div class="dlg crop-dlg">
+    <h3>Ajustar foto</h3>
+    <div class="crop-visor" id="crop-visor"
+         onpointerdown="cropDown(event)" onpointermove="cropMove(event)"
+         onpointerup="cropUp(event)" onpointercancel="cropUp(event)">
+      <img id="crop-img" alt="">
+    </div>
+    <div class="crop-hint">Arraste a foto para posicionar e use o zoom abaixo</div>
+    <div class="crop-zoom-row">
+      <span>🏞️</span>
+      <input type="range" class="sim-slider" id="crop-zoom" min="1" max="3" step="0.01" value="1" oninput="cropZoom(this.value)">
+      <span>🔍</span>
+    </div>
+    <div class="dlg-btns">
+      <button class="btn-cx" onclick="fecharCropAvatar()">Cancelar</button>
+      <button class="btn-cf" id="crop-ok" style="background:var(--accent)" onclick="cropConfirmar()">Usar esta foto</button>
     </div>
   </div>
 </div>
@@ -2904,19 +2946,12 @@ function avatarRedimensionar(file){
   });
 }
 
-async function trocarAvatar(file){
-  if(!file) return;
+/* Envia um Blob JPEG já recortado: Storage → profiles.avatar_url → UI.
+   Devolve true/false pra quem chamou saber se deu certo. */
+async function avatarEnviarBlob(blob){
+  if(!blob) return false;
   const uid = window._sbUID;
-  if(!uid) return toast('⚠️ Faça login para trocar a foto.', true);
-  if(!file.type || !file.type.startsWith('image/')) return toast('⚠️ Selecione uma imagem válida', true);
-
-  let blob;
-  try{
-    blob = await avatarRedimensionar(file);
-  }catch(e){
-    console.error('trocarAvatar resize error:', e);
-    return toast('⚠️ Não foi possível processar a imagem', true);
-  }
+  if(!uid){ toast('⚠️ Faça login para trocar a foto.', true); return false; }
 
   try{
     const caminho = uid + '/avatar.jpg';
@@ -2924,7 +2959,8 @@ async function trocarAvatar(file){
       .upload(caminho, blob, { upsert: true, contentType: 'image/jpeg' });
     if(upErr){
       console.error('trocarAvatar upload error:', upErr);
-      return toast('⚠️ Falha ao enviar imagem', true);
+      toast('⚠️ Falha ao enviar imagem', true);
+      return false;
     }
     const { data } = _supa.storage.from('avatars').getPublicUrl(caminho);
     // cache-buster: o nome do arquivo é sempre o mesmo, senão o navegador mostra a foto antiga
@@ -2939,14 +2975,201 @@ async function trocarAvatar(file){
       .eq('uid', uid);
     if(dbErr){
       console.error('trocarAvatar update error:', dbErr);
-      return toast('⚠️ Não foi possível salvar a foto no perfil.', true);
+      toast('⚠️ Não foi possível salvar a foto no perfil.', true);
+      return false;
     }
 
     aplicarAvatar(url);
     toast('✅ Foto atualizada!');
+    return true;
   }catch(e){
     console.error('trocarAvatar error:', e);
     toast('⚠️ Erro de conexão ao enviar a foto.', true);
+    return false;
+  }
+}
+
+/* Caminho antigo (crop central automático) — mantido para uso programático */
+async function trocarAvatar(file){
+  if(!file) return false;
+  if(!window._sbUID){ toast('⚠️ Faça login para trocar a foto.', true); return false; }
+  if(!file.type || !file.type.startsWith('image/')){ toast('⚠️ Selecione uma imagem válida', true); return false; }
+
+  let blob;
+  try{
+    blob = await avatarRedimensionar(file);
+  }catch(e){
+    console.error('trocarAvatar resize error:', e);
+    toast('⚠️ Não foi possível processar a imagem', true);
+    return false;
+  }
+  return await avatarEnviarBlob(blob);
+}
+
+/* ═══ EDITOR DE RECORTE DO AVATAR ═════════
+   Modelo: a <img> fica em position:absolute com transform-origin 0 0 e
+   transform = translate(tx,ty) scale(S). Assim o pixel (u,v) da imagem
+   ORIGINAL cai em (tx + u*S, ty + v*S) dentro do visor — o que torna
+   trivial converter o que está visível de volta pra coordenadas naturais
+   na hora de gerar o recorte final (mesma fórmula, invertida).            */
+const _crop = { url:'', pronta:false, nw:0, nh:0, V:240, base:1, zoom:1, ox:0, oy:0, ptrId:null, x0:0, y0:0, enviando:false };
+
+function abrirCropAvatar(file){
+  if(!file) return;
+  if(!window._sbUID) return toast('⚠️ Faça login para trocar a foto.', true);
+  if(!file.type || !file.type.startsWith('image/')) return toast('⚠️ Selecione uma imagem válida', true);
+
+  const ov    = document.getElementById('ov-crop');
+  const visor = document.getElementById('crop-visor');
+  const img   = document.getElementById('crop-img');
+  const sl    = document.getElementById('crop-zoom');
+  const btn   = document.getElementById('crop-ok');
+  if(!ov || !visor || !img || !sl) return trocarAvatar(file); // fallback: crop central
+
+  if(_crop.url) URL.revokeObjectURL(_crop.url);
+  _crop.url    = URL.createObjectURL(file);
+  _crop.pronta = false;
+  _crop.enviando = false;
+  if(btn){ btn.disabled = true; btn.textContent = 'Usar esta foto'; }
+
+  img.onload = ()=>{
+    const nw = img.naturalWidth || img.width, nh = img.naturalHeight || img.height;
+    if(!nw || !nh){ fecharCropAvatar(); return toast('⚠️ Imagem inválida', true); }
+    // o visor é quadrado: mede a largura real (pode encolher em telas pequenas) e casa a altura
+    const V = Math.round(visor.getBoundingClientRect().width) || 240;
+    visor.style.height = V + 'px';
+    _crop.nw = nw; _crop.nh = nh; _crop.V = V;
+    _crop.base = V / Math.min(nw, nh);   // escala que faz a imagem cobrir o visor (slider = 1)
+    _crop.zoom = 1; _crop.ox = 0; _crop.oy = 0;
+    img.style.width  = nw + 'px';        // tamanho natural: 1px de tela = 1px da imagem antes do scale
+    img.style.height = nh + 'px';
+    sl.value = '1';
+    _crop.pronta = true;
+    if(btn) btn.disabled = false;
+    cropAplicar();
+  };
+  img.onerror = ()=>{ fecharCropAvatar(); toast('⚠️ Não foi possível abrir a imagem', true); };
+  img.src = _crop.url;
+  ov.classList.add('show');
+}
+
+function fecharCropAvatar(){
+  if(_crop.enviando) return;
+  const ov  = document.getElementById('ov-crop');
+  const img = document.getElementById('crop-img');
+  ov?.classList.remove('show');
+  _crop.pronta = false; _crop.ptrId = null;
+  if(img){
+    img.onload = null; img.onerror = null;
+    img.removeAttribute('src');
+    img.style.transform = '';
+  }
+  if(_crop.url){ URL.revokeObjectURL(_crop.url); _crop.url = ''; }
+  const inp = document.getElementById('avatarFile');
+  if(inp) inp.value = '';   // permite reescolher a mesma foto depois
+  const btn = document.getElementById('crop-ok');
+  if(btn){ btn.disabled = false; btn.textContent = 'Usar esta foto'; }
+}
+
+function cropEscala(){ return _crop.base * _crop.zoom; }
+
+/* Limita o deslocamento pra imagem nunca deixar buraco dentro do visor:
+   com o offset medido a partir do centro, |ox| <= (larguraEscalada - V)/2 */
+function cropClamp(){
+  const S  = cropEscala();
+  const mx = Math.max(0, (_crop.nw * S - _crop.V) / 2);
+  const my = Math.max(0, (_crop.nh * S - _crop.V) / 2);
+  _crop.ox = Math.min(mx, Math.max(-mx, _crop.ox));
+  _crop.oy = Math.min(my, Math.max(-my, _crop.oy));
+}
+
+function cropTransform(){
+  const S = cropEscala();
+  return { S, tx: _crop.V/2 - _crop.nw*S/2 + _crop.ox,
+              ty: _crop.V/2 - _crop.nh*S/2 + _crop.oy };
+}
+
+function cropAplicar(){
+  if(!_crop.pronta) return;
+  const img = document.getElementById('crop-img');
+  if(!img) return;
+  cropClamp();
+  const t = cropTransform();
+  img.style.transform = 'translate(' + t.tx + 'px,' + t.ty + 'px) scale(' + t.S + ')';
+}
+
+function cropZoom(v){
+  if(!_crop.pronta) return;
+  const z = Math.max(1, Math.min(3, parseFloat(v) || 1));
+  const r = z / (_crop.zoom || 1);
+  _crop.zoom = z;
+  _crop.ox *= r; _crop.oy *= r;   // mantém ancorado o ponto que está no centro do visor
+  cropAplicar();
+}
+
+function cropDown(e){
+  if(!_crop.pronta || _crop.enviando) return;
+  _crop.ptrId = e.pointerId;
+  _crop.x0 = e.clientX - _crop.ox;   // mapeamento absoluto: imune ao clamp
+  _crop.y0 = e.clientY - _crop.oy;
+  try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+}
+function cropMove(e){
+  if(_crop.ptrId === null || e.pointerId !== _crop.ptrId) return;
+  _crop.ox = e.clientX - _crop.x0;
+  _crop.oy = e.clientY - _crop.y0;
+  cropAplicar();
+  e.preventDefault();
+}
+function cropUp(e){
+  if(_crop.ptrId !== null && e && e.pointerId !== _crop.ptrId) return;
+  _crop.ptrId = null;
+  try{ if(e) e.currentTarget.releasePointerCapture(e.pointerId); }catch(_){}
+}
+
+/* Converte o que está visível no visor para pixels naturais e desenha em 256x256 */
+function cropGerarBlob(){
+  return new Promise((resolve, reject)=>{
+    const img = document.getElementById('crop-img');
+    if(!img || !_crop.pronta) return reject(new Error('Editor não está pronto'));
+    const LADO = 256;
+    const t = cropTransform();
+    // inverso de (tx + u*S): o canto sup. esq. do visor é o pixel natural (-tx/S, -ty/S)
+    let sw = Math.min(_crop.V / t.S, _crop.nw);
+    let sh = Math.min(_crop.V / t.S, _crop.nh);
+    let sx = Math.max(0, Math.min(-t.tx / t.S, _crop.nw - sw));
+    let sy = Math.max(0, Math.min(-t.ty / t.S, _crop.nh - sh));
+    try{
+      const cv = document.createElement('canvas');
+      cv.width = LADO; cv.height = LADO;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, LADO, LADO);
+      cv.toBlob(b => b ? resolve(b) : reject(new Error('toBlob falhou')), 'image/jpeg', 0.85);
+    }catch(e){ reject(e); }
+  });
+}
+
+async function cropConfirmar(){
+  if(!_crop.pronta || _crop.enviando) return;
+  const btn = document.getElementById('crop-ok');
+
+  let blob;
+  try{
+    blob = await cropGerarBlob();
+  }catch(e){
+    console.error('cropConfirmar erro ao recortar:', e);
+    return toast('⚠️ Não foi possível processar a imagem', true);
+  }
+
+  _crop.enviando = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'Enviando...'; }
+  try{
+    await avatarEnviarBlob(blob);   // toasts de sucesso/erro saem daqui
+  }finally{
+    _crop.enviando = false;
+    if(btn){ btn.disabled = false; btn.textContent = 'Usar esta foto'; }
+    fecharCropAvatar();
   }
 }
 
