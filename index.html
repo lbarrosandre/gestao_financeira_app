@@ -977,6 +977,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .btn-ham{display:flex;flex-direction:column;justify-content:center;gap:5px;width:38px;height:38px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);cursor:pointer;padding:9px 8px;flex-shrink:0;transition:all .15s}
 .btn-ham span{display:block;height:2px;border-radius:1px;background:var(--text2);transition:all .25s}
 .btn-ham:active{transform:scale(.94)}
+/* Avatar no lugar do hambúrguer */
+.btn-ham-av{display:none;width:32px;height:32px;border-radius:50%;object-fit:cover}
+.btn-ham.has-av{padding:2px;gap:0;align-items:center;border-radius:50%;background:none}
+.btn-ham.has-av span{display:none}
+.btn-ham.has-av .btn-ham-av{display:block}
 
 /* ─── DRAWER MENU ────────────────────── */
 .menu-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:500;backdrop-filter:blur(3px)}
@@ -1002,6 +1007,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .menu-item-sub{font-size:.65rem;color:var(--text3);margin-top:1px}
 .menu-item-end{font-size:.72rem;color:var(--text3);flex-shrink:0}
 .menu-divider{height:1px;background:var(--border);margin:4px 16px}
+/* ─── CONTA: cabeçalho + acordeão ────── */
+.menu-conta-sub{display:none;margin:2px 0 2px 13px;padding-left:9px;border-left:2px solid var(--border2)}
+.menu-conta-sub.aberto{display:block;animation:fadeUp .2s ease}
+/* Avatar do usuário no menu (clicável) */
+.menu-av-box{position:relative;width:30px;height:30px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;background:rgba(59,130,246,.12);font-size:14px;cursor:pointer}
+.menu-av-box img{display:none;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.menu-av-box.has-av img{display:block}
+.menu-av-box.has-av .menu-av-ph{display:none}
+.menu-av-box:active{transform:scale(.93)}
+.menu-av-edit{position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;border-radius:50%;background:var(--accent);color:#fff;font-size:8px;display:grid;place-items:center;border:2px solid var(--surface);line-height:1}
 .menu-ver{padding:12px 16px calc(var(--safe-bot)+12px);font-size:.65rem;color:var(--text3);text-align:center}
 /* ─── SYNC STATUS ────────────────────── */
 #sync-status{display:flex;align-items:center;gap:5px;font-size:.72rem}
@@ -1498,8 +1513,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
   <div class="topbar-actions">
     <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores" style="position:static;transform:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
-    <button class="btn-ham" onclick="abrirMenu()" aria-label="Menu">
+    <button class="btn-ham" id="btn-ham" onclick="abrirMenu()" aria-label="Menu">
       <span></span><span></span><span></span>
+      <img class="btn-ham-av" id="ham-avatar-img" alt="">
     </button>
   </div>
 </div>
@@ -1533,7 +1549,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="tab plan-tab" id="tab-plan" onclick="trocarTab('plan')"><span class="ti">📅</span><span class="tl">Planejar</span></div>
   <div class="tab" id="tab-inv" onclick="trocarTab('inv')" style="color:var(--text3)"><span class="ti">👜</span><span class="tl">Carteira</span></div>
   <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">💳</span><span class="tl">Dívidas</span></div>
-  <div class="tab" id="tab-dash" onclick="trocarTab('dash')"><span class="ti">📊</span><span class="tl">Dash</span></div>
+  <div class="tab" id="tab-dash" onclick="trocarTab('dash')"><span class="ti">📊</span><span class="tl">Dashboard</span></div>
   <div class="tab" id="tab-info" onclick="trocarTab('info')"><span class="ti">🌐</span><span class="tl">Info</span></div>
 </div>
 
@@ -2044,13 +2060,21 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <!-- CONTA E SEGURANÇA -->
   <div class="menu-section">
     <div class="menu-sec-label">Conta e segurança</div>
-    <!-- Info do usuário logado -->
-    <div class="menu-item" style="cursor:default">
-      <div class="menu-item-ico" style="background:rgba(59,130,246,.12)">👤</div>
+    <!-- Info do usuário logado (cabeçalho do acordeão) -->
+    <div class="menu-item" onclick="toggleMenuConta()">
+      <div class="menu-av-box" id="menu-avatar-box" onclick="event.stopPropagation();document.getElementById('avatarFile').click()" title="Trocar foto">
+        <span class="menu-av-ph">👤</span>
+        <img id="menu-avatar-img" alt="">
+        <span class="menu-av-edit">✎</span>
+      </div>
       <div class="menu-item-body">
         <div class="menu-item-label" id="menu-user-name">Carregando...</div>
+        <div class="menu-item-sub">Toque para ver as opções da conta</div>
       </div>
+      <div class="menu-item-end" id="acc-ico-conta">›</div>
     </div>
+    <input type="file" id="avatarFile" accept="image/*" style="display:none" onchange="trocarAvatar(this.files&&this.files[0]);this.value=''">
+    <div class="menu-conta-sub" id="menu-conta-sub">
     <button class="menu-item" id="menu-link-google" style="display:none" onclick="authVincularGoogle()">
       <div class="menu-item-ico" style="background:rgba(66,133,244,.12)">🔗</div>
       <div class="menu-item-body">
@@ -2079,6 +2103,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="menu-item-sub">Remove todos os registros financeiros</div>
       </div>
     </button>
+    </div>
   </div>
 
   <div class="menu-divider"></div>
@@ -2271,6 +2296,15 @@ function toggleInfoAcc(id){
   const el=document.getElementById('acc-'+id);
   const ico=document.getElementById('acc-ico-'+id);
   const isOpen=el.classList.toggle('show');
+  if(ico)ico.style.transform=isOpen?'rotate(90deg)':'';
+}
+
+/* Acordeão da seção "Conta e segurança" (fechado por padrão) */
+function toggleMenuConta(){
+  const el=document.getElementById('menu-conta-sub');
+  const ico=document.getElementById('acc-ico-conta');
+  if(!el)return;
+  const isOpen=el.classList.toggle('aberto');
   if(ico)ico.style.transform=isOpen?'rotate(90deg)':'';
 }
 
@@ -2632,6 +2666,7 @@ async function authLiberarApp(user, revelarUI){
 
   if (perfil?.nome && nameEl) nameEl.textContent = perfil.nome;
   atualizarSaudacaoTopbar(perfil?.nome || dn, perfil?.apelido);
+  aplicarAvatar(perfil?.avatar_url || '');
 
   if (perfilLido && !perfilEstaCompleto(perfil)) {
     authMostrarCompletarPerfil(user, perfil);
@@ -2822,6 +2857,92 @@ async function perfilBuscar(uid){
     if(error){ console.error('perfilBuscar error:', error); return null; }
     return data;
   }catch(e){ console.error('perfilBuscar error:', e); return null; }
+}
+
+/* ═══ AVATAR DO USUÁRIO ═══════════════════ */
+/* Aplica a foto (ou o placeholder) nos dois pontos: menu lateral e botão hambúrguer */
+function aplicarAvatar(url){
+  const box    = document.getElementById('menu-avatar-box');
+  const imgMenu= document.getElementById('menu-avatar-img');
+  const ham    = document.getElementById('btn-ham');
+  const imgHam = document.getElementById('ham-avatar-img');
+  if(url){
+    if(imgMenu) imgMenu.src = url;
+    if(imgHam)  imgHam.src  = url;
+    box?.classList.add('has-av');
+    ham?.classList.add('has-av');
+  }else{
+    if(imgMenu) imgMenu.removeAttribute('src');
+    if(imgHam)  imgHam.removeAttribute('src');
+    box?.classList.remove('has-av');
+    ham?.classList.remove('has-av');
+  }
+}
+
+/* Redimensiona a imagem no navegador para 256x256 (cover, centralizado) e devolve um Blob JPEG */
+function avatarRedimensionar(file){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      URL.revokeObjectURL(url);
+      try{
+        const LADO = 256;
+        const cv = document.createElement('canvas');
+        cv.width = LADO; cv.height = LADO;
+        const ctx = cv.getContext('2d');
+        // cover: usa o menor lado da origem como recorte quadrado central
+        const lado = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+        const sx = ((img.naturalWidth  || img.width)  - lado) / 2;
+        const sy = ((img.naturalHeight || img.height) - lado) / 2;
+        ctx.drawImage(img, sx, sy, lado, lado, 0, 0, LADO, LADO);
+        cv.toBlob(b => b ? resolve(b) : reject(new Error('toBlob falhou')), 'image/jpeg', 0.85);
+      }catch(e){ reject(e); }
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Imagem inválida')); };
+    img.src = url;
+  });
+}
+
+async function trocarAvatar(file){
+  if(!file) return;
+  const uid = window._sbUID;
+  if(!uid) return toast('⚠️ Faça login para trocar a foto.', true);
+  if(!file.type || !file.type.startsWith('image/')) return toast('⚠️ Selecione uma imagem válida', true);
+
+  let blob;
+  try{
+    blob = await avatarRedimensionar(file);
+  }catch(e){
+    console.error('trocarAvatar resize error:', e);
+    return toast('⚠️ Não foi possível processar a imagem', true);
+  }
+
+  try{
+    const caminho = uid + '/avatar.jpg';
+    const { error: upErr } = await _supa.storage.from('avatars')
+      .upload(caminho, blob, { upsert: true, contentType: 'image/jpeg' });
+    if(upErr){
+      console.error('trocarAvatar upload error:', upErr);
+      return toast('⚠️ Falha ao enviar imagem', true);
+    }
+    const { data } = _supa.storage.from('avatars').getPublicUrl(caminho);
+    // cache-buster: o nome do arquivo é sempre o mesmo, senão o navegador mostra a foto antiga
+    const url = (data?.publicUrl || '') + '?t=' + Date.now();
+
+    const { error: dbErr } = await _supa.from('profiles')
+      .upsert({ uid, avatar_url: url }, { onConflict: 'uid' });
+    if(dbErr){
+      console.error('trocarAvatar upsert error:', dbErr);
+      return toast('⚠️ Não foi possível salvar a foto no perfil.', true);
+    }
+
+    aplicarAvatar(url);
+    toast('✅ Foto atualizada!');
+  }catch(e){
+    console.error('trocarAvatar error:', e);
+    toast('⚠️ Erro de conexão ao enviar a foto.', true);
+  }
 }
 
 /* ═══ TELA OBRIGATÓRIA DE COMPLETAR PERFIL ═══ */
@@ -3492,13 +3613,23 @@ function confirmar({icone='⚠️', titulo='Confirmar?', msg='Esta ação não p
 }
 function fecharDlg(){ document.getElementById('ov').classList.remove('show'); }
 
-/* ── Limpar todos os lançamentos ── */
+/* ── Limpar todos os lançamentos (confirmação em 2 etapas) ── */
 function confirmarLimpar(){
   confirmar({
     icone:'🗑️',
     titulo:'Limpar todos os lançamentos?',
-    msg:'Todos os registros serão removidos permanentemente. Exporte o backup antes se quiser guardar os dados.',
-    btnTxt:'Limpar tudo',
+    msg:'Você está prestes a apagar seu histórico de lançamentos. Deseja continuar?',
+    btnTxt:'Continuar',
+    cor:'var(--danger)',
+    fn: confirmarLimparFinal
+  });
+}
+function confirmarLimparFinal(){
+  confirmar({
+    icone:'⚠️',
+    titulo:'Tem certeza absoluta?',
+    msg:'Todas as informações de lançamentos serão apagadas permanentemente e não poderão ser recuperadas. Exporte um backup (CSV) antes se quiser guardar os dados.',
+    btnTxt:'Sim, apagar tudo',
     cor:'var(--danger)',
     fn: limparTudo
   });
