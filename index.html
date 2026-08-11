@@ -2034,7 +2034,6 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="menu-item-ico" style="background:rgba(59,130,246,.12)">👤</div>
       <div class="menu-item-body">
         <div class="menu-item-label" id="menu-user-name">Carregando...</div>
-        <div class="menu-item-sub" id="menu-user-email">—</div>
       </div>
     </div>
     <button class="menu-item" id="menu-link-google" style="display:none" onclick="authVincularGoogle()">
@@ -2158,6 +2157,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 <div class="sh-edit" id="sh-perfil">
   <div class="sh-h"></div>
   <div class="sh-edit-title">📇 Meu Perfil</div>
+  <div class="fi"><label>E-mail</label><input type="email" id="perfil-edit-email" disabled style="opacity:.6;cursor:not-allowed"></div>
   <div class="fi"><label>Nome completo</label><input type="text" id="perfil-edit-nome" placeholder="Seu nome completo" autocomplete="name" autocapitalize="words"></div>
   <div class="fi"><label>Como gostaria de ser chamado?</label><input type="text" id="perfil-edit-apelido" placeholder="Ex: André" autocomplete="nickname" autocapitalize="words"></div>
   <div class="fi"><label>CPF</label><input type="text" id="perfil-edit-cpf" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" autocomplete="off" oninput="maskCPF(this)"></div>
@@ -2585,11 +2585,11 @@ function authMostrarLogin(){
 function atualizarSaudacaoTopbar(nomeCompleto, apelido){
   const el = document.getElementById('topbar-greeting');
   if(!el) return;
-  const nomeExibicao = (apelido||'').trim() || (nomeCompleto||'').trim().split(' ')[0] || '';
+  const nomeExibicao = (apelido||'').trim() || (nomeCompleto||'').trim();
   if(!nomeExibicao){ el.textContent = ''; return; }
   const h = new Date().getHours();
   const saudacao = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-  el.textContent = saudacao+', '+nomeExibicao+'!';
+  el.textContent = saudacao+', '+nomeExibicao+'! Seja bem-vindo!';
 }
 
 async function authLiberarApp(user, revelarUI){
@@ -2598,10 +2598,8 @@ async function authLiberarApp(user, revelarUI){
   window._sbReady = true;
 
   const nameEl  = document.getElementById('menu-user-name');
-  const emailEl = document.getElementById('menu-user-email');
   const dn = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
   if (nameEl)  nameEl.textContent  = dn;
-  if (emailEl) emailEl.textContent = user.email || '';
 
   // Garante que existe uma linha em profiles (FK obrigatória para todas as outras tabelas)
   await sbGarantirPerfil(user);
@@ -2872,6 +2870,8 @@ async function abrirPerfilEdicao(){
   if(!uid) return toast('⚠️ Faça login para editar o perfil.', true);
   const perfil = await perfilBuscar(uid);
   perfilPreencherForm('perfil-edit-', perfil, null);
+  const emailEl = document.getElementById('perfil-edit-email');
+  if(emailEl) emailEl.value = perfil?.email || '';
   document.getElementById('sh-perfil-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh-perfil').classList.add('show'),10);
 }
