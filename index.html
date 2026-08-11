@@ -1834,9 +1834,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="info-loading-pill">Carregando mercado</div>
     </div>
 
-    <!-- Top 5 Ações -->
-    <div class="info-section-title">📊 Top 5 Ações — IBOVESPA</div>
-    <div class="info-disclaimer">⚠️ Dados com atraso de até 15 min via Yahoo Finance. Não constitui recomendação de investimento.</div>
+    <!-- Top Ações -->
+    <div class="info-section-title">📊 Top Ações — IBOVESPA</div>
+    <div class="info-disclaimer">⚠️ Dados com atraso de até 15 min via brapi.dev. Não constitui recomendação de investimento.</div>
     <div id="info-stocks">
       <div class="info-loading-pill">Carregando ações</div>
     </div>
@@ -1844,7 +1844,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <!-- Fontes -->
     <div class="info-tip" style="margin-top:4px">
       <span style="font-size:1rem;flex-shrink:0">💡</span>
-      <span>Cotações via <strong>AwesomeAPI</strong> · Cripto via <strong>CoinGecko</strong> · Ações via <strong>Yahoo Finance</strong>. Atualização automática a cada <strong>60s</strong>.</span>
+      <span>Cotações via <strong>AwesomeAPI</strong> · Cripto via <strong>CoinGecko</strong> · Ações via <strong>brapi.dev</strong>. Atualização automática a cada <strong>60s</strong>.</span>
     </div>
 
   </div><!-- /pane-info -->
@@ -4846,67 +4846,32 @@ function renderCryptoMarket(){
   }).join('')+'</div>';
 }
 
-/* ═══ TOP AÇÕES IBOVESPA ══════════════════ */
+/* ═══ TOP AÇÕES IBOVESPA ══════════════════
+   Yahoo Finance descontinuou o acesso público (401 Unauthorized) —
+   usamos direto a brapi.dev. Sem token, o plano grátis só libera
+   estes 4 tickers específicos (PETR4, MGLU3, VALE3, ITUB4); pedir
+   qualquer outro sem token faz a API recusar o lote inteiro. */
 const TOP_STOCKS=[
-  {ticker:'PETR4.SA',nome:'Petrobras PN'},
-  {ticker:'VALE3.SA',nome:'Vale ON'},
-  {ticker:'ITUB4.SA',nome:'Itaú Unibanco PN'},
-  {ticker:'BBDC4.SA',nome:'Bradesco PN'},
-  {ticker:'ABEV3.SA',nome:'Ambev ON'},
+  {ticker:'PETR4',nome:'Petrobras PN'},
+  {ticker:'VALE3',nome:'Vale ON'},
+  {ticker:'ITUB4',nome:'Itaú Unibanco PN'},
+  {ticker:'MGLU3',nome:'Magazine Luiza ON'},
 ];
 
 async function buscarTopStocks(){
   const wrap=document.getElementById('info-stocks');
   if(!wrap)return;
   try{
-    const symbols=TOP_STOCKS.map(s=>s.ticker).join(',');
-    const url=`https://query1.finance.yahoo.com/v7/finance/quote?lang=pt-BR&region=BR&symbols=${symbols}`;
-    const r=await fetch(url,{headers:{'Accept':'application/json'}});
+    const tickers=TOP_STOCKS.map(s=>s.ticker).join(',');
+    const r=await fetch(`https://brapi.dev/api/quote/${tickers}`);
     if(!r.ok)throw new Error(r.status);
     const d=await r.json();
-    const quotes=d?.quoteResponse?.result||[];
-    if(!quotes.length)throw new Error('empty');
-    renderTopStocks(quotes);
+    const results=d?.results||[];
+    if(!results.length)throw new Error('empty');
+    renderTopStocksBrapi(results);
   }catch(e){
-    // Fallback: try brapi.dev
-    try{
-      const tickers=TOP_STOCKS.map(s=>s.ticker.replace('.SA','')).join(',');
-      const r2=await fetch(`https://brapi.dev/api/quote/${tickers}`);
-      if(!r2.ok)throw new Error(r2.status);
-      const d2=await r2.json();
-      renderTopStocksBrapi(d2.results||[]);
-    }catch(e2){
-      if(wrap)wrap.innerHTML='<div class="info-err-pill">⚠️ Falha ao carregar ações. Verifique a conexão.</div>';
-    }
+    if(wrap)wrap.innerHTML='<div class="info-err-pill">⚠️ Falha ao carregar ações. Verifique a conexão.</div>';
   }
-}
-
-function renderTopStocks(quotes){
-  const wrap=document.getElementById('info-stocks');
-  if(!wrap)return;
-  const sorted=[...quotes].sort((a,b)=>(b.regularMarketChangePercent||0)-(a.regularMarketChangePercent||0));
-  wrap.innerHTML=sorted.map((q,i)=>{
-    const pct=q.regularMarketChangePercent||0;
-    const price=q.regularMarketPrice||0;
-    const cls=pct>=0?'up':'down';
-    const arrow=pct>=0?'▲':'▼';
-    const vol=q.regularMarketVolume||0;
-    const volFmt=vol>=1e6?(vol/1e6).toFixed(1)+'M':vol>=1e3?(vol/1e3).toFixed(0)+'K':vol.toString();
-    const ticker=q.symbol?.replace('.SA','')||q.symbol;
-    const nome=TOP_STOCKS.find(s=>s.ticker===q.symbol)?.nome||q.longName||q.shortName||ticker;
-    return`<div class="info-stock-item">
-      <div class="info-stock-rank">${i+1}</div>
-      <div class="info-stock-body">
-        <div class="info-stock-ticker">${ticker}</div>
-        <div class="info-stock-name">${nome}</div>
-      </div>
-      <div class="info-stock-right">
-        <div class="info-stock-price">R$ ${price.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-        <div class="info-stock-change ${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</div>
-        <div class="info-stock-vol">Vol: ${volFmt}</div>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 function renderTopStocksBrapi(results){
