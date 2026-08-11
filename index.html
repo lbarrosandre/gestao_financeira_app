@@ -3122,6 +3122,7 @@ function init(){
   carregarTema();
   verificarNotificacoesPlan();
   atualizarStatusNotif();
+  verificarDicaInstalarIOS();
 }
 
 function registrarSW(){
@@ -4578,8 +4579,36 @@ function atualizarStatusNotif(){
   let txt='Alertas 1 dia antes do vencimento';
   if(!('Notification'in window))txt='Não disponível neste navegador';
   else if(Notification.permission==='granted')txt='✅ Ativadas';
-  else if(Notification.permission==='denied')txt='❌ Bloqueadas (ajuste nas config. do Android)';
+  else if(Notification.permission==='denied'){
+    txt=ehIOS()
+      ? '❌ Bloqueadas (ajuste em Ajustes do iPhone → Safari → Notificações)'
+      : '❌ Bloqueadas (ajuste nas configurações do navegador)';
+  }
   lbls.forEach(l=>{if(l)l.textContent=txt;});
+}
+
+/* ═══ DICA DE INSTALAÇÃO NO iOS ══════════
+   O Safari não tem prompt automático de instalação (diferente do
+   Chrome/Android) — só dá pra instalar via Compartilhar → "Adicionar
+   à Tela de Início". Avisamos isso pra quem acessa de iPhone/iPad
+   e ainda não instalou, uma única vez (dispensável). */
+function ehIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+function jaInstalado(){
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function verificarDicaInstalarIOS(){
+  if(!ehIOS() || jaInstalado()) return;
+  try{ if(localStorage.getItem('bussola_ios_tip_dismissed')) return; }catch(e){}
+  document.getElementById('ios-tip-banner')?.classList.add('show');
+}
+
+function fecharDicaInstalarIOS(){
+  document.getElementById('ios-tip-banner')?.classList.remove('show');
+  try{ localStorage.setItem('bussola_ios_tip_dismissed','1'); }catch(e){}
 }
 
 /* ═══ ABA INFO — COTAÇÕES ════════════════ */
