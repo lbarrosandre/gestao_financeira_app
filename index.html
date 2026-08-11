@@ -2930,10 +2930,15 @@ async function trocarAvatar(file){
     // cache-buster: o nome do arquivo é sempre o mesmo, senão o navegador mostra a foto antiga
     const url = (data?.publicUrl || '') + '?t=' + Date.now();
 
+    // update, não upsert: o perfil já existe com certeza a esta altura (a
+    // pessoa só chega aqui depois do cadastro obrigatório), e um upsert sem
+    // o campo "nome" (NOT NULL) falha — o Postgres monta a linha do INSERT
+    // antes de checar o conflito, e nome viria null.
     const { error: dbErr } = await _supa.from('profiles')
-      .upsert({ uid, avatar_url: url }, { onConflict: 'uid' });
+      .update({ avatar_url: url })
+      .eq('uid', uid);
     if(dbErr){
-      console.error('trocarAvatar upsert error:', dbErr);
+      console.error('trocarAvatar update error:', dbErr);
       return toast('⚠️ Não foi possível salvar a foto no perfil.', true);
     }
 
