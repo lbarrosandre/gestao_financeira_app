@@ -1033,6 +1033,10 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 .notif-banner-item{font-size:.72rem;color:var(--text2);display:flex;align-items:center;gap:6px}
 .notif-banner-close{float:right;background:none;border:none;color:var(--text3);font-size:1rem;cursor:pointer;margin-top:-2px;padding:0}
 
+/* Variante do notif-banner usada só pela dica de instalação no iOS */
+.ios-banner{background:linear-gradient(135deg,rgba(59,130,246,.18),rgba(16,185,129,.12));border-bottom:1px solid rgba(59,130,246,.3);cursor:default}
+.ios-banner .notif-banner-title{color:var(--accent)}
+
 /* ─── BOLSOS / INVESTIMENTOS ─────────── */
 .inv-saldo-card{background:linear-gradient(135deg,rgba(16,185,129,.12) 0%,rgba(59,130,246,.08) 100%);border:1px solid rgba(16,185,129,.25);border-radius:var(--r2);padding:16px;margin-bottom:14px;text-align:center}
 .inv-saldo-label{font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
@@ -1504,6 +1508,17 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <button class="notif-banner-close" onclick="fecharNotifBanner()">✕</button>
   <div class="notif-banner-title">🔔 Pagamentos para amanhã</div>
   <div class="notif-banner-list" id="notif-banner-list"></div>
+</div>
+
+<div class="notif-banner ios-banner" id="ios-tip-banner">
+  <button class="notif-banner-close" onclick="fecharDicaInstalarIOS()" aria-label="Fechar dica">✕</button>
+  <div class="notif-banner-title">📲 Instale o Bússola</div>
+  <div class="notif-banner-list">
+    <div class="notif-banner-item">
+      <span>⬆️</span>
+      <span>Toque em <strong>Compartilhar</strong> e depois em <strong>“Adicionar à Tela de Início”</strong>.</span>
+    </div>
+  </div>
 </div>
 
 <div class="statsbar">
@@ -4523,7 +4538,7 @@ function verificarNotificacoesPlan(){
   }
 
   // Notificação do sistema (se permitido)
-  if(Notification.permission==='granted'){
+  if('Notification'in window&&Notification.permission==='granted'){
     itens.forEach(p=>{
       try{
         new Notification('🔔 Bússola — Pagamento amanhã',{
