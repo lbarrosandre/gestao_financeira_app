@@ -2231,6 +2231,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="fi"><label>UF</label><div class="sw"><select id="perfil-edit-uf"><option value="">UF</option></select></div></div>
   </div>
   <div class="fi"><label>Objetivo de uso do app</label><textarea id="perfil-edit-objetivo" placeholder="Ex: quero controlar meus gastos mensais e sair das dívidas" maxlength="280" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.85rem;padding:9px 12px;outline:none;width:100%;resize:none;min-height:70px"></textarea></div>
+  <div class="fi">
+    <label>Meta de economia mensal (%)</label>
+    <input type="number" id="perfil-edit-meta" min="1" max="100" step="1" placeholder="20" inputmode="numeric" autocomplete="off">
+    <span style="display:block;margin-top:4px;font-size:.68rem;opacity:.6">Usada nos gráficos e insights do Dashboard</span>
+  </div>
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharPerfilEdicao()">Cancelar</button>
     <button class="sh-ok" onclick="salvarPerfilEdicao()">💾 Salvar</button>
@@ -2360,6 +2365,10 @@ const MESES=_MESES_BASE.map(m=>m+'/'+String(_ANO).slice(2));
 const MESES_ALL=[];
 for(let y=2024;y<=2029;y++){_MESES_BASE.forEach(m=>MESES_ALL.push(m+'/'+String(y).slice(2)));}
 function isMesValido(m){return MESES_ALL.includes(m)||MESES.includes(m);}
+
+/* Meta de economia (%) escolhida pelo usuário — carregada de profiles.meta_economia
+   no login e editável no sheet "Meu Perfil". Usada no Dashboard (KPI, gauge, insights). */
+let metaEconomia = 20;
 
 /* ═══════════════════════════════════════════
    UTILITÁRIOS DE ID / MÊS / CÁLCULO
@@ -2709,6 +2718,7 @@ async function authLiberarApp(user, revelarUI){
   if (perfil?.nome && nameEl) nameEl.textContent = perfil.nome;
   atualizarSaudacaoTopbar(perfil?.nome || dn, perfil?.apelido);
   aplicarAvatar(perfil?.avatar_url || '');
+  metaEconomia = perfil?.meta_economia ?? 20;
 
   if (perfilLido && !perfilEstaCompleto(perfil)) {
     authMostrarCompletarPerfil(user, perfil);
@@ -3238,6 +3248,9 @@ async function abrirPerfilEdicao(){
   perfilPreencherForm('perfil-edit-', perfil, null);
   const emailEl = document.getElementById('perfil-edit-email');
   if(emailEl) emailEl.value = perfil?.email || '';
+  // Meta de economia: campo isolado, fora do sistema compartilhado de perfil.
+  const metaEl = document.getElementById('perfil-edit-meta');
+  if(metaEl) metaEl.value = perfil?.meta_economia ?? 20;
   document.getElementById('sh-perfil-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh-perfil').classList.add('show'),10);
 }
@@ -3253,9 +3266,12 @@ async function salvarPerfilEdicao(){
   const p = perfilLerForm('perfil-edit-');
   const erro = perfilValidarForm(p);
   if(erro) return toast('⚠️ '+erro, true);
+  // Meta de economia: lida/validada à parte (não faz parte de PERFIL_CAMPOS).
+  const metaVal = parseFloat(document.getElementById('perfil-edit-meta')?.value);
+  const meta = (!isNaN(metaVal) && metaVal >= 1 && metaVal <= 100) ? metaVal : 20;
   try{
     const { error } = await _supa.from('profiles')
-      .upsert({ uid, ...p }, { onConflict: 'uid' });
+      .upsert({ uid, ...p, meta_economia: meta }, { onConflict: 'uid' });
     if(error){
       console.error('salvarPerfilEdicao upsert error:', error);
       return toast('⚠️ Não foi possível salvar o perfil.', true);
@@ -3263,6 +3279,9 @@ async function salvarPerfilEdicao(){
     const nameEl = document.getElementById('menu-user-name');
     if(nameEl) nameEl.textContent = p.nome;
     atualizarSaudacaoTopbar(p.nome, p.apelido);
+    metaEconomia = meta;
+    // Reflete a nova meta no Dashboard sem exigir reload (só se ele estiver visível).
+    if(document.getElementById('pane-dash')?.classList.contains('ativo')) renderDash();
     fecharPerfilEdicao();
     toast('✅ Perfil atualizado!');
   }catch(e){
@@ -4707,7 +4726,7 @@ function dashKPIs(base){
     <div class="dash-kpi" style="--kpi-color:var(--gold)">
       <div class="dash-kpi-label">Taxa economia</div>
       <div class="dash-kpi-val" style="color:var(--gold)">${taxa.toFixed(1)}%</div>
-      <div class="dash-kpi-sub">${taxa>=20?'Meta atingida 🎯':'Meta: 20%'}</div>
+      <div class="dash-kpi-sub">${taxa>=metaEconomia?'Meta atingida 🎯':`Meta: ${metaEconomia}%`}</div>
       <div class="dash-kpi-icon">🎯</div>
     </div>`;
 }
@@ -4827,8 +4846,9 @@ function dashGauge(base){
   const taxaRing=Math.max(0,Math.min(100,taxa));
   const r=30;const circ=2*Math.PI*r;
   const dash=taxaRing/100*circ;
-  const cor=taxa>=20?'#10B981':taxa>=10?'#F59E0B':'#EF4444';
-  const msg=taxa>=30?'Excelente poupador! 🏆':taxa>=20?'Meta de 20% atingida ✅':taxa>=10?'Metade do caminho 💪':'Abaixo da meta ⚠️';
+  // Limiares proporcionais à meta do usuário: 1.5x = excelente, 1x = meta, 0.5x = metade.
+  const cor=taxa>=metaEconomia?'#10B981':taxa>=metaEconomia/2?'#F59E0B':'#EF4444';
+  const msg=taxa>=metaEconomia*1.5?'Excelente poupador! 🏆':taxa>=metaEconomia?`Meta de ${metaEconomia}% atingida ✅`:taxa>=metaEconomia/2?'Metade do caminho 💪':'Abaixo da meta ⚠️';
   document.getElementById('dash-gauge-wrap').innerHTML=`
     <div class="dash-gauge-ring">
       <svg viewBox="0 0 80 80" width="72" height="72">
@@ -4843,7 +4863,7 @@ function dashGauge(base){
       <div class="dash-gauge-sub">
         Receitas: R$ ${rec.toLocaleString('pt-BR',{minimumFractionDigits:2})}<br>
         Economizado: R$ ${Math.max(0,rec-desp).toLocaleString('pt-BR',{minimumFractionDigits:2})}<br>
-        <span style="color:${cor}">Meta recomendada: 20%</span>
+        <span style="color:${cor}">Sua meta: ${metaEconomia}%</span>
       </div>
     </div>`;
 }
@@ -5372,9 +5392,9 @@ function renderTopStocksBrapi(results){
 function dashInsights(base){
   const ins=[];
   const{taxa}=somaRecDesp(base);
-  if(taxa>=20)ins.push({ic:'🏆',txt:'Taxa de economia acima de 20% — parabéns! Continue assim.'});
+  if(taxa>=metaEconomia)ins.push({ic:'🏆',txt:`Taxa de economia acima de ${metaEconomia}% — parabéns! Continue assim.`});
   else if(taxa<0)ins.push({ic:'⚠️',txt:'Suas despesas superam as receitas. Revise os gastos variáveis.'});
-  else ins.push({ic:'💡',txt:`Taxa de economia de ${taxa.toFixed(1)}%. Meta recomendada é 20%.`});
+  else ins.push({ic:'💡',txt:`Taxa de economia de ${taxa.toFixed(1)}%. Sua meta é ${metaEconomia}%.`});
   const byCateg={};
   base.filter(d=>d.movimento==='Debito').forEach(d=>{byCateg[d.categoria]=(byCateg[d.categoria]||0)+d.valorAbs;});
   const topCat=Object.entries(byCateg).sort((a,b)=>b[1]-a[1]);
