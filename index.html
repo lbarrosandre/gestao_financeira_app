@@ -1442,6 +1442,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="auth-sub">Precisamos desses dados antes de liberar o aplicativo</div>
       </div>
       <div class="fi"><label>Nome completo</label><input type="text" id="perfil-nome" placeholder="Seu nome completo" autocomplete="name" autocapitalize="words"></div>
+      <div class="fi"><label>Como gostaria de ser chamado?</label><input type="text" id="perfil-apelido" placeholder="Ex: André" autocomplete="nickname" autocapitalize="words"></div>
       <div class="fi"><label>CPF</label><input type="text" id="perfil-cpf" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" autocomplete="off" oninput="maskCPF(this)"></div>
       <div class="r2">
         <div class="fi"><label>CEP</label><input type="text" id="perfil-cep" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code" oninput="maskCEP(this)" onblur="buscarEnderecoPorCEP('perfil-')"></div>
@@ -2158,6 +2159,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="sh-h"></div>
   <div class="sh-edit-title">📇 Meu Perfil</div>
   <div class="fi"><label>Nome completo</label><input type="text" id="perfil-edit-nome" placeholder="Seu nome completo" autocomplete="name" autocapitalize="words"></div>
+  <div class="fi"><label>Como gostaria de ser chamado?</label><input type="text" id="perfil-edit-apelido" placeholder="Ex: André" autocomplete="nickname" autocapitalize="words"></div>
   <div class="fi"><label>CPF</label><input type="text" id="perfil-edit-cpf" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" autocomplete="off" oninput="maskCPF(this)"></div>
   <div class="r2">
     <div class="fi"><label>CEP</label><input type="text" id="perfil-edit-cep" placeholder="00000-000" inputmode="numeric" maxlength="9" autocomplete="postal-code" oninput="maskCEP(this)" onblur="buscarEnderecoPorCEP('perfil-edit-')"></div>
@@ -2580,9 +2582,14 @@ function authMostrarLogin(){
   });
 }
 
-function atualizarSaudacaoTopbar(nome){
+function atualizarSaudacaoTopbar(nomeCompleto, apelido){
   const el = document.getElementById('topbar-greeting');
-  if(el) el.textContent = nome ? ('Olá, '+nome+'! Seja bem-vindo.') : '';
+  if(!el) return;
+  const nomeExibicao = (apelido||'').trim() || (nomeCompleto||'').trim().split(' ')[0] || '';
+  if(!nomeExibicao){ el.textContent = ''; return; }
+  const h = new Date().getHours();
+  const saudacao = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  el.textContent = saudacao+', '+nomeExibicao+'!';
 }
 
 async function authLiberarApp(user, revelarUI){
@@ -2609,7 +2616,7 @@ async function authLiberarApp(user, revelarUI){
   } catch(e){ console.error('authLiberarApp perfil select error:', e); }
 
   if (perfil?.nome && nameEl) nameEl.textContent = perfil.nome;
-  atualizarSaudacaoTopbar(perfil?.nome || dn);
+  atualizarSaudacaoTopbar(perfil?.nome || dn, perfil?.apelido);
 
   if (perfilLido && !perfilEstaCompleto(perfil)) {
     authMostrarCompletarPerfil(user, perfil);
@@ -2750,6 +2757,7 @@ function perfilLerForm(pref){
   const v = s => (document.getElementById(pref+s)?.value || '').trim();
   return {
     nome:             v('nome'),
+    apelido:          v('apelido'),
     cpf:              v('cpf'),
     endereco_cep:     v('cep'),
     endereco_rua:     v('rua'),
@@ -2765,6 +2773,7 @@ function perfilPreencherForm(pref, perfil, user){
   perfilPopularUF(document.getElementById(pref+'uf'));
   const set = (s,val) => { const el = document.getElementById(pref+s); if(el) el.value = val || ''; };
   set('nome',     perfil?.nome || user?.user_metadata?.full_name || '');
+  set('apelido',  perfil?.apelido);
   set('cpf',      perfil?.cpf);
   set('cep',      perfil?.endereco_cep);
   set('rua',      perfil?.endereco_rua);
@@ -2845,7 +2854,7 @@ async function salvarCompletarPerfil(){
     document.getElementById('auth-tabs-wrap')?.style.removeProperty('display');
     const nameEl = document.getElementById('menu-user-name');
     if(nameEl) nameEl.textContent = p.nome;
-    atualizarSaudacaoTopbar(p.nome);
+    atualizarSaudacaoTopbar(p.nome, p.apelido);
     authOk('✅ Perfil salvo! Entrando...');
     await revelarApp(user, true);
   } catch(e){
@@ -2887,7 +2896,7 @@ async function salvarPerfilEdicao(){
     }
     const nameEl = document.getElementById('menu-user-name');
     if(nameEl) nameEl.textContent = p.nome;
-    atualizarSaudacaoTopbar(p.nome);
+    atualizarSaudacaoTopbar(p.nome, p.apelido);
     fecharPerfilEdicao();
     toast('✅ Perfil atualizado!');
   }catch(e){
