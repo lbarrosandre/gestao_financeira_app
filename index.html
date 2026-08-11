@@ -2317,9 +2317,11 @@ function isMesDoGrafico(m){return MESES.includes(m);}
    que não são receita nem despesa de verdade. */
 function lancEfetivos(lista){return (lista||APP.dados).filter(d=>!d.deBolso);}
 
-/* Soma canônica de receitas/despesas/saldo/taxa sobre uma lista de lançamentos. */
-function somaRecDesp(lista){
-  const l=lancEfetivos(lista);
+/* Soma canônica de receitas/despesas/saldo/taxa sobre uma lista de lançamentos.
+   incluirTransf=true mantém as transferências CC↔bolso — usado SÓ pelo saldo da
+   conta corrente, onde o dinheiro realmente saiu/entrou da conta. */
+function somaRecDesp(lista,incluirTransf){
+  const l=incluirTransf?(lista||APP.dados):lancEfetivos(lista);
   const rec=l.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+(Number(d.valorAbs)||0),0);
   const desp=l.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+(Number(d.valorAbs)||0),0);
   const saldo=rec-desp;
@@ -3341,7 +3343,9 @@ function planCard(p){
 function atualizarStatsPlan(){
   // Filtra pelo mês selecionado no filtro de planejamento (pf-mes)
   const fM=document.getElementById('pf-mes').value;
-  const base=fM?APP.plan.filter(p=>p.mes===fM):APP.plan;
+  // Mesmo universo da lista renderizada (renderPlan agrupa por MESES): sem isso
+  // os totais somavam meses de outros anos que a lista nem exibe.
+  const base=APP.plan.filter(p=>isMesDoGrafico(p.mes)&&(!fM||p.mes===fM));
   const tot=base.reduce((s,p)=>s+p.valorPlanejado,0);
   const exec=base.filter(p=>p.status==='executado').reduce((s,p)=>s+p.valorReal,0);
   const pend=base.filter(p=>p.status!=='executado').reduce((s,p)=>s+p.valorPlanejado,0);
@@ -3510,8 +3514,22 @@ function removerPlan(id){
     btnTxt:'Excluir',
     cor:'var(--danger)',
     fn:()=>{
-      if(p.lancId)APP.dados=APP.dados.filter(d=>d.id!==p.lancId);
+      // Estorno completo: se a execução saiu de um bolso, o valor volta pro bolso
+      // (o lançamento nunca existiu na CC). Usa bolsoId e, como fallback para
+      // planos antigos, o movimento que carrega o mesmo lancId.
+      let bOrig=null;
+      if(p.lancId){
+        bOrig=APP.bolsos.find(b=>b.id===p.bolsoId&&(b.movimentos||[]).some(m=>m.id===p.lancId))
+            ||APP.bolsos.find(b=>(b.movimentos||[]).some(m=>m.id===p.lancId));
+        if(bOrig){
+          const mv=(bOrig.movimentos||[]).find(m=>m.id===p.lancId);
+          bOrig.saldo+=Math.abs(mv?Number(mv.valor)||0:Number(p.valorReal)||0);
+          bOrig.movimentos=(bOrig.movimentos||[]).filter(m=>m.id!==p.lancId);
+        }
+        APP.dados=APP.dados.filter(d=>d.id!==p.lancId);
+      }
       APP.plan=APP.plan.filter(x=>x.id!==id);
+      if(bOrig){salvarBolsos();renderInvestimentos();}
       salvar();salvarPlan();renderPlan();atualizarStats();atualizarStatsPlan();toast('🗑 Agendamento removido');
     }
   });
@@ -3622,7 +3640,11 @@ function importarCSV(event){
         // Sem corte de data — importa todo o histórico disponível
 
         // Valor
-        let valorStr=(cols[iVal]||'0').replace(/"/g,'').trim().replace(',','.');
+        // "1.234,56" (pt-BR): remove o separador de milhar ANTES de trocar a
+        // vírgula decimal — sem isso virava "1.234.56" e o parseFloat truncava.
+        // Sem vírgula, mantém o ponto como decimal ("1234.56").
+        let valorStr=(cols[iVal]||'0').replace(/"/g,'').trim();
+        valorStr=valorStr.includes(',')?valorStr.replace(/\./g,'').replace(',','.'):valorStr;
         const valorNum=parseFloat(valorStr)||0;
         if(valorNum===0)continue;
 
@@ -3652,7 +3674,7 @@ function importarCSV(event){
         if(jaExiste){duplicados++;continue;}
 
         novosDados.push({
-          id:Date.now()+Math.random(),
+          id:novoId(),
           data:dataStr.includes('/')?dataStr:`${dataISO.split('-')[2]}/${dataISO.split('-')[1]}/${dataISO.split('-')[0]}`,
           dataISO,mes,descricao:desc,movimento:mov2,
           valor:valorFinal,valorAbs,categoria:cat,
@@ -3683,9 +3705,9 @@ function importarCSV(event){
    CARTEIRA DE INVESTIMENTOS
 ═══════════════════════════════════════════ */
 function calcSaldoCC(){
-  const rec=APP.dados.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
-  const desp=APP.dados.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
-  return rec-desp;
+  // Saldo REAL da conta corrente: aqui as transferências CC↔bolso contam,
+  // senão o dinheiro movido para um bolso apareceria em dobro no patrimônio.
+  return somaRecDesp(APP.dados,true).saldo;
 }
 
 function setInvMov(m){
@@ -3771,13 +3793,15 @@ function addMovBolso(){
   const delta=invMov==='deposito'?vl:-vl;
   b.saldo+=delta;
   if(!b.movimentos)b.movimentos=[];
-  const lancId=Date.now();
+  const lancId=novoId();
   b.movimentos.unshift({id:lancId,tipo:invMov,valor:vl,desc,data,delta,origemCC:origemSel==='cc',origemTipo:origemSel});
 
   if(origemSel==='cc'){
     // Lançamento automático na Conta Corrente
     const[y,mm,d]=data.split('-');
-    const mesRef=MESES[parseInt(mm,10)-1]||'';
+    // Mês de referência com o ANO REAL da data informada (antes o rótulo
+    // vinha de MESES, que só tem o ano corrente).
+    const mesRef=mesRefDeISO(data);
     if(invMov==='deposito'){
       APP.dados.push({id:lancId,data:`${d}/${mm}/${y}`,dataISO:data,mes:mesRef,
         descricao:('TRANSF → '+b.nome+' — '+desc).toUpperCase(),
@@ -3970,7 +3994,7 @@ function addLancamento(){
   if(!tipo)return toast('⚠️ Selecione o tipo',true);
   if(!cat)return toast('⚠️ Selecione a categoria',true);
   const[y,m,d]=data.split('-');
-  const lancId=Date.now();
+  const lancId=novoId();
   const comentario=(document.getElementById('inp-comment')?.value||'').trim();
   APP.dados.push({id:lancId,data:`${d}/${m}/${y}`,dataISO:data,mes,descricao:desc.toUpperCase(),movimento:mov,valor:mov==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:cat,classificacao:mov==='Credito'?'Receita':'Despesas',tipo,comentario:comentario||undefined});
   salvar();atualizarStats();
@@ -4014,9 +4038,14 @@ function salvarDividaPai(){
   const saldoDev=parseCurrency(document.getElementById('div-saldo').value);
   if(!total||total<=0)return toast('⚠️ Informe o valor total',true);
   if(!saldoDev||saldoDev<=0)return toast('⚠️ Informe o saldo devedor',true);
-  APP.dividaPai={id:APP.dividaPai?.id||Date.now(),nome,total,saldo:saldoDev,criado:APP.dividaPai?.criado||new Date().toISOString()};
+  // O campo saldo continua gravado só por compatibilidade externa (coluna do
+  // banco); a tela usa sempre o valor derivado total − Σ pagamentos.
+  APP.dividaPai={id:APP.dividaPai?.id||novoId(),nome,total,saldo:saldoDev,criado:APP.dividaPai?.criado||new Date().toISOString()};
   salvarDivida();renderDividas();
-  toast('✅ Dívida salva!');
+  const derivado=saldoDividaAtual();
+  if(Math.abs(derivado-saldoDev)>0.01)
+    toast(`✅ Dívida salva! Saldo exibido: R$ ${derivado.toLocaleString('pt-BR',{maximumFractionDigits:0})} (total − pagamentos registrados)`);
+  else toast('✅ Dívida salva!');
   // Esconde form após salvar
   document.getElementById('div-cfg-box').style.display='none';
 }
@@ -4040,11 +4069,28 @@ function addPagamento(){
   const obs=document.getElementById('pag-obs').value.trim();
   const origem=document.getElementById('pag-origem')?.value||'cc';
   const isExtra=vl>3000;
-  const id=Date.now();
-  APP.pagamentos.unshift({id,valor:vl,data,obs,isExtra,origem});
-  APP.dividaPai.saldo=Math.max(0,APP.dividaPai.saldo-vl);
+  const id=novoId();
+
+  // Valida a origem ANTES de registrar o pagamento — como o saldo devedor agora
+  // é derivado de Σ pagamentos, um retorno antecipado depois do unshift deixaria
+  // um pagamento fantasma abatendo a dívida sem contrapartida em lugar nenhum.
+  let bolsoOrigem=null;
+  if(origem==='bolso'){
+    const bid=parseInt(document.getElementById('pag-bolso-sel')?.value||'0');
+    if(!bid)return toast('⚠️ Selecione o bolso origem',true);
+    bolsoOrigem=APP.bolsos.find(x=>x.id===bid);
+    if(!bolsoOrigem)return toast('⚠️ Bolso não encontrado',true);
+    if(vl>bolsoOrigem.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${bolsoOrigem.nome}"`,true);
+  }
+
+  // bolsoId permite o estorno correto em removerPagamento().
+  // dataISO é o que _sbSync envia para a coluna data_pag — sem isso, o upsert
+  // caía no fallback de "hoje" e o pagamento ia pra nuvem com a data errada.
+  APP.pagamentos.unshift({id,valor:vl,data,dataISO:data,obs,isExtra,origem,bolsoId:bolsoOrigem?bolsoOrigem.id:null});
+  // saldo NÃO é mais decrementado aqui: ele é derivado de total − Σ pagamentos.
   const[y,m,d]=data.split('-');
-  const mesRef=MESES[parseInt(m,10)-1]||'';
+  // Mês de referência com o ANO REAL da data (antes vinha de MESES = ano corrente).
+  const mesRef=mesRefDeISO(data);
   const descPag=(APP.dividaPai.nome+' - PAGAMENTO'+(obs?' - '+obs.toUpperCase():'')).toUpperCase();
 
   if(origem==='cc'){
@@ -4053,16 +4099,14 @@ function addPagamento(){
     salvar();atualizarStats();
   } else if(origem==='bolso'){
     // Retira do bolso selecionado
-    const bid=parseInt(document.getElementById('pag-bolso-sel')?.value||'0');
-    if(!bid)return toast('⚠️ Selecione o bolso origem',true);
-    const b=APP.bolsos.find(x=>x.id===bid);
-    if(!b)return toast('⚠️ Bolso não encontrado',true);
-    if(vl>b.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${b.nome}"`,true);
+    const b=bolsoOrigem;
     b.saldo-=vl;
     if(!b.movimentos)b.movimentos=[];
     b.movimentos.unshift({id,tipo:'retirada',valor:vl,desc:descPag,data,delta:-vl,origemCC:false,divida:true});
     salvarBolsos();renderInvestimentos();
   }
+  // Mantém o campo saldo gravado (compatibilidade externa), agora sempre derivado.
+  APP.dividaPai.saldo=saldoDividaAtual();
   // 'manual' = sem lançamento automático
 
   salvarDivida();renderDividas();
@@ -4082,9 +4126,21 @@ function removerPagamento(id){
     btnTxt:'Remover',
     cor:'var(--warn)',
     fn:()=>{
-      APP.dividaPai.saldo=Math.min(APP.dividaPai.total,(APP.dividaPai.saldo||0)+pag.valor);
+      // Estorno no bolso quando o pagamento saiu de um: procura pelo bolsoId e,
+      // como fallback (registros antigos / campos perdidos na volta do Supabase),
+      // pelo movimento que carrega o mesmo id do pagamento.
+      const bOrig=APP.bolsos.find(b=>b.id===pag.bolsoId)
+                ||APP.bolsos.find(b=>(b.movimentos||[]).some(m=>m.id===pag.id));
+      if(bOrig){
+        const mv=(bOrig.movimentos||[]).find(m=>m.id===pag.id);
+        bOrig.saldo+=Math.abs(mv?Number(mv.valor)||0:Number(pag.valor)||0);
+        bOrig.movimentos=(bOrig.movimentos||[]).filter(m=>m.id!==pag.id);
+      }
       APP.pagamentos=APP.pagamentos.filter(p=>p.id!==id);
       APP.dados=APP.dados.filter(d=>d.id!==id);
+      // saldo devedor volta sozinho: é derivado de total − Σ pagamentos.
+      if(APP.dividaPai)APP.dividaPai.saldo=saldoDividaAtual();
+      if(bOrig){salvarBolsos();renderInvestimentos();}
       salvar();salvarDivida();atualizarStats();renderDividas();
       toast('🗑 Pagamento removido');
     }
@@ -4095,18 +4151,19 @@ function atualizarSimulador(){
   const sl=document.getElementById('sim-slider');
   const val=parseFloat(sl.value)||3000;
   document.getElementById('sim-val-label').textContent='R$ '+val.toLocaleString('pt-BR',{maximumFractionDigits:0});
-  if(!APP.dividaPai||!APP.dividaPai.saldo){
+  // Saldo derivado (total − Σ pagamentos), nunca o snapshot gravado.
+  const saldo=saldoDividaAtual();
+  if(!APP.dividaPai||saldo<=0){
     ['sim-prazo','sim-data','sim-total','sim-media'].forEach(id=>document.getElementById(id).textContent='—');
     return;
   }
   // Cálculo simples sem juros (dívida familiar)
-  const saldo=APP.dividaPai.saldo;
   let meses=Math.ceil(saldo/val);
   const agora=new Date();
   const quitacao=new Date(agora.getFullYear(),agora.getMonth()+meses,1);
   const nomMes=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const dataStr=`${nomMes[quitacao.getMonth()]}/${quitacao.getFullYear().toString().slice(2)}`;
-  const totalPagoReal=APP.pagamentos.reduce((s,p)=>s+p.valor,0);
+  const totalPagoReal=totalPagoDivida();
   const mediaMensal=APP.pagamentos.length?totalPagoReal/APP.pagamentos.length:0;
   document.getElementById('sim-prazo').textContent=meses+(meses===1?' mês':' meses');
   document.getElementById('sim-data').textContent=dataStr;
@@ -4115,25 +4172,27 @@ function atualizarSimulador(){
 }
 
 function renderDividas(){
+  // FONTE ÚNICA da tela: total pago = Σ pagamentos; saldo = total − total pago.
+  const pago=totalPagoDivida();
+  const saldoAtual=saldoDividaAtual();
   if(APP.dividaPai){
     document.getElementById('div-nome').value=APP.dividaPai.nome||'';
     document.getElementById('div-total').value=APP.dividaPai.total?APP.dividaPai.total.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
-    document.getElementById('div-saldo').value=APP.dividaPai.saldo?APP.dividaPai.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
+    document.getElementById('div-saldo').value=saldoAtual?saldoAtual.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
     document.getElementById('div-cfg-box').style.display='none';
   }
   // Hero da dívida
   const hero=document.getElementById('div-hero-wrap');
   if(APP.dividaPai){
-    const pct=Math.max(0,Math.min(100,Math.round((APP.dividaPai.total-APP.dividaPai.saldo)/APP.dividaPai.total*100)));
-    const pago=APP.dividaPai.total-APP.dividaPai.saldo;
-    const avgPag=APP.pagamentos.length?APP.pagamentos.reduce((s,p)=>s+p.valor,0)/APP.pagamentos.length:0;
-    const mesesRest=avgPag>0?Math.ceil(APP.dividaPai.saldo/avgPag):null;
+    const pct=APP.dividaPai.total>0?Math.max(0,Math.min(100,Math.round(pago/APP.dividaPai.total*100))):0;
+    const avgPag=APP.pagamentos.length?pago/APP.pagamentos.length:0;
+    const mesesRest=avgPag>0&&saldoAtual>0?Math.ceil(saldoAtual/avgPag):null;
     hero.innerHTML=`
       <div class="divida-hero">
         <div class="divida-hero-top">
           <div>
             <div class="divida-hero-label">${APP.dividaPai.nome}</div>
-            <div class="divida-hero-val" style="color:var(--danger)">R$ ${APP.dividaPai.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+            <div class="divida-hero-val" style="color:var(--danger)">R$ ${saldoAtual.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
             <div style="font-size:.65rem;color:var(--text3);margin-top:2px">saldo devedor</div>
           </div>
           <div style="text-align:right">
@@ -4153,10 +4212,9 @@ function renderDividas(){
     hero.innerHTML=`<div class="empty" style="padding:20px 0 10px"><div class="empty-v">📉</div><h4>Nenhuma dívida configurada</h4><p style="font-size:.75rem">Configure sua dívida principal abaixo para começar.</p></div>`;
     document.getElementById('div-cfg-box').style.display='block';
   }
-  // Stats
-  const totalPago=APP.pagamentos.reduce((s,p)=>s+p.valor,0);
-  document.getElementById('div-st-pago').textContent='R$ '+totalPago.toLocaleString('pt-BR',{maximumFractionDigits:0});
-  document.getElementById('div-st-saldo').textContent=APP.dividaPai?'R$ '+APP.dividaPai.saldo.toLocaleString('pt-BR',{maximumFractionDigits:0}):'—';
+  // Stats — mesma fonte do hero (Σ pagamentos)
+  document.getElementById('div-st-pago').textContent='R$ '+pago.toLocaleString('pt-BR',{maximumFractionDigits:0});
+  document.getElementById('div-st-saldo').textContent=APP.dividaPai?'R$ '+saldoAtual.toLocaleString('pt-BR',{maximumFractionDigits:0}):'—';
   document.getElementById('div-st-count').textContent=APP.pagamentos.length;
   // Simulador
   atualizarSimulador();
@@ -4165,7 +4223,10 @@ function renderDividas(){
   if(!APP.pagamentos.length){lista.innerHTML='<div class="empty"><div class="empty-v">💸</div><h4>Nenhum pagamento registrado</h4><p style="font-size:.75rem">Registre seu primeiro pagamento acima.</p></div>';return;}
   lista.innerHTML=APP.pagamentos.map(p=>{
     const cls=p.isExtra?'pag-extra':'pag-ok';
-    const[y,m,d]=p.data.split('-');
+    // dataISO existe tanto em pagamentos criados agora quanto nos vindos do
+    // Supabase (sbPagToApp) — diferente de p.data, que muda de formato (ISO
+    // localmente vs dd/mm/yyyy após reload), o que quebrava esse split.
+    const[y,m,d]=(p.dataISO||p.data||'').split('-');
     const saldoApos=APP.dividaPai?null:null;
     return`<div class="pag-card ${cls}">
       <div class="pag-ico">${p.isExtra?'⚡':'✅'}</div>
@@ -4231,12 +4292,17 @@ function dashDestroyChart(id){
 function dashFilterDados(){
   const fM=document.getElementById('df-mes')?.value||'';
   const fT=document.getElementById('df-tipo')?.value||'';
-  return APP.dados.filter(d=>(!fM||d.mes===fM)&&(!fT||d.tipo===fT));
+  // Universo único do dashboard: sem transferências internas CC↔bolso (não são
+  // receita nem despesa) e só os meses que os gráficos conseguem plotar (MESES =
+  // ano corrente) — antes os KPIs somavam anos que as barras descartavam.
+  return APP.dados.filter(d=>!d.deBolso&&isMesDoGrafico(d.mes)&&(!fM||d.mes===fM)&&(!fT||d.tipo===fT));
 }
 
 function renderDash(){
   const base=dashFilterDados();
-  if(!APP.dados.length){
+  // Vazio = nada NO UNIVERSO do dashboard (não basta APP.dados ter registros de
+  // outros anos, que os gráficos não plotam).
+  if(!base.length){
     document.getElementById('dash-kpi-row').innerHTML=
       '<div class="dash-empty" style="grid-column:1/-1"><div class="dash-empty-v">📊</div><h4>Sem dados ainda</h4><p>Lance receitas e despesas<br>para ver seus gráficos aqui.</p></div>';
     ['chart-recdesp','chart-saldo','chart-categ','chart-receita-cat','chart-planreal']
@@ -4256,10 +4322,8 @@ function renderDash(){
 
 /* ── KPIs ── */
 function dashKPIs(base){
-  const rec=base.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
-  const desp=base.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
-  const sal=rec-desp;
-  const taxa=rec>0?((sal/rec)*100):0;
+  // Fonte única: mesma soma dos gráficos (sem transferências CC↔bolso)
+  const{rec,desp,saldo:sal,taxa}=somaRecDesp(base);
   const fmt=v=>'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const fmtK=v=>v>=1000?'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
   document.getElementById('dash-kpi-row').innerHTML=`
@@ -4397,11 +4461,13 @@ function dashTopCat(base){
 
 /* ── Gauge taxa de economia ── */
 function dashGauge(base){
-  const rec=base.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
-  const desp=base.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
+  const{rec,desp}=somaRecDesp(base);
   const taxa=rec>0?Math.min(((rec-desp)/rec)*100,100):0;
+  // Clamp nos DOIS lados para o anel: com despesas > receitas a taxa fica
+  // negativa e o stroke-dasharray saía inválido (o anel não renderizava).
+  const taxaRing=Math.max(0,Math.min(100,taxa));
   const r=30;const circ=2*Math.PI*r;
-  const dash=taxa/100*circ;
+  const dash=taxaRing/100*circ;
   const cor=taxa>=20?'#10B981':taxa>=10?'#F59E0B':'#EF4444';
   const msg=taxa>=30?'Excelente poupador! 🏆':taxa>=20?'Meta de 20% atingida ✅':taxa>=10?'Metade do caminho 💪':'Abaixo da meta ⚠️';
   document.getElementById('dash-gauge-wrap').innerHTML=`
@@ -4946,9 +5012,7 @@ function renderTopStocksBrapi(results){
 /* ═══ DASH INSIGHTS ══════════════════════ */
 function dashInsights(base){
   const ins=[];
-  const rec=base.filter(d=>d.movimento==='Credito').reduce((s,d)=>s+d.valorAbs,0);
-  const desp=base.filter(d=>d.movimento==='Debito').reduce((s,d)=>s+d.valorAbs,0);
-  const taxa=rec>0?((rec-desp)/rec*100):0;
+  const{taxa}=somaRecDesp(base);
   if(taxa>=20)ins.push({ic:'🏆',txt:'Taxa de economia acima de 20% — parabéns! Continue assim.'});
   else if(taxa<0)ins.push({ic:'⚠️',txt:'Suas despesas superam as receitas. Revise os gastos variáveis.'});
   else ins.push({ic:'💡',txt:`Taxa de economia de ${taxa.toFixed(1)}%. Meta recomendada é 20%.`});
