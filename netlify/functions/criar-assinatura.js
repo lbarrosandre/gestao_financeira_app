@@ -76,10 +76,14 @@ exports.handler = async (event) => {
   console.log('[criar-assinatura] início — uid:', uid);
 
   /* ── 4. Confirma que o uid é um usuário real (evita chamada direta à
-         function com uid inventado, sem passar pelo app) ── */
+         function com uid inventado, sem passar pelo app). Checa a tabela
+         `profiles` via PostgREST (mesmo caminho que o resto do app já usa
+         e comprovadamente funciona) em vez da API de admin do GoTrue
+         (`/auth/v1/admin/...`), que devolveu erro de roteamento (PGRST125)
+         neste projeto. ── */
   try {
     const rUser = await fetch(
-      `${supaBase}/auth/v1/admin/users/${encodeURIComponent(uid)}`,
+      `${supaBase}/rest/v1/profiles?uid=eq.${encodeURIComponent(uid)}&select=uid`,
       {
         method: 'GET',
         headers: {
@@ -91,17 +95,17 @@ exports.handler = async (event) => {
 
     if (!rUser.ok) {
       const txt = await rUser.text().catch(() => '');
-      console.warn('[criar-assinatura] usuário não encontrado no Supabase — uid:', uid,
+      console.error('[criar-assinatura] falha ao consultar profiles — uid:', uid,
                    'status:', rUser.status, 'resp:', txt);
-      return json(403, { erro: 'Usuário não autorizado.' });
+      return json(502, { erro: 'Não foi possível validar sua conta agora. Tente novamente.' });
     }
 
-    const usuario = await rUser.json().catch(() => null);
-    if (!usuario || !usuario.id) {
-      console.warn('[criar-assinatura] resposta do Supabase sem id — uid:', uid);
+    const linhas = await rUser.json().catch(() => []);
+    if (!Array.isArray(linhas) || linhas.length === 0) {
+      console.warn('[criar-assinatura] uid sem perfil correspondente — uid:', uid);
       return json(403, { erro: 'Usuário não autorizado.' });
     }
-    console.log('[criar-assinatura] usuário validado no Supabase — uid:', uid);
+    console.log('[criar-assinatura] usuário validado (profiles) — uid:', uid);
   } catch (e) {
     console.error('[criar-assinatura] erro ao validar usuário no Supabase:', e);
     return json(502, { erro: 'Não foi possível validar sua conta agora. Tente novamente.' });
