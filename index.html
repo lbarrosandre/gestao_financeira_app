@@ -717,9 +717,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .sh-edit.show{transform:none}
 .sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 /* ─── DIALOG ─────────────────────────── */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;place-items:center;z-index:600;backdrop-filter:blur(6px)}
+/* Acima do #auth-screen (10000): o gate obrigatório de assinatura usa
+   confirmar() no "Sair da conta" e o diálogo ficaria escondido atrás dele. */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;place-items:center;z-index:10001;backdrop-filter:blur(6px)}
 .ov.show{display:grid}
-.dlg{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:24px 20px;max-width:300px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,.7);position:relative;z-index:601}
+.dlg{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:24px 20px;max-width:300px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,.7);position:relative;z-index:10002}
 .dlg h3{font-size:.95rem;margin-bottom:8px}
 .dlg p{font-size:.82rem;color:var(--text2);margin-bottom:18px;line-height:1.6}
 .dlg-btns{display:flex;gap:8px}
@@ -770,7 +772,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .dlg-btns button:disabled{opacity:.55;cursor:default}
 
 /* ─── TOAST ──────────────────────────── */
-.toast{position:fixed;bottom:calc(var(--safe-bot)+20px);left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface2);border:1px solid var(--border2);border-left:3px solid var(--teal);padding:10px 18px;border-radius:10px;font-size:.82rem;transition:transform .28s,opacity .28s;opacity:0;z-index:999;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.toast{position:fixed;bottom:calc(var(--safe-bot)+20px);left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface2);border:1px solid var(--border2);border-left:3px solid var(--teal);padding:10px 18px;border-radius:10px;font-size:.82rem;transition:transform .28s,opacity .28s;opacity:0;z-index:10003;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.6)}
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 .toast.erro{border-left-color:var(--danger)}
 .toast.plan{border-left-color:var(--purple)}
@@ -1548,6 +1550,42 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       </div>
       <div class="fi"><label>Objetivo de uso do app</label><textarea id="perfil-objetivo" placeholder="Ex: quero controlar meus gastos mensais e sair das dívidas" maxlength="280" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.85rem;padding:9px 12px;outline:none;width:100%;resize:none;min-height:70px"></textarea></div>
       <button class="btn-auth-next" onclick="salvarCompletarPerfil()">💾 Salvar e continuar</button>
+    </div>
+
+    <!-- FORM: ASSINATURA OBRIGATÓRIA (cartão antes de liberar o app) -->
+    <div class="auth-form" id="form-assinatura">
+
+      <!-- Estado 1: oferta dos 7 dias grátis + cadastro do cartão -->
+      <div id="assin-gate-oferta">
+        <div class="auth-header">
+          <div class="auth-title">🎉 Bem-vindo(a)! Você tem <em>7 dias grátis</em></div>
+          <div class="auth-sub">Cadastre seu cartão para começar a usar o Bússola Finance agora mesmo</div>
+        </div>
+        <div style="font-size:.78rem;color:var(--text2);line-height:1.6;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
+          • Durante os <strong>7 primeiros dias você não paga nada</strong>.<br>
+          • Para continuar sem interrupção depois do teste, cadastre seu cartão agora — o pagamento é processado pelo <strong>Mercado Pago</strong> (seus dados de cartão não passam por aqui).<br>
+          • Depois do teste, o plano é <strong>R$ 19,90/mês</strong>.<br>
+          • Você pode <strong>cancelar quando quiser</strong>, direto no app.
+        </div>
+        <div id="assin-gate-trial" style="display:none;font-size:.72rem;color:var(--text3);text-align:center;margin-bottom:12px"></div>
+        <button class="btn-auth-next" id="assin-gate-btn" onclick="assinaturaIniciarCheckout(this)">💳 Cadastrar cartão e continuar</button>
+      </div>
+
+      <!-- Estado 2: voltou do checkout do Mercado Pago (?assinatura=retorno) -->
+      <div id="assin-gate-retorno" style="display:none">
+        <div class="auth-header">
+          <div class="auth-title">⏳ Confirmando seu <em>pagamento</em></div>
+          <div class="auth-sub">Isso pode levar alguns segundos. Assim que o Mercado Pago confirmar, seu acesso é liberado automaticamente.</div>
+        </div>
+        <button class="btn-auth-next" id="assin-gate-btn-verificar" onclick="assinaturaGateVerificarNovamente(this)">🔄 Verificar novamente</button>
+        <div style="text-align:center;margin-top:12px">
+          <button class="auth-link" onclick="assinaturaGateMostrarOferta()">Ainda não cadastrei meu cartão</button>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="auth-link" onclick="authDesconectar()">Sair da conta</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2351,7 +2389,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharAssinaturaSheet()">Fechar</button>
-    <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaIniciarCheckout()">💳 Assinar agora</button>
+    <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaIniciarCheckout(this)">💳 Assinar agora</button>
   </div>
 </div>
 
@@ -2603,8 +2641,9 @@ function authMostrarTab(tab){
     document.getElementById('form-'+t)?.classList.toggle('ativo',t===tab);
     document.getElementById('tab-'+t)?.classList.toggle('ativo',t===tab);
   });
-  // form-perfil não faz parte das abas — nunca pode ficar visível junto
+  // form-perfil e form-assinatura não fazem parte das abas — nunca podem ficar visíveis junto
   document.getElementById('form-perfil')?.classList.remove('ativo');
+  document.getElementById('form-assinatura')?.classList.remove('ativo');
   authLimparMensagens();
 }
 
@@ -2789,6 +2828,9 @@ function authMostrarLogin(){
   window._sbUID   = null;
   authEmCompletarPerfil = false;
   _perfilUserPendente   = null;
+  authEmAssinaturaObrigatoria = false;
+  _assinaturaUserPendente     = null;
+  document.getElementById('form-assinatura')?.classList.remove('ativo');
   if (_sbChannel) { try { _supa.removeChannel(_sbChannel); } catch(e){} _sbChannel = null; }
   const app  = document.getElementById('appRoot');
   const auth = document.getElementById('auth-screen');
@@ -2842,15 +2884,25 @@ async function authLiberarApp(user, revelarUI){
   aplicarAvatar(perfil?.avatar_url || '');
   metaEconomia = perfil?.meta_economia ?? 20;
 
-  /* Aviso de assinatura (banner discreto). Não bloqueia nem atrasa o login:
-     roda solto e falha em silêncio se der erro. */
-  if (typeof verificarStatusAssinatura === 'function') {
-    verificarStatusAssinatura().catch(e => console.error('verificarStatusAssinatura:', e));
-  }
-
   if (perfilLido && !perfilEstaCompleto(perfil)) {
     authMostrarCompletarPerfil(user, perfil);
     return;
+  }
+
+  /* Gate de assinatura: quem ainda está em 'trial' (ou não tem linha) precisa
+     cadastrar o cartão antes de usar o app. 'ativo'/'cortesia' entram normal;
+     'atrasado'/'cancelado' também entram (só o banner discreto avisa). */
+  const assinRow = await assinaturaBuscar();
+  const assinSt  = assinRow?.status || null;
+  if (assinSt === 'trial' || assinSt === null) {
+    authMostrarAssinaturaObrigatoria(user, assinRow);
+    return;
+  }
+
+  /* Aviso de assinatura (banner discreto, só 'atrasado'/'cancelado').
+     Não bloqueia nem atrasa o login: roda solto e falha em silêncio. */
+  if (typeof verificarStatusAssinatura === 'function') {
+    verificarStatusAssinatura(assinRow).catch(e => console.error('verificarStatusAssinatura:', e));
   }
 
   await revelarApp(user, revelarUI);
@@ -3581,12 +3633,15 @@ function fecharAssinaturaSheet(){
 }
 
 /* Cria a assinatura no Mercado Pago (via Netlify Function) e redireciona
-   o usuário pro checkout hospedado. */
-async function assinaturaIniciarCheckout(){
+   o usuário pro checkout hospedado.
+   `botaoEl` é o botão que disparou a ação (sheet de assinatura OU gate
+   obrigatório) — recebe o estado de loading. Sem argumento, cai no botão
+   do sheet por compatibilidade. */
+async function assinaturaIniciarCheckout(botaoEl){
   const uid = window._sbUID;
   if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
 
-  const btn = document.getElementById('assin-btn-assinar');
+  const btn = botaoEl || document.getElementById('assin-btn-assinar');
   const txtOriginal = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Abrindo checkout...'; }
 
@@ -3620,23 +3675,18 @@ async function assinaturaIniciarCheckout(){
   }
 }
 
-/* Banner discreto de aviso — NÃO bloqueia o app, só sugere assinar.
-   O bloqueio real fica pra depois do fluxo de cobrança ser validado. */
-async function verificarStatusAssinatura(){
+/* Banner discreto de aviso — NÃO bloqueia o app, só sugere regularizar.
+   Só trata 'atrasado'/'cancelado': quem está em 'trial' (ou sem linha) nunca
+   chega aqui, porque o gate obrigatório de assinatura barra antes de revelarApp. */
+async function verificarStatusAssinatura(rowConhecida){
   try{
     if(sessionStorage.getItem(ASSIN_BANNER_KEY)) return;
   }catch(e){}
 
-  const row = await assinaturaBuscar();
+  const row = rowConhecida !== undefined ? rowConhecida : await assinaturaBuscar();
   const st  = row?.status || null;
 
-  let mostrar = false;
-  if(st === 'atrasado' || st === 'cancelado') mostrar = true;
-  else if(st === 'trial' || st === null){
-    const dias = row ? assinaturaDiasAte(row.trial_fim) : null;
-    if(dias === null || dias <= 0) mostrar = true;
-  }
-  if(!mostrar) return;
+  if(st !== 'atrasado' && st !== 'cancelado') return;
 
   const r = assinaturaResumo(row);
   const t = document.getElementById('assin-banner-title');
@@ -3649,6 +3699,104 @@ async function verificarStatusAssinatura(){
 function fecharAssinBanner(){
   document.getElementById('assin-banner')?.classList.remove('show');
   try{ sessionStorage.setItem(ASSIN_BANNER_KEY,'1'); }catch(e){}
+}
+
+/* ═══ TELA OBRIGATÓRIA DE ASSINATURA (gate do cartão) ═══
+   Quem está em 'trial' (ou sem linha em `assinaturas`) não entra no app sem
+   cadastrar o cartão no Mercado Pago. Mesmo padrão de authMostrarCompletarPerfil. */
+let authEmAssinaturaObrigatoria = false;
+let _assinaturaUserPendente     = null;
+/* Ligado no boot quando a URL volta do checkout com ?assinatura=retorno. */
+let _assinaturaRetornoCheckout  = false;
+
+function authMostrarAssinaturaObrigatoria(user, row){
+  authEmAssinaturaObrigatoria = true;
+  _assinaturaUserPendente     = user;
+
+  const auth = document.getElementById('auth-screen');
+  const app  = document.getElementById('appRoot');
+  if (app) app.style.display = 'none';
+  if (auth) {
+    auth.style.display = 'flex';
+    auth.classList.remove('hide','gone');
+  }
+  document.getElementById('auth-tabs-wrap')?.style.setProperty('display','none');
+  ['login','cadastro','reset','nova-senha'].forEach(t =>
+    document.getElementById('form-'+t)?.classList.remove('ativo'));
+  document.getElementById('form-perfil')?.classList.remove('ativo');
+  authLimparMensagens();
+
+  // Data-limite do teste grátis (quando o banco já tem a linha de trial)
+  const trialEl = document.getElementById('assin-gate-trial');
+  const trialAte = row ? assinaturaFmtData(row.trial_fim) : '';
+  if (trialEl) {
+    if (trialAte) {
+      trialEl.innerHTML = 'Seu teste grátis vai até <strong>'+trialAte+'</strong> — nada é cobrado antes disso.';
+      trialEl.style.display = '';
+    } else {
+      trialEl.style.display = 'none';
+    }
+  }
+
+  // Voltando do checkout: o webhook do MP pode levar alguns segundos
+  if (_assinaturaRetornoCheckout) assinaturaGateMostrarRetorno();
+  else assinaturaGateMostrarOferta();
+
+  document.getElementById('form-assinatura')?.classList.add('ativo');
+  authSetLoading(false);
+}
+
+function assinaturaGateMostrarOferta(){
+  _assinaturaRetornoCheckout = false;
+  const o = document.getElementById('assin-gate-oferta');
+  const r = document.getElementById('assin-gate-retorno');
+  if(o) o.style.display = '';
+  if(r) r.style.display = 'none';
+  const b = document.getElementById('assin-gate-btn');
+  if(b){ b.disabled = false; b.textContent = '💳 Cadastrar cartão e continuar'; }
+}
+
+function assinaturaGateMostrarRetorno(){
+  const o = document.getElementById('assin-gate-oferta');
+  const r = document.getElementById('assin-gate-retorno');
+  if(o) o.style.display = 'none';
+  if(r) r.style.display = '';
+  const b = document.getElementById('assin-gate-btn-verificar');
+  if(b){ b.disabled = false; b.textContent = '🔄 Verificar novamente'; }
+}
+
+/* Re-consulta o banco depois do checkout. Se o webhook já processou
+   (status 'ativo'), libera o app sem recarregar a página. */
+async function assinaturaGateVerificarNovamente(botaoEl){
+  const user = _assinaturaUserPendente;
+  if(!user) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+
+  const btn = botaoEl || document.getElementById('assin-gate-btn-verificar');
+  const txtOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
+
+  try{
+    const row = await assinaturaBuscar();
+    const st  = row?.status || null;
+    if(st && st !== 'trial'){
+      authEmAssinaturaObrigatoria = false;
+      _assinaturaUserPendente     = null;
+      _assinaturaRetornoCheckout  = false;
+      document.getElementById('form-assinatura')?.classList.remove('ativo');
+      document.getElementById('auth-tabs-wrap')?.style.removeProperty('display');
+      authOk('✅ Assinatura confirmada! Entrando...');
+      await revelarApp(user, true);
+      return;
+    }
+    toast('⏳ Ainda processando, tente novamente em alguns segundos.');
+  }catch(e){
+    console.error('assinaturaGateVerificarNovamente error:', e);
+    toast('⚠️ Erro de conexão ao verificar a assinatura.', true);
+  }finally{
+    if(btn && document.getElementById('form-assinatura')?.classList.contains('ativo')){
+      btn.disabled = false; btn.textContent = txtOriginal;
+    }
+  }
 }
 
 function authMostrarNovaSenha(){
@@ -3759,6 +3907,17 @@ window.addEventListener('load',()=>{
   // Link de recuperação de senha: prepara a UI antes do evento PASSWORD_RECOVERY chegar
   if (authRecoveryPendente()) authMostrarNovaSenha();
 
+  /* Volta do checkout do Mercado Pago (back_url = .../?assinatura=retorno).
+     O webhook pode não ter processado ainda — o gate mostra a tela de
+     "confirmando pagamento" em vez da oferta. Limpa o parâmetro da URL
+     (mesmo padrão do ?reset=1) para um F5 não repetir esse estado. */
+  try{
+    if (new URLSearchParams(location.search).get('assinatura') === 'retorno') {
+      _assinaturaRetornoCheckout = true;
+      try{ history.replaceState(null,'',authUrlBase()); }catch(e){}
+    }
+  }catch(e){}
+
   // Registra onAuthStateChange após todas as funções estarem disponíveis
   // O callback é síncrono de propósito: chamadas async ao próprio client dentro
   // dele podem travar o SDK do Supabase — por isso tudo vai para um setTimeout(0).
@@ -3790,6 +3949,8 @@ window.addEventListener('load',()=>{
       if (authEmRecuperacao) return;
       // Tela obrigatória de perfil aberta: não reprocessa (apagaria o que já foi digitado)
       if (authEmCompletarPerfil) return;
+      // Gate obrigatório de assinatura aberto: não reprocessa (resetaria a tela)
+      if (authEmAssinaturaObrigatoria) return;
       const revelar = (event === 'SIGNED_IN');
       setTimeout(() => { authLiberarApp(session.user, revelar); }, 0);
     }
