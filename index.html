@@ -637,12 +637,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .pvp{font-family:var(--mono);font-size:.7rem;color:var(--text3);text-decoration:line-through}
 .pvr{font-family:var(--mono);font-size:.76rem;font-weight:500}
 .bs{font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.pr-top{display:flex;align-items:center;gap:7px}
+.btn-exec-ic{width:26px;height:26px;flex-shrink:0;border:none;border-radius:50%;background:var(--accent);color:#fff;font-size:.68rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
+.btn-exec-ic:active{transform:scale(.9)}
 .bs.pendente{background:rgba(139,92,246,.15);color:var(--purple)}
 .bs.executado{background:rgba(16,185,129,.12);color:var(--teal)}
 .bs.vencido{background:rgba(239,68,68,.12);color:var(--danger)}
 .pca{display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
-.btn-exec{flex:1;padding:7px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-family:var(--sans);font-size:.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:.15s}
-.btn-exec:active{transform:scale(.97)}
 .btn-dp{padding:7px 11px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:var(--sans);font-size:.75rem;cursor:pointer}
 .btn-dp:active{color:var(--danger);border-color:var(--danger)}
 
@@ -3707,8 +3708,9 @@ function planCard(p){
   const vH=isE?`<div><div class="pvp">R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="pvr" style="color:${cor}">${s} R$ ${p.valorReal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`:`<div class="pvr" style="color:var(--purple)">${s} R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>`;
   const rTag=p.recorrente?'<span class="tag tag-r">🔁 Rec.</span>':'';
   const commentBadge=p.comentario?`<span class="has-comment" title="${p.comentario}" onclick="showCommentTooltip(event,'${p.comentario.replace(/'/g,"\\'")}')" style="margin-left:4px"></span>`:'';
-  const acts=!isE?`<div class="pca"><button class="btn-exec" onclick="abrirSh(${p.id})">▶ Confirmar pagamento</button><button class="btn-dp" onclick="removerPlan(${p.id})">🗑</button></div>`:`<div class="pca"><div style="font-size:.68rem;color:var(--text3);flex:1">✅ Executado em ${p.dataExec}</div><button class="btn-dp" onclick="removerPlan(${p.id})">🗑</button></div>`;
-  return`<div class="pc ${p.status}"><div class="pct"><div class="pi ${ic2}">${ic}</div><div class="pb"><div class="pd" style="display:flex;align-items:center;gap:4px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.descricao}">${p.descricao}</span>${commentBadge}</div><div class="pm"><span>${p.data}</span><span class="tag tag-p">${p.mes}</span>${rTag}<span>${p.categoria}</span></div></div><div class="pr">${vH}<span class="bs ${p.status}">${{pendente:'Pendente',executado:'Executado',vencido:'Vencido'}[p.status]}</span></div></div>${acts}</div>`;
+  const btnExec=!isE?`<button class="btn-exec-ic" onclick="abrirSh(${p.id})" title="Confirmar pagamento">▶</button>`:'';
+  const acts=!isE?`<div class="pca"><button class="btn-dp" onclick="removerPlan(${p.id})">🗑</button></div>`:`<div class="pca"><div style="font-size:.68rem;color:var(--text3);flex:1">✅ Executado em ${p.dataExec}</div><button class="btn-dp" onclick="removerPlan(${p.id})">🗑</button></div>`;
+  return`<div class="pc ${p.status}"><div class="pct"><div class="pi ${ic2}">${ic}</div><div class="pb"><div class="pd" style="display:flex;align-items:center;gap:4px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.descricao}">${p.descricao}</span>${commentBadge}</div><div class="pm"><span>${p.data}</span><span class="tag tag-p">${p.mes}</span>${rTag}<span>${p.categoria}</span></div></div><div class="pr"><div class="pr-top">${vH}${btnExec}</div><span class="bs ${p.status}">${{pendente:'Pendente',executado:'Executado',vencido:'Vencido'}[p.status]}</span></div></div>${acts}</div>`;
 }
 
 function atualizarStatsPlan(){
