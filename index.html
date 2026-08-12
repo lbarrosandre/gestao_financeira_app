@@ -3336,6 +3336,14 @@ function authMostrarCompletarPerfil(user, perfil){
   authSetLoading(false);
 }
 
+/* Mensagem amigável para erro de CPF duplicado (constraint profiles_cpf_unique). */
+function mensagemErroPerfil(error){
+  if(error?.code==='23505' && /cpf/i.test(error?.message||'')){
+    return 'Este CPF já está cadastrado em outra conta. Se for você, faça login ou use "Esqueci minha senha".';
+  }
+  return null;
+}
+
 async function salvarCompletarPerfil(){
   authLimparMensagens();
   const user = _perfilUserPendente;
@@ -3349,7 +3357,7 @@ async function salvarCompletarPerfil(){
       .upsert({ uid: user.id, email: user.email || '', ...p }, { onConflict: 'uid' });
     if(error){
       console.error('salvarCompletarPerfil upsert error:', error);
-      authErro('Não foi possível salvar seu perfil. Tente novamente.');
+      authErro(mensagemErroPerfil(error) || 'Não foi possível salvar seu perfil. Tente novamente.');
       return;
     }
     authEmCompletarPerfil = false;
@@ -3404,7 +3412,7 @@ async function salvarPerfilEdicao(){
       .upsert({ uid, ...p, meta_economia: meta }, { onConflict: 'uid' });
     if(error){
       console.error('salvarPerfilEdicao upsert error:', error);
-      return toast('⚠️ Não foi possível salvar o perfil.', true);
+      return toast('⚠️ '+(mensagemErroPerfil(error) || 'Não foi possível salvar o perfil.'), true);
     }
     const nameEl = document.getElementById('menu-user-name');
     if(nameEl) nameEl.textContent = p.nome;
