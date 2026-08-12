@@ -181,11 +181,20 @@ async function sbCarregarDados() {
 
     APP.remoteLoaded = true;
 
+    // Espelha em Registros os pagamentos de dívida que ainda não têm lançamento.
+    // Idempotente (checa por id), então pode rodar em todo carregamento.
+    if (typeof window.migrarPagamentosDividaParaRegistros === 'function') {
+      window.migrarPagamentosDividaParaRegistros();
+    }
+
     // Atualiza UI
     if (typeof window.renderLista === 'function') {
       window.renderLista(); window.renderPlan(); window.atualizarStats();
       window.atualizarStatsPlan(); window.renderInvestimentos(); window.renderDividas();
       if (typeof window.renderDash === 'function') window.renderDash();
+    }
+    if (typeof window.atualizarVisibilidadeCheckboxDivida === 'function') {
+      window.atualizarVisibilidadeCheckboxDivida();
     }
     window._sbSetSyncStatus('synced');
   } catch(e) {
@@ -215,7 +224,8 @@ function sbLancToApp(r) {
     // Transferência interna CC↔bolso, e pagamento de plano dado de baixa
     // direto da Poupança (ambos agora enviados/lidos do banco normalmente).
     deBolso: r.de_bolso||false, bolsoId: r.bolso_id||null,
-    pagoDoBolso: r.pago_do_bolso||false
+    pagoDoBolso: r.pago_do_bolso||false,
+    pagamentoDivida: r.pagamento_divida||false
   };
 }
 function sbPlanToApp(r) {
@@ -229,7 +239,8 @@ function sbPlanToApp(r) {
     status: r.status, dataExec: r.data_exec||undefined,
     dataExecISO: r.data_exec_iso||undefined, lancId: r.lanc_id||null,
     recorrente: r.recorrente||false, grupoRec: r.grupo_rec||null,
-    comentario: r.comentario||undefined
+    comentario: r.comentario||undefined,
+    pagamentoDivida: r.pagamento_divida||false
   };
 }
 function sbMovToApp(r) {
@@ -284,7 +295,8 @@ window._sbSync = async function(patch) {
         comentario: d.comentario||null, de_plan: d.dePlan||false,
         recorrente: d.recorrente||false,
         de_bolso: d.deBolso||false, bolso_id: d.bolsoId||null,
-        pago_do_bolso: d.pagoDoBolso||false
+        pago_do_bolso: d.pagoDoBolso||false,
+        pagamento_divida: d.pagamentoDivida||false
       }));
       if (rows.length > 0) {
         const { error } = await _supa.from('lancamentos').upsert(rows, { onConflict: 'id' });
@@ -315,7 +327,8 @@ window._sbSync = async function(patch) {
         status: p.status, data_exec: p.dataExecISO||null,
         data_exec_iso: p.dataExecISO||null, lanc_id: p.lancId||null,
         recorrente: p.recorrente||false, grupo_rec: p.grupoRec||null,
-        comentario: p.comentario||null
+        comentario: p.comentario||null,
+        pagamento_divida: p.pagamentoDivida||false
       }));
       if (rows.length > 0) {
         const { error } = await _supa.from('planejamentos').upsert(rows, { onConflict: 'id' });
@@ -1606,6 +1619,22 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="fi"><label>Descrição</label><input type="text" id="inp-desc" placeholder="Ex: Supermercado Atacadão" autocomplete="off"></div>
     <div class="fi"><label>Tipo</label><div class="sw"><select id="inp-tipo" onchange="atualizarCats('inp-tipo','inp-cat','l')"><option value="">Selecione o tipo</option><option>Receita</option><option value="Despesas fixas">Despesas fixas</option><option value="Despesas variaveis">Despesas variáveis</option><option value="Despesas eventuais">Despesas eventuais</option></select></div></div>
     <div class="fi"><label>Categoria</label><div class="sw"><select id="inp-cat"><option value="">Selecione o tipo primeiro</option></select></div></div>
+    <!-- PAGAMENTO DE DÍVIDA (só aparece quando existe dívida configurada) -->
+    <div class="rec-box" id="lanc-divida-box" style="display:none">
+      <label class="rec-lbl" style="cursor:pointer">
+        <input type="checkbox" id="lanc-divida-chk" onchange="toggleLancDivida()" style="width:15px;height:15px;accent-color:var(--purple)">
+        <span>💳 Isto é um pagamento de dívida</span>
+      </label>
+      <div id="lanc-divida-cfg" style="display:none;margin-top:10px">
+        <div class="fi"><label>💳 Origem do pagamento</label><div class="sw"><select id="lanc-divida-origem" onchange="toggleLancBolso()">
+          <option value="cc">🏦 Conta Corrente (lança débito)</option>
+          <option value="bolso">🐷 Poupança / Investimento (retira do bolso)</option>
+        </select></div></div>
+        <div id="lanc-divida-bolso-wrap" style="display:none">
+          <div class="fi" style="margin-bottom:0"><label>Bolso origem</label><div class="sw"><select id="lanc-divida-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
+        </div>
+      </div>
+    </div>
     <!-- COMENTÁRIO -->
     <button type="button" class="comment-toggle-btn" id="btn-toggle-comment-l" onclick="toggleComment('l')">📝 Adicionar comentário</button>
     <div class="comment-field" id="comment-field-l">
@@ -1663,6 +1692,15 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </div>
     <div class="fi"><label>Tipo</label><div class="sw"><select id="plan-tipo" onchange="atualizarCats('plan-tipo','plan-cat','p')"><option value="">Selecione o tipo</option><option>Receita</option><option value="Despesas fixas">Despesas fixas</option><option value="Despesas variaveis">Despesas variáveis</option><option value="Despesas eventuais">Despesas eventuais</option></select></div></div>
     <div class="fi"><label>Categoria</label><div class="sw"><select id="plan-cat"><option value="">Selecione o tipo primeiro</option></select></div></div>
+
+    <!-- PAGAMENTO DE DÍVIDA (só aparece quando existe dívida configurada) -->
+    <div class="rec-box" id="plan-divida-box" style="display:none">
+      <label class="rec-lbl" style="cursor:pointer">
+        <input type="checkbox" id="plan-divida-chk" style="width:15px;height:15px;accent-color:var(--purple)">
+        <span>💳 Isto é um pagamento de dívida</span>
+      </label>
+      <div class="rec-hint" style="margin-top:8px">A origem (Conta Corrente ou Poupança) é escolhida na hora de confirmar o pagamento.</div>
+    </div>
 
     <!-- COMENTÁRIO PLANEJAMENTO -->
     <button type="button" class="comment-toggle-btn" id="btn-toggle-comment-p" onclick="toggleComment('p')">📝 Adicionar comentário</button>
@@ -2017,28 +2055,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <button class="btn-add azul" onclick="salvarDividaPai()"><span>✓</span> Salvar dívida</button>
     </div>
 
-    <!-- Registrar pagamento -->
-    <div class="div-form-box">
-      <div class="div-form-title">➕ Registrar pagamento</div>
-      <div class="r2">
-        <div class="fi"><label>Valor R$</label><input type="text" id="pag-valor" placeholder="0,00" inputmode="decimal" oninput="maskCurrency(this)"></div>
-        <div class="fi"><label>Data</label><input type="date" id="pag-data"></div>
-      </div>
-      <div class="fi"><label>💳 Origem do pagamento</label><div class="sw"><select id="pag-origem" onchange="togglePagBolso()">
-        <option value="cc">🏦 Conta Corrente (lança débito)</option>
-        <option value="bolso">🐷 Poupança / Investimento (retira do bolso)</option>
-        <option value="manual">✋ Sem lançamento automático</option>
-      </select></div></div>
-      <div id="pag-bolso-wrap" style="display:none">
-        <div class="fi"><label>Bolso origem</label><div class="sw"><select id="pag-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
-      </div>
-      <div class="fi"><label>Observação (opcional)</label><input type="text" id="pag-obs" placeholder="Ex: Pagamento extra, mês jan/27..." autocomplete="off"></div>
-      <button class="btn-add azul" onclick="addPagamento()"><span>+</span> Registrar pagamento</button>
-    </div>
-
-    <!-- Histórico de pagamentos -->
-    <div class="sec" style="margin-top:4px">Histórico de pagamentos</div>
-    <div id="pag-lista"></div>
+    <!-- Os pagamentos são registrados na aba "+ Lançar" (checkbox 💳) ou pela
+         execução de um agendamento da aba "Planejar". Esta aba é só painel. -->
+    <div class="rec-hint" style="margin-top:2px">💳 Para registrar um pagamento, use a aba <strong>+ Lançar</strong> e marque “Isto é um pagamento de dívida”. O histórico completo fica em <strong>Registros</strong>.</div>
   </div><!-- /pane-div -->
 
 
@@ -2758,6 +2777,7 @@ async function revelarApp(user, revelarUI = true){
       } else {
         renderLista(); renderPlan(); atualizarStats(); atualizarStatsPlan();
         renderInvestimentos(); renderDividas();
+        atualizarVisibilidadeCheckboxDivida();
         if (typeof populateDashFilters === 'function') populateDashFilters();
         if (typeof carregarTema === 'function') carregarTema();
       }
@@ -3489,13 +3509,15 @@ function init(){
   document.getElementById('plan-data').value=hISO;
   document.getElementById('sheet-data-pag').value=hISO;
   document.getElementById('inv-data-mv').value=hISO;
-  document.getElementById('pag-data').value=hISO;
   const mi=hoje.getMonth();
   document.getElementById('inp-mes').selectedIndex=Math.min(mi,11);
   document.getElementById('plan-mes').selectedIndex=Math.min(mi,11);
   buildMesesGrid();
+  // Espelha em Registros os pagamentos de dívida antigos (idempotente).
+  migrarPagamentosDividaParaRegistros();
   renderLista();renderPlan();atualizarStats();atualizarStatsPlan();
   renderInvestimentos();renderDividas();populateDashFilters();
+  atualizarVisibilidadeCheckboxDivida();
   carregarTema();
   verificarNotificacoesPlan();
   atualizarStatusNotif();
@@ -3624,6 +3646,10 @@ function addPlanejamento(){
   if(!tipo)return toast('⚠️ Selecione o tipo',true);
   if(!cat)return toast('⚠️ Selecione a categoria',true);
   if(swRec&&mesesSel.size===0)return toast('⚠️ Selecione ao menos um mês',true);
+  // Pagamento de dívida: só marca o plano. A origem (CC/Poupança) é escolhida
+  // no sheet de confirmação, quando o pagamento é efetivamente executado.
+  const ehDividaPlan=!!(APP.dividaPai&&document.getElementById('plan-divida-chk')?.checked);
+  if(ehDividaPlan&&planMov!=='Debito')return toast('⚠️ Pagamento de dívida precisa ser um Débito',true);
   const listaMeses=swRec?[...mesesSel].sort((a,b)=>a-b).map(i=>MESES[i]):[mes];
   const[,, d]=data.split('-');
   const grupoRec=swRec?`rec_${Date.now()}`:null;
@@ -3636,7 +3662,7 @@ function addPlanejamento(){
     const mi=miRef>=0?miRef:MESES.indexOf(mesAlvo);
     const ano=anoDoMesRef(mesAlvo,anoDaData);
     const dISO=`${ano}-${String(mi+1).padStart(2,'0')}-${d}`;
-    APP.plan.push({id:novoId()+idx,data:`${d}/${String(mi+1).padStart(2,'0')}/${ano}`,dataISO:dISO,mes:mesAlvo,descricao:desc.toUpperCase(),movimento:planMov,valorPlanejado:Math.abs(vp),valorReal:0,categoria:cat,classificacao:planMov==='Credito'?'Receita':'Despesas',tipo,status:'pendente',lancId:null,recorrente:swRec,grupoRec,comentario:comentarioPlan||undefined});
+    APP.plan.push({id:novoId()+idx,data:`${d}/${String(mi+1).padStart(2,'0')}/${ano}`,dataISO:dISO,mes:mesAlvo,descricao:desc.toUpperCase(),movimento:planMov,valorPlanejado:Math.abs(vp),valorReal:0,categoria:cat,classificacao:planMov==='Credito'?'Receita':'Despesas',tipo,status:'pendente',lancId:null,recorrente:swRec,grupoRec,comentario:comentarioPlan||undefined,pagamentoDivida:ehDividaPlan});
   });
   salvarPlan();renderPlan();atualizarStatsPlan();
   document.getElementById('plan-desc').value='';
@@ -3646,6 +3672,8 @@ function addPlanejamento(){
   if(btnP){btnP.classList.remove('has-text');document.getElementById('comment-field-p').classList.remove('show');}
   document.getElementById('sw-rec').checked=false;
   document.getElementById('rec-cfg').classList.remove('show');
+  const chkDivPlan=document.getElementById('plan-divida-chk');
+  if(chkDivPlan)chkDivPlan.checked=false;
   mesesSel.clear();buildMesesGrid();atualizarBtnPlan();
   if(listaMeses.length>1)toast(`🔁 ${listaMeses.length} meses agendados!`,false,true);
   else toast('📅 Pagamento agendado!',false,true);
@@ -3670,12 +3698,18 @@ function renderLista(){
   document.getElementById('count-label').textContent=fil.length+(fil.length!==1?' registros encontrados':' registro encontrado');
   const c=document.getElementById('lista-container');
   if(!fil.length){c.innerHTML='<div class="empty"><div class="empty-v">🔍</div><h4>Nenhum lançamento encontrado</h4><p>Adicione seu primeiro lançamento<br>para começar a organizar suas finanças.</p></div>';return;}
+  // Ledger da dívida indexado por id: o vínculo lançamento↔pagamento é o id.
+  const idsPagDivida=new Set(APP.pagamentos.map(p=>p.id));
   c.innerHTML=fil.map(d=>{
     const cor=d.movimento==='Credito'?'var(--teal)':'var(--danger)';
     const s=d.movimento==='Credito'?'+':'-';
     const commentBadge=d.comentario?`<span class="has-comment" title="${d.comentario}" onclick="showCommentTooltip(event,'${d.comentario.replace(/'/g,"\\'")}')" style="margin-left:2px"></span>`:'';
-    const origemBadge=d.dePlan?(d.pagoDoBolso?'<span class="tag" title="Baixa dada na Poupança">🐷 Poupança</span>':'<span class="tag" title="Baixa dada na Conta Corrente">🏦 CC</span>'):'';
-    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${origemBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
+    // A flag pagamentoDivida não é persistida no Supabase; o ledger APP.pagamentos
+    // é — por isso o id no ledger vale como fallback após o sync.
+    const ehDiv=!!(d.pagamentoDivida||idsPagDivida.has(d.id));
+    const origemBadge=(d.dePlan||ehDiv)?(d.pagoDoBolso?'<span class="tag" title="Baixa dada na Poupança">🐷 Poupança</span>':'<span class="tag" title="Baixa dada na Conta Corrente">🏦 CC</span>'):'';
+    const dividaBadge=ehDiv?'<span class="tag" title="Pagamento da dívida principal" style="background:rgba(139,92,246,.15);color:var(--purple)">💳 Dívida</span>':'';
+    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${dividaBadge}${origemBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
   }).join('');
 }
 
@@ -3787,7 +3821,7 @@ function confirmarExec(){
   p.origem=origem;p.bolsoId=bolsoOrigem?bolsoOrigem.id:null;
 
   if(origem==='cc'){
-    APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente});
+    APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente,pagamentoDivida:p.pagamentoDivida||undefined});
     salvar();atualizarStats();
   } else if(origem==='bolso'){
     const b=bolsoOrigem;
@@ -3800,10 +3834,21 @@ function confirmarExec(){
     // CC↔bolso): isto É uma despesa real, então entra normal nas somas de
     // receita/despesa. Só calcSaldoCC() precisa ignorar, pois o dinheiro
     // nunca passou pela conta corrente.
-    APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente,pagoDoBolso:true});
+    APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente,pagoDoBolso:true,pagamentoDivida:p.pagamentoDivida||undefined});
     salvar();atualizarStats();
   }
   // 'manual' = sem lançamento automático
+
+  // Plano marcado como pagamento de dívida: alimenta o ledger APP.pagamentos
+  // com o MESMO id do lançamento (é assim que remover() sabe estornar depois).
+  if(p.pagamentoDivida){
+    if(!APP.pagamentos.some(x=>x.id===lId))
+      APP.pagamentos.unshift({id:lId,valor:Math.abs(vr),data:de,dataISO:de,obs:'',isExtra:Math.abs(vr)>3000,origem,bolsoId:bolsoOrigem?bolsoOrigem.id:null,lancId:lId,descricao:p.descricao});
+    // saldo gravado só por compatibilidade externa: a tela usa o derivado.
+    if(APP.dividaPai)APP.dividaPai.saldo=saldoDividaAtual();
+    salvarDivida();
+    if(document.getElementById('pane-div')?.classList.contains('ativo'))renderDividas();
+  }
 
   salvarPlan();atualizarStatsPlan();renderPlan();fecharSh();
   const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','manual':'✋ Manual'}[origem]||'';
@@ -3841,13 +3886,45 @@ function aplicarVisibilidade(){
 function remover(id){
   const d=APP.dados.find(x=>x.id===id);
   if(!d)return;
+  // Pagamento de dívida: o vínculo é o id compartilhado com APP.pagamentos.
+  // A flag pagamentoDivida não volta do Supabase, o ledger volta — por isso os dois checks.
+  const pag=APP.pagamentos.find(p=>p.id===id);
+  const ehDiv=!!(d.pagamentoDivida||pag);
   confirmar({
-    icone:'🗑️',
-    titulo:'Excluir lançamento?',
-    msg:`"${d.descricao}" — ${d.data} · R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}`,
+    icone:ehDiv?'💳':'🗑️',
+    titulo:ehDiv?'Excluir pagamento de dívida?':'Excluir lançamento?',
+    msg:`"${d.descricao}" — ${d.data} · R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}`+(ehDiv?' · o saldo devedor será restaurado.':''),
     btnTxt:'Excluir',
     cor:'var(--danger)',
-    fn:()=>{ APP.dados=APP.dados.filter(x=>x.id!==id); salvar(); renderLista(); atualizarStats(); toast('🗑 Lançamento removido'); }
+    fn:()=>{
+      let bOrig=null;
+      if(ehDiv){
+        // Baixa dada na Poupança: devolve o valor ao bolso. Mesmo padrão de
+        // removerPlan/removerPagamento — bolsoId e, como fallback, o movimento
+        // que carrega o mesmo id (origem/bolsoId não voltam do Supabase).
+        if(d.pagoDoBolso||pag?.origem==='bolso'){
+          const bid=pag?.bolsoId??d.bolsoId;
+          bOrig=APP.bolsos.find(b=>b.id===bid&&(b.movimentos||[]).some(m=>m.id===id))
+              ||APP.bolsos.find(b=>(b.movimentos||[]).some(m=>m.id===id));
+          if(bOrig){
+            const mv=(bOrig.movimentos||[]).find(m=>m.id===id);
+            bOrig.saldo+=Math.abs(mv?Number(mv.valor)||0:Number(d.valorAbs)||0);
+            bOrig.movimentos=(bOrig.movimentos||[]).filter(m=>m.id!==id);
+          }
+        }
+        APP.pagamentos=APP.pagamentos.filter(p=>p.id!==id);
+      }
+      APP.dados=APP.dados.filter(x=>x.id!==id);
+      if(bOrig){salvarBolsos();renderInvestimentos();}
+      if(ehDiv){
+        // saldo devedor volta sozinho: é derivado de total − Σ pagamentos.
+        if(APP.dividaPai)APP.dividaPai.saldo=saldoDividaAtual();
+        salvarDivida();
+        if(document.getElementById('pane-div')?.classList.contains('ativo'))renderDividas();
+      }
+      salvar(); renderLista(); atualizarStats();
+      toast(ehDiv?'🗑 Pagamento de dívida removido':'🗑 Lançamento removido');
+    }
   });
 }
 function salvar(){
@@ -3926,8 +4003,17 @@ function removerPlan(id){
         }
         APP.dados=APP.dados.filter(d=>d.id!==p.lancId);
       }
+      // Se o plano executado era pagamento de dívida, o ledger (mesmo id do
+      // lançamento) também sai — senão a dívida ficaria abatida sem registro.
+      const eraPagDivida=!!(p.lancId&&APP.pagamentos.some(x=>x.id===p.lancId));
+      if(eraPagDivida)APP.pagamentos=APP.pagamentos.filter(x=>x.id!==p.lancId);
       APP.plan=APP.plan.filter(x=>x.id!==id);
       if(bOrig){salvarBolsos();renderInvestimentos();}
+      if(eraPagDivida){
+        if(APP.dividaPai)APP.dividaPai.saldo=saldoDividaAtual();
+        salvarDivida();
+        if(document.getElementById('pane-div')?.classList.contains('ativo'))renderDividas();
+      }
       salvar();salvarPlan();renderPlan();atualizarStats();atualizarStatsPlan();toast('🗑 Agendamento removido');
     }
   });
@@ -4393,15 +4479,58 @@ function addLancamento(){
   if(!vr||vr<=0)return toast('⚠️ Valor inválido',true);
   if(!tipo)return toast('⚠️ Selecione o tipo',true);
   if(!cat)return toast('⚠️ Selecione a categoria',true);
+
+  // ── Pagamento de dívida (opcional) ──
+  // Valida TUDO antes de criar qualquer coisa: um return no meio deixaria
+  // lançamento sem pagamento (ou pagamento sem débito no bolso).
+  const ehDivida=!!(APP.dividaPai&&document.getElementById('lanc-divida-chk')?.checked);
+  let divOrigem='cc',divBolso=null;
+  if(ehDivida){
+    if(mov!=='Debito')return toast('⚠️ Pagamento de dívida precisa ser um Débito',true);
+    divOrigem=document.getElementById('lanc-divida-origem')?.value||'cc';
+    if(divOrigem==='bolso'){
+      const bid=parseInt(document.getElementById('lanc-divida-bolso-sel')?.value||'0');
+      if(!bid)return toast('⚠️ Selecione o bolso origem',true);
+      divBolso=APP.bolsos.find(x=>x.id===bid);
+      if(!divBolso)return toast('⚠️ Bolso não encontrado',true);
+      if(Math.abs(vr)>divBolso.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${divBolso.nome}"`,true);
+    }
+  }
+
   const[y,m,d]=data.split('-');
   const lancId=novoId();
   const comentario=(document.getElementById('inp-comment')?.value||'').trim();
-  APP.dados.push({id:lancId,data:`${d}/${m}/${y}`,dataISO:data,mes,descricao:desc.toUpperCase(),movimento:mov,valor:mov==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:cat,classificacao:mov==='Credito'?'Receita':'Despesas',tipo,comentario:comentario||undefined});
+  const lanc={id:lancId,data:`${d}/${m}/${y}`,dataISO:data,mes,descricao:desc.toUpperCase(),movimento:mov,valor:mov==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:cat,classificacao:mov==='Credito'?'Receita':'Despesas',tipo,comentario:comentario||undefined};
+  if(ehDivida){
+    lanc.pagamentoDivida=true;
+    // Baixa na Poupança: entra em Registros como despesa real, mas fica fora do
+    // saldo da CC (o dinheiro nunca passou pela conta) — igual ao confirmarExec.
+    if(divOrigem==='bolso'){lanc.pagoDoBolso=true;lanc.bolsoId=divBolso.id;}
+  }
+  APP.dados.push(lanc);
   salvar();atualizarStats();
+
+  if(ehDivida){
+    if(divOrigem==='bolso'){
+      divBolso.saldo-=Math.abs(vr);
+      if(!divBolso.movimentos)divBolso.movimentos=[];
+      divBolso.movimentos.unshift({id:lancId,tipo:'retirada',valor:Math.abs(vr),desc:lanc.descricao,data,delta:-Math.abs(vr),origemCC:false,divida:true});
+      salvarBolsos();renderInvestimentos();
+    }
+    // Mesmo id do lançamento: é o que permite o estorno em remover().
+    APP.pagamentos.unshift({id:lancId,valor:Math.abs(vr),data,dataISO:data,obs:'',isExtra:Math.abs(vr)>3000,origem:divOrigem,bolsoId:divBolso?divBolso.id:null,lancId,descricao:lanc.descricao});
+    // saldo gravado só por compatibilidade externa: a tela usa o derivado.
+    if(APP.dividaPai)APP.dividaPai.saldo=saldoDividaAtual();
+    salvarDivida();
+    if(document.getElementById('pane-div')?.classList.contains('ativo'))renderDividas();
+  }
+
   // Verifica bolso destino
   const selDest=document.getElementById('inp-bolso-dest');
   const destBid=selDest?parseInt(selDest.value):0;
-  if(destBid&&mov==='Debito'){
+  if(ehDivida){
+    toast(`✅ Pagamento de dívida registrado! [${divOrigem==='bolso'?'🐷 Poupança':'🏦 CC'}]`,false,true);
+  } else if(destBid&&mov==='Debito'){
     const b=APP.bolsos.find(x=>x.id===destBid);
     if(b){
       b.saldo+=Math.abs(vr);
@@ -4418,6 +4547,7 @@ function addLancamento(){
   if(document.getElementById('inp-comment'))document.getElementById('inp-comment').value='';
   const btn=document.getElementById('btn-toggle-comment-l');
   if(btn){btn.classList.remove('has-text');document.getElementById('comment-field-l').classList.remove('show');}
+  resetLancDivida();
   document.getElementById('inp-valor').focus();
 }
 
@@ -4442,6 +4572,9 @@ function salvarDividaPai(){
   // banco); a tela usa sempre o valor derivado total − Σ pagamentos.
   APP.dividaPai={id:APP.dividaPai?.id||novoId(),nome,total,saldo:saldoDev,criado:APP.dividaPai?.criado||new Date().toISOString()};
   salvarDivida();renderDividas();
+  // A dívida passou a existir (ou continua existindo): libera o checkbox
+  // "pagamento de dívida" nos formulários de Lançar e Planejar.
+  atualizarVisibilidadeCheckboxDivida();
   const derivado=saldoDividaAtual();
   if(Math.abs(derivado-saldoDev)>0.01)
     toast(`✅ Dívida salva! Saldo exibido: R$ ${derivado.toLocaleString('pt-BR',{maximumFractionDigits:0})} (total − pagamentos registrados)`);
@@ -4450,101 +4583,91 @@ function salvarDividaPai(){
   document.getElementById('div-cfg-box').style.display='none';
 }
 
-function togglePagBolso(){
-  const v=document.getElementById('pag-origem').value;
-  const wrap=document.getElementById('pag-bolso-wrap');
+/* ── Checkbox "💳 Isto é um pagamento de dívida" (abas Lançar e Planejar) ──
+   Os pagamentos deixaram de ter formulário próprio na aba Dívidas: nascem
+   como lançamento em Registros e espelham uma entrada em APP.pagamentos com
+   o MESMO id (é esse id que permite o estorno em remover()). */
+function atualizarVisibilidadeCheckboxDivida(){
+  const tem=!!APP.dividaPai;
+  ['lanc-divida-box','plan-divida-box'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.style.display=tem?'block':'none';
+  });
+  if(!tem){
+    resetLancDivida();
+    const cP=document.getElementById('plan-divida-chk');
+    if(cP)cP.checked=false;
+  }
+}
+function toggleLancDivida(){
+  const on=!!document.getElementById('lanc-divida-chk')?.checked;
+  const cfg=document.getElementById('lanc-divida-cfg');
+  if(cfg)cfg.style.display=on?'block':'none';
+  if(on)toggleLancBolso();
+}
+function toggleLancBolso(){
+  const v=document.getElementById('lanc-divida-origem')?.value||'cc';
+  const wrap=document.getElementById('lanc-divida-bolso-wrap');
   if(wrap)wrap.style.display=v==='bolso'?'block':'none';
   if(v==='bolso'){
-    const sel=document.getElementById('pag-bolso-sel');
+    const sel=document.getElementById('lanc-divida-bolso-sel');
+    if(!sel)return;
     sel.innerHTML='<option value="">Selecione o bolso</option>';
     APP.bolsos.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=`${b.ico} ${b.nome} — R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;sel.appendChild(o);});
   }
 }
-
-function addPagamento(){
-  if(!APP.dividaPai)return toast('⚠️ Configure a dívida principal primeiro',true);
-  const vl=parseCurrency(document.getElementById('pag-valor').value);
-  if(!vl||vl<=0)return toast('⚠️ Informe o valor',true);
-  const data=document.getElementById('pag-data').value||new Date().toISOString().split('T')[0];
-  const obs=document.getElementById('pag-obs').value.trim();
-  const origem=document.getElementById('pag-origem')?.value||'cc';
-  const isExtra=vl>3000;
-  const id=novoId();
-
-  // Valida a origem ANTES de registrar o pagamento — como o saldo devedor agora
-  // é derivado de Σ pagamentos, um retorno antecipado depois do unshift deixaria
-  // um pagamento fantasma abatendo a dívida sem contrapartida em lugar nenhum.
-  let bolsoOrigem=null;
-  if(origem==='bolso'){
-    const bid=parseInt(document.getElementById('pag-bolso-sel')?.value||'0');
-    if(!bid)return toast('⚠️ Selecione o bolso origem',true);
-    bolsoOrigem=APP.bolsos.find(x=>x.id===bid);
-    if(!bolsoOrigem)return toast('⚠️ Bolso não encontrado',true);
-    if(vl>bolsoOrigem.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${bolsoOrigem.nome}"`,true);
-  }
-
-  // bolsoId permite o estorno correto em removerPagamento().
-  // dataISO é o que _sbSync envia para a coluna data_pag — sem isso, o upsert
-  // caía no fallback de "hoje" e o pagamento ia pra nuvem com a data errada.
-  APP.pagamentos.unshift({id,valor:vl,data,dataISO:data,obs,isExtra,origem,bolsoId:bolsoOrigem?bolsoOrigem.id:null});
-  // saldo NÃO é mais decrementado aqui: ele é derivado de total − Σ pagamentos.
-  const[y,m,d]=data.split('-');
-  // Mês de referência com o ANO REAL da data (antes vinha de MESES = ano corrente).
-  const mesRef=mesRefDeISO(data);
-  const descPag=(APP.dividaPai.nome+' - PAGAMENTO'+(obs?' - '+obs.toUpperCase():'')).toUpperCase();
-
-  if(origem==='cc'){
-    // Débito na conta corrente
-    APP.dados.push({id,data:`${d}/${m}/${y}`,dataISO:data,mes:mesRef,descricao:descPag,movimento:'Debito',valor:-Math.abs(vl),valorAbs:Math.abs(vl),categoria:'Compromissos Financeiros',classificacao:'Despesas',tipo:'Despesas fixas',dePlan:false,recorrente:false});
-    salvar();atualizarStats();
-  } else if(origem==='bolso'){
-    // Retira do bolso selecionado
-    const b=bolsoOrigem;
-    b.saldo-=vl;
-    if(!b.movimentos)b.movimentos=[];
-    b.movimentos.unshift({id,tipo:'retirada',valor:vl,desc:descPag,data,delta:-vl,origemCC:false,divida:true});
-    salvarBolsos();renderInvestimentos();
-  }
-  // Mantém o campo saldo gravado (compatibilidade externa), agora sempre derivado.
-  APP.dividaPai.saldo=saldoDividaAtual();
-  // 'manual' = sem lançamento automático
-
-  salvarDivida();renderDividas();
-  document.getElementById('pag-valor').value='';
-  document.getElementById('pag-obs').value='';
-  const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','manual':'✋ Manual'}[origem]||'';
-  toast(`✅ Pagamento registrado! [${origemLabel}]`,false,true);
+function resetLancDivida(){
+  const c=document.getElementById('lanc-divida-chk');if(c)c.checked=false;
+  const o=document.getElementById('lanc-divida-origem');if(o)o.value='cc';
+  const w=document.getElementById('lanc-divida-bolso-wrap');if(w)w.style.display='none';
+  const cfg=document.getElementById('lanc-divida-cfg');if(cfg)cfg.style.display='none';
 }
 
-function removerPagamento(id){
-  const pag=APP.pagamentos.find(p=>p.id===id);
-  if(!pag)return;
-  confirmar({
-    icone:'💳',
-    titulo:'Remover pagamento?',
-    msg:`R$ ${pag.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})} em ${pag.data}. O saldo devedor será restaurado.`,
-    btnTxt:'Remover',
-    cor:'var(--warn)',
-    fn:()=>{
-      // Estorno no bolso quando o pagamento saiu de um: procura pelo bolsoId e,
-      // como fallback (registros antigos / campos perdidos na volta do Supabase),
-      // pelo movimento que carrega o mesmo id do pagamento.
-      const bOrig=APP.bolsos.find(b=>b.id===pag.bolsoId)
-                ||APP.bolsos.find(b=>(b.movimentos||[]).some(m=>m.id===pag.id));
-      if(bOrig){
-        const mv=(bOrig.movimentos||[]).find(m=>m.id===pag.id);
-        bOrig.saldo+=Math.abs(mv?Number(mv.valor)||0:Number(pag.valor)||0);
-        bOrig.movimentos=(bOrig.movimentos||[]).filter(m=>m.id!==pag.id);
-      }
-      APP.pagamentos=APP.pagamentos.filter(p=>p.id!==id);
-      APP.dados=APP.dados.filter(d=>d.id!==id);
-      // saldo devedor volta sozinho: é derivado de total − Σ pagamentos.
-      if(APP.dividaPai)APP.dividaPai.saldo=saldoDividaAtual();
-      if(bOrig){salvarBolsos();renderInvestimentos();}
-      salvar();salvarDivida();atualizarStats();renderDividas();
-      toast('🗑 Pagamento removido');
+/* ── Migração: todo pagamento do ledger aparece em Registros ──
+   Idempotente pelo id (o lançamento espelho usa o MESMO id do pagamento),
+   então roda com segurança em todo carregamento e em qualquer dispositivo —
+   não precisa de flag "já migrei" no localStorage.
+   IMPORTANTE: é só o registro de exibição. O dinheiro já saiu quando o
+   pagamento foi criado, então nenhum saldo (bolso ou CC) é alterado aqui. */
+function migrarPagamentosDividaParaRegistros(){
+  if(!APP.pagamentos||!APP.pagamentos.length)return;
+  const idsLanc=new Set(APP.dados.map(d=>d.id));
+  const ehISO=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''));
+  let criou=0;
+  APP.pagamentos.forEach(p=>{
+    if(idsLanc.has(p.id))return;                       // já espelhado
+    const iso=ehISO(p.dataISO)?p.dataISO:(ehISO(p.data)?p.data:null);
+    if(!iso)return;                                    // sem data confiável
+    const valor=Math.abs(Number(p.valor)||0);
+    if(!valor)return;
+    const[y,m,d]=iso.split('-');
+    const obs=String(p.obs||p.descricao||'').trim();
+    const desc=((APP.dividaPai?.nome||'Dívida')+' - PAGAMENTO'+(obs?' - '+obs:'')).toUpperCase();
+    // origem/bolsoId não voltam do Supabase; o vínculo que sobrevive é o
+    // movimento de bolso que carrega o mesmo id do pagamento.
+    const bolso=APP.bolsos.find(b=>(b.movimentos||[]).some(mv=>mv.id===p.id));
+    const veioDaCC=p.origem==='cc';
+    const lanc={id:p.id,data:`${d}/${m}/${y}`,dataISO:iso,mes:mesRefDeISO(iso),
+      descricao:desc,movimento:'Debito',valor:-valor,valorAbs:valor,
+      categoria:'Compromissos Financeiros',classificacao:'Despesas',tipo:'Despesas fixas',
+      dePlan:false,recorrente:false,pagamentoDivida:true};
+    // Pagamento que NÃO saiu da conta corrente fica fora do saldo da CC —
+    // assim a migração não muda nenhum saldo já existente.
+    if(!veioDaCC){
+      lanc.pagoDoBolso=true;
+      if(bolso)lanc.bolsoId=bolso.id;
     }
+    APP.dados.push(lanc);
+    idsLanc.add(p.id);
+    criou++;
   });
+  if(criou>0){
+    // Antes do primeiro load remoto da sessão não sincroniza: o upsert enviaria
+    // um estado local possivelmente desatualizado. sbCarregarDados roda esta
+    // função de novo (idempotente) e aí sim persiste na nuvem.
+    if(!window._sbReady||APP.remoteLoaded)salvar();
+    else localStorage.setItem('gastos_v2',JSON.stringify(APP.dados));
+  }
 }
 
 function atualizarSimulador(){
@@ -4618,28 +4741,8 @@ function renderDividas(){
   document.getElementById('div-st-count').textContent=APP.pagamentos.length;
   // Simulador
   atualizarSimulador();
-  // Histórico
-  const lista=document.getElementById('pag-lista');
-  if(!APP.pagamentos.length){lista.innerHTML='<div class="empty"><div class="empty-v">💸</div><h4>Nenhum pagamento registrado</h4><p style="font-size:.75rem">Registre seu primeiro pagamento acima.</p></div>';return;}
-  lista.innerHTML=APP.pagamentos.map(p=>{
-    const cls=p.isExtra?'pag-extra':'pag-ok';
-    // dataISO existe tanto em pagamentos criados agora quanto nos vindos do
-    // Supabase (sbPagToApp) — diferente de p.data, que muda de formato (ISO
-    // localmente vs dd/mm/yyyy após reload), o que quebrava esse split.
-    const[y,m,d]=(p.dataISO||p.data||'').split('-');
-    const saldoApos=APP.dividaPai?null:null;
-    return`<div class="pag-card ${cls}">
-      <div class="pag-ico">${p.isExtra?'⚡':'✅'}</div>
-      <div class="pag-info">
-        <div class="pag-desc">${p.isExtra?'Pagamento extra':'Pagamento'} · ${d}/${m}/${y}</div>
-        <div class="pag-meta">${p.obs||APP.dividaPai?.nome||'Pagamento'}</div>
-      </div>
-      <div class="pag-right">
-        <div class="pag-val">- R$ ${p.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-        <button class="btn-del-pag" onclick="removerPagamento(${p.id})">✕</button>
-      </div>
-    </div>`;
-  }).join('');
+  // O histórico de pagamentos agora vive na aba Registros (badge 💳 Dívida):
+  // esta aba ficou só painel de controle.
 }
 
 let tt;
@@ -5484,6 +5587,19 @@ function salvarEdicao(){
   d.categoria = novaCat;
   d.classificacao = d.movimento === 'Credito' ? 'Receita' : 'Despesas';
   d.comentario = novaCom || undefined;
+  // Pagamento de dívida: o ledger APP.pagamentos compartilha o id do lançamento.
+  // Sem isto, editar o valor aqui deixaria a aba Dívidas divergindo de Registros.
+  const pagEdit = APP.pagamentos.find(p => p.id === d.id);
+  if(pagEdit){
+    pagEdit.valor   = Math.abs(novoVal);
+    pagEdit.data    = novaData;
+    pagEdit.dataISO = novaData;
+    pagEdit.isExtra = Math.abs(novoVal) > 3000;
+    pagEdit.descricao = d.descricao;
+    if(APP.dividaPai) APP.dividaPai.saldo = saldoDividaAtual();
+    salvarDivida();
+    if(document.getElementById('pane-div')?.classList.contains('ativo')) renderDividas();
+  }
   salvar(); atualizarStats(); renderLista(); fecharEditSh();
   toast('✅ Lançamento atualizado!');
 }
