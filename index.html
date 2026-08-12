@@ -616,7 +616,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .ps .pv{font-family:var(--mono);font-size:.82rem;font-weight:500}
 .pf{display:flex;gap:7px;margin-bottom:10px}
 .pf select{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.78rem;padding:8px 10px;outline:none;-webkit-appearance:none}
-.filtros-plan{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:10px}
+.filtros-plan{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px}
 .filtros-plan select{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.75rem;padding:8px 10px;outline:none;-webkit-appearance:none;width:100%}
 .pmg{margin-bottom:16px}
 .pmh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
@@ -1628,6 +1628,14 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="ps"><div class="pl">Executado</div><div class="pv" id="ps-exec" style="color:var(--teal)">R$ 0</div></div>
       <div class="ps"><div class="pl">Pendente</div><div class="pv" id="ps-pend" style="color:var(--warn)">R$ 0</div></div>
     </div>
+    <div style="margin-top:12px">
+      <div class="filtros-plan">
+        <select id="pf-mes" onchange="renderPlan()"><option value="">Todos os meses</option></select>
+        <select id="pf-mov" onchange="renderPlan()"><option value="">Tipo</option><option value="Credito">Crédito</option><option value="Debito">Débito</option></select>
+        <select id="pf-tipo" onchange="renderPlan()"><option value="">Categoria</option><option value="Receita">Receita</option><option value="Despesas fixas">Fixas</option><option value="Despesas variaveis">Variáveis</option><option value="Despesas eventuais">Eventuais</option></select>
+      </div>
+      <div id="plan-container"></div>
+    </div>
     <div class="sec">Novo agendamento</div>
     <div class="tog-g">
       <div class="tog debito ativo" id="plan-btn-deb" onclick="setPlanMov('Debito')">↓ Débito</div>
@@ -1681,16 +1689,6 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </div>
 
     <button class="btn-add roxo" onclick="addPlanejamento()"><span>📅</span><span id="btn-plan-txt">Agendar Pagamento</span></button>
-
-    <div style="margin-top:16px">
-      <div class="filtros-plan">
-        <select id="pf-mes" onchange="renderPlan()"><option value="">Todos os meses</option></select>
-        <select id="pf-status" onchange="renderPlan()"><option value="">Todos</option><option value="pendente">Pendentes</option><option value="vencido">Vencidos</option><option value="executado">Executados</option></select>
-        <select id="pf-mov" onchange="renderPlan()"><option value="">Tipo</option><option value="Credito">Crédito</option><option value="Debito">Débito</option></select>
-        <select id="pf-tipo" onchange="renderPlan()"><option value="">Categoria</option><option value="Receita">Receita</option><option value="Despesas fixas">Fixas</option><option value="Despesas variaveis">Variáveis</option><option value="Despesas eventuais">Eventuais</option></select>
-      </div>
-      <div id="plan-container"></div>
-    </div>
   </div>
 
 
@@ -3678,7 +3676,6 @@ function renderLista(){
 function renderPlan(){
   const hoje=new Date();hoje.setHours(0,0,0,0);
   const fM=document.getElementById('pf-mes').value;
-  const fS=document.getElementById('pf-status').value;
   const fMov=document.getElementById('pf-mov')?.value||'';
   const fTipo=document.getElementById('pf-tipo')?.value||'';
   // Só persiste se ALGUM item realmente mudou de pendente→vencido.
@@ -3686,7 +3683,7 @@ function renderPlan(){
   let mudouStatus=false;
   APP.plan.forEach(p=>{if(p.status==='pendente'){const dp=new Date(p.dataISO);dp.setHours(0,0,0,0);if(dp<hoje){p.status='vencido';mudouStatus=true;}}});
   if(mudouStatus)salvarPlan();
-  const lista=[...APP.plan].filter(p=>(!fM||p.mes===fM)&&(!fS||p.status===fS)&&(!fMov||p.movimento===fMov)&&(!fTipo||p.tipo===fTipo)).sort((a,b)=>{const o={vencido:0,pendente:1,executado:2};return o[a.status]!==o[b.status]?o[a.status]-o[b.status]:a.dataISO.localeCompare(b.dataISO);});
+  const lista=[...APP.plan].filter(p=>(!fM||p.mes===fM)&&(!fMov||p.movimento===fMov)&&(!fTipo||p.tipo===fTipo)).sort((a,b)=>{const o={vencido:0,pendente:1,executado:2};return o[a.status]!==o[b.status]?o[a.status]-o[b.status]:a.dataISO.localeCompare(b.dataISO);});
   atualizarStatsPlan();
   const c=document.getElementById('plan-container');
   if(!lista.length){c.innerHTML='<div class="empty"><div class="empty-v">📅</div><h4>Nenhum planejamento</h4><p>Agende pagamentos acima.</p></div>';return;}
