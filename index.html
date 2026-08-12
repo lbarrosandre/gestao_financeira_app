@@ -1611,6 +1611,19 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
 </div>
 
+<!-- Aviso discreto de assinatura (trial expirado / atrasado / cancelado).
+     Só AVISA — não bloqueia o uso do app. -->
+<div class="notif-banner" id="assin-banner" onclick="abrirAssinaturaSheet()">
+  <button class="notif-banner-close" onclick="event.stopPropagation();fecharAssinBanner()" aria-label="Fechar aviso">✕</button>
+  <div class="notif-banner-title" id="assin-banner-title">💎 Assinatura</div>
+  <div class="notif-banner-list">
+    <div class="notif-banner-item">
+      <span>👉</span>
+      <span id="assin-banner-msg">Toque aqui para ver os detalhes da sua assinatura.</span>
+    </div>
+  </div>
+</div>
+
 <div class="statsbar">
   <div class="stat"><div class="s-label">Receitas</div><div class="s-val" id="stat-rec" style="color:var(--teal)"><span class="val-txt">R$ 0,00</span></div></div>
   <div class="stat"><div class="s-label">Despesas</div><div class="s-val" id="stat-desp" style="color:var(--danger)"><span class="val-txt">R$ 0,00</span></div></div>
@@ -2188,6 +2201,13 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="menu-item-sub">Nome, CPF, endereço e objetivo</div>
       </div>
     </button>
+    <button class="menu-item" onclick="abrirAssinaturaSheet()">
+      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">💎</div>
+      <div class="menu-item-body">
+        <div class="menu-item-label">Assinatura</div>
+        <div class="menu-item-sub">Plano, teste grátis e cobrança</div>
+      </div>
+    </button>
     <button class="menu-item" onclick="authDesconectar()">
       <div class="menu-item-ico" style="background:rgba(239,68,68,.12)">🚪</div>
       <div class="menu-item-body">
@@ -2318,6 +2338,20 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharPerfilEdicao()">Cancelar</button>
     <button class="sh-ok" onclick="salvarPerfilEdicao()">💾 Salvar</button>
+  </div>
+</div>
+
+<!-- ASSINATURA SHEET -->
+<div class="sh-edit-ov" id="sh-assinatura-ov" onclick="fecharAssinaturaSheet()"></div>
+<div class="sh-edit" id="sh-assinatura">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">💎 Assinatura</div>
+  <div id="assin-corpo" style="font-size:.85rem;color:var(--text2);line-height:1.5;padding:4px 0 2px">
+    Carregando...
+  </div>
+  <div class="sh-btns">
+    <button class="sh-cancel" onclick="fecharAssinaturaSheet()">Fechar</button>
+    <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaIniciarCheckout()">💳 Assinar agora</button>
   </div>
 </div>
 
@@ -2807,6 +2841,12 @@ async function authLiberarApp(user, revelarUI){
   atualizarSaudacaoTopbar(perfil?.nome || dn, perfil?.apelido);
   aplicarAvatar(perfil?.avatar_url || '');
   metaEconomia = perfil?.meta_economia ?? 20;
+
+  /* Aviso de assinatura (banner discreto). Não bloqueia nem atrasa o login:
+     roda solto e falha em silêncio se der erro. */
+  if (typeof verificarStatusAssinatura === 'function') {
+    verificarStatusAssinatura().catch(e => console.error('verificarStatusAssinatura:', e));
+  }
 
   if (perfilLido && !perfilEstaCompleto(perfil)) {
     authMostrarCompletarPerfil(user, perfil);
@@ -3378,6 +3418,229 @@ async function salvarPerfilEdicao(){
     console.error('salvarPerfilEdicao error:', e);
     toast('⚠️ Erro de conexão ao salvar o perfil.', true);
   }
+}
+
+/* ═══ ASSINATURA ══════════════════════════
+   Status vem da tabela `assinaturas` (RLS: o usuário só lê a própria
+   linha; escrita é exclusiva do gatilho do banco e das Netlify Functions
+   com a service role key — o client NUNCA escreve aqui).
+   O checkout é criado pela function /.netlify/functions/criar-assinatura,
+   que é quem fala com o Mercado Pago. Nenhum segredo mora neste arquivo.
+════════════════════════════════════════ */
+
+const ASSIN_BANNER_KEY = 'bussola_assin_banner_dismissed';
+
+async function assinaturaBuscar(){
+  const uid = window._sbUID;
+  if(!uid) return null;
+  try{
+    const { data, error } = await _supa.from('assinaturas').select('*').eq('uid', uid).maybeSingle();
+    if(error){ console.error('assinaturaBuscar error:', error); return null; }
+    return data || null;
+  }catch(e){ console.error('assinaturaBuscar error:', e); return null; }
+}
+
+/* Dias inteiros que faltam até uma data (pode ser negativo se já passou). */
+function assinaturaDiasAte(iso){
+  if(!iso) return null;
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  return Math.ceil((d.getTime() - Date.now()) / 86400000);
+}
+
+function assinaturaFmtData(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('pt-BR');
+}
+
+/* E-mail do usuário logado — mesma fonte já usada pelo sheet de perfil. */
+async function assinaturaEmailUsuario(){
+  try{
+    const perfil = await perfilBuscar(window._sbUID);
+    if(perfil?.email) return perfil.email;
+  }catch(e){ console.error('assinaturaEmailUsuario perfil:', e); }
+  try{
+    const { data } = await _supa.auth.getUser();
+    return data?.user?.email || '';
+  }catch(e){ console.error('assinaturaEmailUsuario auth:', e); return ''; }
+}
+
+/* Traduz a linha do banco no que a tela precisa mostrar. */
+function assinaturaResumo(row){
+  const status = row?.status || null;
+
+  if(status === 'ativo'){
+    const prox = assinaturaFmtData(row.proxima_cobranca);
+    return {
+      titulo: 'Assinatura ativa ✅',
+      texto: prox
+        ? 'Tudo certo por aqui! Próxima cobrança em <strong>'+prox+'</strong>.'
+        : 'Tudo certo por aqui! Sua assinatura está em dia.',
+      cor: 'var(--teal)',
+      botao: null,
+      alerta: false
+    };
+  }
+
+  if(status === 'cortesia'){
+    const ate = assinaturaFmtData(row.cortesia_ate);
+    return {
+      titulo: 'Acesso cortesia 🎁',
+      texto: 'Acesso cortesia — obrigado por fazer parte! 🎁'
+        + (ate ? '<br>Válido até <strong>'+ate+'</strong>.' : ''),
+      cor: 'var(--gold)',
+      botao: null,
+      alerta: false
+    };
+  }
+
+  if(status === 'atrasado'){
+    return {
+      titulo: 'Pagamento pendente ⚠️',
+      texto: 'Não conseguimos confirmar o último pagamento da sua assinatura. Regularize para continuar com o acesso completo.',
+      cor: 'var(--danger)',
+      botao: 'Assinar agora',
+      alerta: true
+    };
+  }
+
+  if(status === 'cancelado'){
+    return {
+      titulo: 'Assinatura cancelada',
+      texto: 'Sua assinatura está cancelada. Você pode reativar quando quiser — seus dados continuam aqui.',
+      cor: 'var(--danger)',
+      botao: 'Reativar',
+      alerta: true
+    };
+  }
+
+  /* status === 'trial' — e também o edge case de não existir linha nenhuma
+     (null), que tratamos como teste já expirado. */
+  const dias = row ? assinaturaDiasAte(row.trial_fim) : null;
+  if(dias !== null && dias > 0){
+    return {
+      titulo: 'Período de teste grátis 🎉',
+      texto: 'Você está no período de teste grátis — faltam <strong>'
+             + dias + (dias === 1 ? ' dia' : ' dias') + '</strong>.',
+      cor: 'var(--purple)',
+      botao: 'Assinar agora',
+      alerta: false
+    };
+  }
+  return {
+    titulo: 'Teste grátis encerrado',
+    texto: 'Seu período de teste chegou ao fim. Assine para manter o acesso completo ao Bússola Finance.',
+    cor: 'var(--danger)',
+    botao: 'Assinar agora',
+    alerta: true
+  };
+}
+
+async function abrirAssinaturaSheet(){
+  if(typeof fecharMenu === 'function') fecharMenu();
+  if(!window._sbUID) return toast('⚠️ Faça login para ver sua assinatura.', true);
+
+  const corpo = document.getElementById('assin-corpo');
+  const btn   = document.getElementById('assin-btn-assinar');
+  if(corpo) corpo.innerHTML = 'Carregando...';
+  if(btn){ btn.style.display = 'none'; btn.disabled = false; }
+
+  document.getElementById('sh-assinatura-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-assinatura').classList.add('show'),10);
+
+  const row = await assinaturaBuscar();
+  const r   = assinaturaResumo(row);
+
+  if(corpo){
+    corpo.innerHTML =
+      '<div style="font-weight:700;font-size:.95rem;color:'+r.cor+';margin-bottom:6px">'+r.titulo+'</div>'
+      + '<div>'+r.texto+'</div>'
+      + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:.75rem;opacity:.7">'
+      + 'Plano mensal — R$ 19,90/mês, com 7 dias de teste grátis. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
+      + '</div>';
+  }
+  if(btn && r.botao){
+    btn.textContent = '💳 ' + r.botao;
+    btn.style.display = '';
+  }
+}
+
+function fecharAssinaturaSheet(){
+  document.getElementById('sh-assinatura').classList.remove('show');
+  document.getElementById('sh-assinatura-ov').classList.remove('show');
+}
+
+/* Cria a assinatura no Mercado Pago (via Netlify Function) e redireciona
+   o usuário pro checkout hospedado. */
+async function assinaturaIniciarCheckout(){
+  const uid = window._sbUID;
+  if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+
+  const btn = document.getElementById('assin-btn-assinar');
+  const txtOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Abrindo checkout...'; }
+
+  try{
+    const email = await assinaturaEmailUsuario();
+    if(!email){
+      if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+      return toast('⚠️ Não encontramos seu e-mail. Complete seu perfil e tente de novo.', true);
+    }
+
+    const resp = await fetch('/.netlify/functions/criar-assinatura', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, email })
+    });
+
+    let data = null;
+    try{ data = await resp.json(); }catch(e){ data = null; }
+
+    if(!resp.ok || !data?.checkoutUrl){
+      console.error('assinaturaIniciarCheckout falhou:', resp.status, data);
+      if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+      return toast('⚠️ Não foi possível abrir o checkout agora. Tente novamente em instantes.', true);
+    }
+
+    window.location.href = data.checkoutUrl;
+  }catch(e){
+    console.error('assinaturaIniciarCheckout error:', e);
+    if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+    toast('⚠️ Erro de conexão ao abrir o checkout.', true);
+  }
+}
+
+/* Banner discreto de aviso — NÃO bloqueia o app, só sugere assinar.
+   O bloqueio real fica pra depois do fluxo de cobrança ser validado. */
+async function verificarStatusAssinatura(){
+  try{
+    if(sessionStorage.getItem(ASSIN_BANNER_KEY)) return;
+  }catch(e){}
+
+  const row = await assinaturaBuscar();
+  const st  = row?.status || null;
+
+  let mostrar = false;
+  if(st === 'atrasado' || st === 'cancelado') mostrar = true;
+  else if(st === 'trial' || st === null){
+    const dias = row ? assinaturaDiasAte(row.trial_fim) : null;
+    if(dias === null || dias <= 0) mostrar = true;
+  }
+  if(!mostrar) return;
+
+  const r = assinaturaResumo(row);
+  const t = document.getElementById('assin-banner-title');
+  const m = document.getElementById('assin-banner-msg');
+  if(t) t.textContent = '💎 ' + r.titulo;
+  if(m) m.textContent = 'Toque aqui para assinar e manter o acesso completo.';
+  document.getElementById('assin-banner')?.classList.add('show');
+}
+
+function fecharAssinBanner(){
+  document.getElementById('assin-banner')?.classList.remove('show');
+  try{ sessionStorage.setItem(ASSIN_BANNER_KEY,'1'); }catch(e){}
 }
 
 function authMostrarNovaSenha(){
