@@ -212,8 +212,10 @@ function sbLancToApp(r) {
     tipo: r.tipo, categoria: r.categoria, classificacao: r.classificacao,
     comentario: r.comentario||undefined, dePlan: r.de_plan||false,
     recorrente: r.recorrente||false,
-    // Transferência interna CC↔bolso: só existe se a coluna estiver criada no banco.
-    deBolso: r.de_bolso||false, bolsoId: r.bolso_id||null
+    // Transferência interna CC↔bolso, e pagamento de plano dado de baixa
+    // direto da Poupança (ambos agora enviados/lidos do banco normalmente).
+    deBolso: r.de_bolso||false, bolsoId: r.bolso_id||null,
+    pagoDoBolso: r.pago_do_bolso||false
   };
 }
 function sbPlanToApp(r) {
@@ -280,7 +282,9 @@ window._sbSync = async function(patch) {
         valor: d.valor, valor_abs: d.valorAbs,
         tipo: d.tipo, categoria: d.categoria, classificacao: d.classificacao,
         comentario: d.comentario||null, de_plan: d.dePlan||false,
-        recorrente: d.recorrente||false
+        recorrente: d.recorrente||false,
+        de_bolso: d.deBolso||false, bolso_id: d.bolsoId||null,
+        pago_do_bolso: d.pagoDoBolso||false
       }));
       if (rows.length > 0) {
         const { error } = await _supa.from('lancamentos').upsert(rows, { onConflict: 'id' });
@@ -3670,7 +3674,8 @@ function renderLista(){
     const cor=d.movimento==='Credito'?'var(--teal)':'var(--danger)';
     const s=d.movimento==='Credito'?'+':'-';
     const commentBadge=d.comentario?`<span class="has-comment" title="${d.comentario}" onclick="showCommentTooltip(event,'${d.comentario.replace(/'/g,"\\'")}')" style="margin-left:2px"></span>`:'';
-    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
+    const origemBadge=d.dePlan?(d.pagoDoBolso?'<span class="tag" title="Baixa dada na Poupança">🐷 Poupança</span>':'<span class="tag" title="Baixa dada na Conta Corrente">🏦 CC</span>'):'';
+    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${origemBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
   }).join('');
 }
 
@@ -3790,6 +3795,13 @@ function confirmarExec(){
     if(!b.movimentos)b.movimentos=[];
     b.movimentos.unshift({id:lId,tipo:'retirada',valor:Math.abs(vr),desc:p.descricao,data:de,delta:-Math.abs(vr),origemCC:false,dePlan:true});
     salvarBolsos();renderInvestimentos();
+    // Também aparece em Registros, com indicação de que a baixa foi na
+    // Poupança (pagoDoBolso) — diferente de deBolso (transferência interna
+    // CC↔bolso): isto É uma despesa real, então entra normal nas somas de
+    // receita/despesa. Só calcSaldoCC() precisa ignorar, pois o dinheiro
+    // nunca passou pela conta corrente.
+    APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente,pagoDoBolso:true});
+    salvar();atualizarStats();
   }
   // 'manual' = sem lançamento automático
 
@@ -4093,7 +4105,9 @@ function importarCSV(event){
 function calcSaldoCC(){
   // Saldo REAL da conta corrente: aqui as transferências CC↔bolso contam,
   // senão o dinheiro movido para um bolso apareceria em dobro no patrimônio.
-  return somaRecDesp(APP.dados,true).saldo;
+  // Mas pagamentos dados de baixa direto da Poupança (pagoDoBolso) ficam de
+  // fora: esse dinheiro nunca passou pela CC, só pelo bolso.
+  return somaRecDesp(APP.dados.filter(d=>!d.pagoDoBolso),true).saldo;
 }
 
 function setInvMov(m){
