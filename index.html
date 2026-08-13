@@ -2260,6 +2260,15 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="menu-item-sub">Remove todos os registros financeiros</div>
       </div>
     </button>
+    <!-- Ação mais destrutiva do app — fica por último de propósito.
+         Confirmação em 2 etapas em confirmarExcluirConta(). -->
+    <button class="menu-item" onclick="fecharMenu();confirmarExcluirConta()">
+      <div class="menu-item-ico" style="background:rgba(239,68,68,.12)">❌</div>
+      <div class="menu-item-body">
+        <div class="menu-item-label" style="color:var(--danger)">Excluir conta</div>
+        <div class="menu-item-sub">Apaga permanentemente seu cadastro e todos os dados</div>
+      </div>
+    </button>
     </div>
   </div>
 
@@ -2389,6 +2398,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharAssinaturaSheet()">Fechar</button>
+    <!-- Os dois botões abaixo são mutuamente exclusivos: abrirAssinaturaSheet()
+         mostra um OU outro (ou nenhum) conforme `r.acao` do assinaturaResumo(). -->
+    <button class="sh-cancel" id="assin-btn-cancelar" style="display:none;color:var(--danger);border-color:var(--danger)" onclick="assinaturaConfirmarCancelamento()">Cancelar assinatura</button>
     <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaIniciarCheckout(this)">💳 Assinar agora</button>
   </div>
 </div>
@@ -3527,7 +3539,11 @@ async function assinaturaEmailUsuario(){
   }catch(e){ console.error('assinaturaEmailUsuario auth:', e); return ''; }
 }
 
-/* Traduz a linha do banco no que a tela precisa mostrar. */
+/* Traduz a linha do banco no que a tela precisa mostrar.
+   `acao` diz QUAL botão o sheet deve mostrar:
+     'assinar'  → #assin-btn-assinar  (leva ao checkout do Mercado Pago)
+     'cancelar' → #assin-btn-cancelar (cancela a recorrência)
+     null       → nenhum botão de ação (só o "Fechar") */
 function assinaturaResumo(row){
   const status = row?.status || null;
 
@@ -3539,7 +3555,8 @@ function assinaturaResumo(row){
         ? 'Tudo certo por aqui! Próxima cobrança em <strong>'+prox+'</strong>.'
         : 'Tudo certo por aqui! Sua assinatura está em dia.',
       cor: 'var(--teal)',
-      botao: null,
+      acao: 'cancelar',
+      botao: 'Cancelar assinatura',
       alerta: false
     };
   }
@@ -3551,6 +3568,7 @@ function assinaturaResumo(row){
       texto: 'Acesso cortesia — obrigado por fazer parte! 🎁'
         + (ate ? '<br>Válido até <strong>'+ate+'</strong>.' : ''),
       cor: 'var(--gold)',
+      acao: null,          /* cortesia não tem o que assinar nem o que cancelar */
       botao: null,
       alerta: false
     };
@@ -3561,6 +3579,7 @@ function assinaturaResumo(row){
       titulo: 'Pagamento pendente ⚠️',
       texto: 'Não conseguimos confirmar o último pagamento da sua assinatura. Regularize para continuar com o acesso completo.',
       cor: 'var(--danger)',
+      acao: 'assinar',
       botao: 'Assinar agora',
       alerta: true
     };
@@ -3571,6 +3590,7 @@ function assinaturaResumo(row){
       titulo: 'Assinatura cancelada',
       texto: 'Sua assinatura está cancelada. Você pode reativar quando quiser — seus dados continuam aqui.',
       cor: 'var(--danger)',
+      acao: 'assinar',
       botao: 'Reativar',
       alerta: true
     };
@@ -3585,6 +3605,7 @@ function assinaturaResumo(row){
       texto: 'Você está no período de teste grátis — faltam <strong>'
              + dias + (dias === 1 ? ' dia' : ' dias') + '</strong>.',
       cor: 'var(--purple)',
+      acao: 'assinar',
       botao: 'Assinar agora',
       alerta: false
     };
@@ -3593,6 +3614,7 @@ function assinaturaResumo(row){
     titulo: 'Teste grátis encerrado',
     texto: 'Seu período de teste chegou ao fim. Assine para manter o acesso completo ao Bússola Finance.',
     cor: 'var(--danger)',
+    acao: 'assinar',
     botao: 'Assinar agora',
     alerta: true
   };
@@ -3602,10 +3624,15 @@ async function abrirAssinaturaSheet(){
   if(typeof fecharMenu === 'function') fecharMenu();
   if(!window._sbUID) return toast('⚠️ Faça login para ver sua assinatura.', true);
 
-  const corpo = document.getElementById('assin-corpo');
-  const btn   = document.getElementById('assin-btn-assinar');
+  const corpo   = document.getElementById('assin-corpo');
+  const btn     = document.getElementById('assin-btn-assinar');
+  const btnCanc = document.getElementById('assin-btn-cancelar');
   if(corpo) corpo.innerHTML = 'Carregando...';
-  if(btn){ btn.style.display = 'none'; btn.disabled = false; }
+  /* Enquanto carrega, nenhum dos dois botões aparece — só depois de saber o
+     status é que sabemos qual faz sentido. */
+  if(btn){     btn.style.display     = 'none'; btn.disabled     = false; }
+  if(btnCanc){ btnCanc.style.display = 'none'; btnCanc.disabled = false;
+               btnCanc.textContent   = 'Cancelar assinatura'; }
 
   document.getElementById('sh-assinatura-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh-assinatura').classList.add('show'),10);
@@ -3621,9 +3648,21 @@ async function abrirAssinaturaSheet(){
       + 'Plano mensal — R$ 19,90/mês, com 7 dias de teste grátis. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
       + '</div>';
   }
-  if(btn && r.botao){
+  /* Um botão de ação por vez, conforme `r.acao`:
+       'assinar'  → checkout (roxo/primário)
+       'cancelar' → cancelamento (vermelho, com confirmação antes)
+       null       → nenhum (ex.: cortesia) — sobra só o "Fechar" */
+  if(r.acao === 'assinar' && btn && r.botao){
     btn.textContent = '💳 ' + r.botao;
     btn.style.display = '';
+    if(btnCanc) btnCanc.style.display = 'none';
+  } else if(r.acao === 'cancelar' && btnCanc){
+    btnCanc.textContent = r.botao || 'Cancelar assinatura';
+    btnCanc.style.display = '';
+    if(btn) btn.style.display = 'none';
+  } else {
+    if(btn)     btn.style.display     = 'none';
+    if(btnCanc) btnCanc.style.display = 'none';
   }
 }
 
@@ -3672,6 +3711,69 @@ async function assinaturaIniciarCheckout(botaoEl){
     console.error('assinaturaIniciarCheckout error:', e);
     if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
     toast('⚠️ Erro de conexão ao abrir o checkout.', true);
+  }
+}
+
+/* ── Cancelamento de assinatura (confirmação + execução) ──
+   Etapa 1: confirma com o usuário (reaproveita o dialog universal). */
+function assinaturaConfirmarCancelamento(){
+  confirmar({
+    icone:'⚠️',
+    titulo:'Cancelar assinatura?',
+    msg:'Você vai perder o acesso completo ao fim do período já pago. Pode assinar de novo quando quiser.',
+    btnTxt:'Cancelar assinatura',
+    cor:'var(--danger)',
+    fn: assinaturaExecutarCancelamento
+  });
+}
+
+/* Etapa 2: chama a Netlify Function, que cancela a recorrência no Mercado
+   Pago e marca `assinaturas.status = 'cancelado'`.
+   Comportamento esperado:
+     • sem uid (sessão morta) ..... toast de erro, não chama a function
+     • HTTP != 200 ................ toast genérico; o motivo real fica no log
+                                    do servidor (nunca expomos detalhe do MP)
+     • 200 { jaEstavaCancelada } .. tratado como sucesso (é idempotente)
+     • 200 { ok:true } ............ toast de sucesso, fecha o sheet e
+                                    reavalia o status pro banner refletir */
+async function assinaturaExecutarCancelamento(){
+  const uid = window._sbUID;
+  if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+
+  const btn = document.getElementById('assin-btn-cancelar');
+  const txtOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Cancelando...'; }
+
+  try{
+    const resp = await fetch('/.netlify/functions/cancelar-assinatura', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid })
+    });
+
+    let data = null;
+    try{ data = await resp.json(); }catch(e){ data = null; }
+
+    if(!resp.ok || !data?.ok){
+      console.error('assinaturaExecutarCancelamento falhou:', resp.status, data);
+      if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+      return toast(data?.erro || '⚠️ Não foi possível cancelar agora. Tente novamente em instantes.', true);
+    }
+
+    if(data.jaEstavaCancelada) console.log('assinaturaExecutarCancelamento: já estava cancelada (idempotente)');
+
+    if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+    toast('✅ Assinatura cancelada.');
+    fecharAssinaturaSheet();
+
+    /* Re-verifica o status pra UI não continuar mostrando "ativo".
+       verificarStatusAssinatura() busca a linha de novo e, com status
+       'cancelado', acende o banner de aviso. */
+    try{ await verificarStatusAssinatura(); }catch(e){ console.error('refresh status pós-cancelamento:', e); }
+  }catch(e){
+    console.error('assinaturaExecutarCancelamento error:', e);
+    if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+    toast('⚠️ Erro de conexão ao cancelar a assinatura.', true);
   }
 }
 
@@ -3843,6 +3945,21 @@ function authEntrar(){
   // Esta função não é mais chamada diretamente
 }
 
+/* Logout puro, SEM diálogo de confirmação.
+   Extraído de authDesconectar() pra poder ser reaproveitado por quem já
+   confirmou com o usuário por outro caminho — hoje, excluirContaExecutar():
+   depois de apagar a conta não faz sentido perguntar "quer desconectar?",
+   a sessão TEM que morrer. */
+async function authSairAgora(){
+  // SignOut + reload garante estado limpo para o próximo login
+  try { await _supa.auth.signOut(); } catch(e){ console.error('signOut error:',e); }
+  // Força limpeza de sessão no localStorage
+  Object.keys(localStorage).forEach(k => {
+    if(k.startsWith('sb-') || k.includes('supabase')) localStorage.removeItem(k);
+  });
+  location.reload();
+}
+
 async function authDesconectar(){
   fecharMenu();
   confirmar({
@@ -3851,15 +3968,7 @@ async function authDesconectar(){
     msg:'Você será desconectado. Seus dados ficam salvos no Supabase.',
     btnTxt:'Desconectar',
     cor:'var(--purple)',
-    fn: async ()=>{
-      // SignOut + reload garante estado limpo para o próximo login
-      try { await _supa.auth.signOut(); } catch(e){ console.error('signOut error:',e); }
-      // Força limpeza de sessão no localStorage
-      Object.keys(localStorage).forEach(k => {
-        if(k.startsWith('sb-') || k.includes('supabase')) localStorage.removeItem(k);
-      });
-      location.reload();
-    }
+    fn: authSairAgora
   });
 }
 
@@ -4492,6 +4601,81 @@ function confirmarLimparFinal(){
   });
 }
 function limparTudo(){ APP.dados=[]; salvar(); renderLista(); atualizarStats(); toast('🗑 Lançamentos removidos'); }
+
+/* ── Excluir conta (confirmação em 2 etapas — mesmo padrão de confirmarLimpar,
+      só que mais sério: aqui não sobra nada, nem o cadastro) ── */
+function confirmarExcluirConta(){
+  confirmar({
+    icone:'❌',
+    titulo:'Excluir sua conta?',
+    msg:'Você está prestes a excluir sua conta do Bússola Finance. Deseja continuar?',
+    btnTxt:'Continuar',
+    cor:'var(--danger)',
+    fn: confirmarExcluirContaFinal
+  });
+}
+function confirmarExcluirContaFinal(){
+  confirmar({
+    icone:'⚠️',
+    titulo:'Tem certeza absoluta?',
+    msg:'Esta ação é IRREVERSÍVEL. Seu cadastro, sua assinatura (se houver) e TODOS os seus dados financeiros — lançamentos, planejamentos, bolsos e dívidas — serão apagados permanentemente e não poderão ser recuperados. Exporte um backup (CSV) antes se quiser guardar os dados.',
+    btnTxt:'Sim, excluir minha conta',
+    cor:'var(--danger)',
+    fn: excluirContaExecutar
+  });
+}
+
+/* Chama a Netlify Function que apaga os dados tabela por tabela e remove o
+   usuário do auth.
+   Comportamento esperado:
+     • sem uid (sessão morta) ..... toast de erro, não chama a function
+     • HTTP != 200 ................ toast de erro; NADA foi apagado (a function
+                                    valida o uid antes de tocar em qualquer tabela)
+     • 200 { ok:true } ............ sucesso: os dados JÁ foram apagados no servidor.
+                                    A function devolve 200 mesmo com
+                                    `avisoAuthNaoRemovido:true` (só o usuário do
+                                    auth sobrou, sem dado nenhum) ou com
+                                    `tabelasComErro` — em ambos os casos o certo
+                                    aqui é derrubar a sessão do mesmo jeito, porque
+                                    a conta não existe mais do ponto de vista do app.
+                                    Os detalhes vão pro console pra diagnóstico. */
+async function excluirContaExecutar(){
+  const uid = window._sbUID;
+  if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+
+  try{
+    const resp = await fetch('/.netlify/functions/excluir-conta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid })
+    });
+
+    let data = null;
+    try{ data = await resp.json(); }catch(e){ data = null; }
+
+    if(!resp.ok || !data?.ok){
+      console.error('excluirContaExecutar falhou:', resp.status, data);
+      return toast(data?.erro || '⚠️ Não foi possível excluir a conta agora. Tente novamente em instantes.', true);
+    }
+
+    if(Array.isArray(data.tabelasComErro) && data.tabelasComErro.length){
+      console.error('excluirContaExecutar: tabelas que falharam no servidor:', data.tabelasComErro);
+    }
+    if(data.avisoAuthNaoRemovido){
+      console.error('excluirContaExecutar: dados apagados, mas o usuário NÃO foi removido do auth — ver logs da function.');
+    }
+
+    toast('✅ Conta excluída.');
+    /* Derruba a sessão imediatamente: não dá pra deixar a pessoa "logada"
+       numa conta que acabou de ser apagada. authSairAgora() faz signOut,
+       limpa o localStorage e recarrega — sem perguntar nada (já confirmamos
+       duas vezes acima). O timeout curto é só pro toast aparecer. */
+    setTimeout(()=>{ authSairAgora(); }, 1200);
+  }catch(e){
+    console.error('excluirContaExecutar error:', e);
+    toast('⚠️ Erro de conexão ao excluir a conta.', true);
+  }
+}
 function removerPlan(id){
   const p=APP.plan.find(x=>x.id===id);
   if(!p)return;
