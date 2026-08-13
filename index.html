@@ -1743,7 +1743,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="tab" id="tab-lista" onclick="trocarTab('lista')"><span class="ti">📋</span><span class="tl">Registros</span></div>
   <div class="tab plan-tab" id="tab-plan" onclick="trocarTab('plan')"><span class="ti">📅</span><span class="tl">Planejar</span></div>
   <div class="tab" id="tab-inv" onclick="trocarTab('inv')" style="color:var(--text3)"><span class="ti">👜</span><span class="tl">Carteira</span></div>
-  <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">💳</span><span class="tl">Dívidas</span></div>
+  <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">💳</span><span class="tl">Passivos</span></div>
   <div class="tab" id="tab-dash" onclick="trocarTab('dash')"><span class="ti">📊</span><span class="tl">Dashboard</span></div>
   <div class="tab" id="tab-info" onclick="trocarTab('info')"><span class="ti">🌐</span><span class="tl">Info</span></div>
 </div>
@@ -1789,7 +1789,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="fi" style="margin-bottom:0"><label>💳 Cartão de crédito (opcional)</label><div class="sw"><select id="lanc-cartao-sel" onchange="atualizarVisibilidadeOrigemLanc()">
         <option value="">Nenhum (pagamento normal)</option>
       </select></div></div>
-      <div class="rec-hint" id="lanc-cartao-hint" style="display:none;margin:10px 0 0">💳 A compra entra em Registros e no Dashboard como despesa, mas <strong>não debita a Conta Corrente nem a Poupança agora</strong> — só acumula no cartão até você pagar a fatura na aba Dívidas.</div>
+      <div class="rec-hint" id="lanc-cartao-hint" style="display:none;margin:10px 0 0">💳 A compra entra em Registros e no Dashboard como despesa, mas <strong>não debita a Conta Corrente nem a Poupança agora</strong> — só acumula no cartão até você pagar a fatura na aba Passivos.</div>
     </div>
     <!-- PAGAMENTO DE DÍVIDA (só aparece quando existe dívida cadastrada) -->
     <div class="rec-box" id="lanc-divida-box" style="display:none">
