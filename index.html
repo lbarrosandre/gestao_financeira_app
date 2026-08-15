@@ -1680,6 +1680,12 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       </div>
       <div class="fi"><label>Objetivo de uso do app</label><textarea id="perfil-objetivo" placeholder="Ex: quero controlar meus gastos mensais e sair das dívidas" maxlength="280" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.85rem;padding:9px 12px;outline:none;width:100%;resize:none;min-height:70px"></textarea></div>
       <button class="btn-auth-next" onclick="salvarCompletarPerfil()">💾 Salvar e continuar</button>
+      <!-- Sem isso, quem abandona o cadastro aqui (fecha o app no meio) fica
+           preso nesta tela pra sempre: authLiberarApp() sempre reabre este
+           gate enquanto o perfil não estiver completo, e não havia saída. -->
+      <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="auth-link" onclick="authDesconectar()">Sair e entrar com outra conta</button>
+      </div>
     </div>
 
     <!-- FORM: ASSINATURA OBRIGATÓRIA (cartão antes de liberar o app) -->
