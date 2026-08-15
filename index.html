@@ -588,13 +588,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 @keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:none;opacity:1}}
 
 /* ─── TOPBAR ─────────────────────────── */
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:calc(var(--safe-top)+28px) 16px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10;gap:10px}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:calc(var(--safe-top)+56px) 18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10;gap:12px}
 .topbar-brand{display:flex;align-items:center;gap:10px;min-width:0}
-.topbar-logo{width:36px;height:36px;border-radius:10px;overflow:hidden;flex-shrink:0}
+.topbar-logo{width:50px;height:50px;border-radius:14px;overflow:hidden;flex-shrink:0}
 .topbar-logo img{width:100%;height:100%;object-fit:cover}
-.topbar-title{font-size:1rem;font-weight:700;color:var(--text)}
+.topbar-title{font-size:1.15rem;font-weight:700;color:var(--text)}
 .topbar-text{display:flex;flex-direction:column;min-width:0;line-height:1.25}
-.topbar-greeting{font-size:.68rem;font-weight:500;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.topbar-greeting{font-size:.78rem;font-weight:500;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .topbar-ver{font-size:.62rem;font-weight:600;background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:2px 8px;border-radius:20px;flex-shrink:0}
 .topbar-actions{display:flex;gap:7px;align-items:center;flex-shrink:0}
 .btn-top{display:flex;align-items:center;gap:5px;border:none;border-radius:9px;padding:8px 12px;font-family:var(--sans);font-size:.75rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s}
@@ -970,8 +970,8 @@ body.light .tab .ti{background:linear-gradient(145deg,#fff,var(--surface2));box-
 }
 .stats-eye:active{color:var(--text)}
 .statsbar{position:relative}
-.stat .s-val.hidden-val::after{content:'••••';font-family:var(--mono)}
-.stat .s-val.hidden-val .val-txt{display:none}
+.s-val.hidden-val::after{content:'••••';font-family:var(--mono)}
+.s-val.hidden-val .val-txt{display:none}
 /* ─── RECOVERY ───────────────────────── */
 .btn-forgot{
   display:block;width:100%;margin-top:10px;padding:0;border:none;background:none;
@@ -1120,11 +1120,11 @@ body.light .tab .ti{background:linear-gradient(145deg,#fff,var(--surface2));box-
 }
 
 /* ─── HAMBURGER BUTTON ───────────────── */
-.btn-ham{display:flex;flex-direction:column;justify-content:center;gap:5px;width:38px;height:38px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);cursor:pointer;padding:9px 8px;flex-shrink:0;transition:all .15s}
+.btn-ham{display:flex;flex-direction:column;justify-content:center;gap:5px;width:52px;height:52px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);cursor:pointer;padding:12px 11px;flex-shrink:0;transition:all .15s}
 .btn-ham span{display:block;height:2px;border-radius:1px;background:var(--text2);transition:all .25s}
 .btn-ham:active{transform:scale(.94)}
 /* Avatar no lugar do hambúrguer */
-.btn-ham-av{display:none;width:32px;height:32px;border-radius:50%;object-fit:cover}
+.btn-ham-av{display:none;width:46px;height:46px;border-radius:50%;object-fit:cover}
 .btn-ham.has-av{padding:2px;gap:0;align-items:center;border-radius:50%;background:none}
 .btn-ham.has-av span{display:none}
 .btn-ham.has-av .btn-ham-av{display:block}
@@ -1424,6 +1424,14 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   /* Posicionamento explícito — independe da ordem no DOM */
   .update-banner{grid-column:1/-1;grid-row:1}
   .topbar       {grid-column:1/-1;grid-row:2;padding:calc(var(--safe-top)+13px) 24px 13px}
+  /* O aumento de logo/título/saudação/hambúrguer/avatar (linhas ~591-1130) foi
+     pedido só pro mobile (dificuldade de toque em telas pequenas) — no desktop
+     não faz sentido, então os tamanhos originais voltam aqui. */
+  .topbar-logo  {width:36px;height:36px;border-radius:10px}
+  .topbar-title {font-size:1rem}
+  .topbar-greeting{font-size:.68rem}
+  .btn-ham      {width:38px;height:38px;padding:9px 8px}
+  .btn-ham-av   {width:32px;height:32px}
   .tabs         {grid-column:1;grid-row:3/-1}
   .notif-banner {grid-column:2;grid-row:3;padding:12px 24px}
   .statsbar     {grid-column:2;grid-row:4}
@@ -1739,7 +1747,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </div>
   </div>
   <div class="topbar-actions">
-    <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores" style="position:static;transform:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+    <button class="stats-eye" id="btn-eye" onclick="toggleValores()" title="Mostrar/ocultar valores" style="position:static;transform:none"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
     <button class="btn-ham" id="btn-ham" onclick="abrirMenu()" aria-label="Menu">
       <span></span><span></span><span></span>
       <img class="btn-ham-av" id="ham-avatar-img" alt="">
@@ -1784,11 +1792,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 </div>
 
 <div class="tabs">
+  <div class="tab" id="tab-inv" onclick="trocarTab('inv')" style="color:var(--text3)"><span class="ti">👜</span><span class="tl">Carteira</span></div>
+  <div class="tab plan-tab" id="tab-plan" onclick="trocarTab('plan')"><span class="ti">📅</span><span class="tl">Planejar</span></div>
+  <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">💳</span><span class="tl">Passivos</span></div>
   <div class="tab ativo" id="tab-form" onclick="trocarTab('form')"><span class="ti">＋</span><span class="tl">Lançar</span></div>
   <div class="tab" id="tab-lista" onclick="trocarTab('lista')"><span class="ti">📋</span><span class="tl">Registros</span></div>
-  <div class="tab plan-tab" id="tab-plan" onclick="trocarTab('plan')"><span class="ti">📅</span><span class="tl">Planejar</span></div>
-  <div class="tab" id="tab-inv" onclick="trocarTab('inv')" style="color:var(--text3)"><span class="ti">👜</span><span class="tl">Carteira</span></div>
-  <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">💳</span><span class="tl">Passivos</span></div>
   <div class="tab" id="tab-dash" onclick="trocarTab('dash')"><span class="ti">📊</span><span class="tl">Dashboard</span></div>
   <div class="tab" id="tab-info" onclick="trocarTab('info')"><span class="ti">🌐</span><span class="tl">Info</span></div>
 </div>
@@ -4354,13 +4362,14 @@ function init(){
   document.getElementById('sheet-data-pag').value=hISO;
   document.getElementById('inv-data-mv').value=hISO;
   const mi=hoje.getMonth();
-  document.getElementById('inp-mes').selectedIndex=Math.min(mi,11);
-  document.getElementById('plan-mes').selectedIndex=Math.min(mi,11);
+  document.getElementById('inp-mes').value=MESES[mi];
+  document.getElementById('plan-mes').value=MESES[mi];
   buildMesesGrid();
   // Espelha em Registros os pagamentos de dívida antigos (idempotente).
   migrarPagamentosDividaParaRegistros();
   renderLista();renderPlan();atualizarStats();atualizarStatsPlan();
   renderInvestimentos();renderDividas();populateDashFilters();
+  document.getElementById('df-mes').value=MESES[hoje.getMonth()];
   atualizarVisibilidadeCheckboxDivida();
   atualizarVisibilidadeCartaoLanc();
   atualizarVisibilidadeOrigemLanc();
@@ -4742,14 +4751,11 @@ function toggleValores(){
   aplicarVisibilidade();
 }
 function aplicarVisibilidade(){
-  ['stat-rec','stat-desp','stat-saldo'].forEach(id=>{
-    const el=document.getElementById(id);
-    el.classList.toggle('hidden-val',!valoresVisiveis);
-  });
+  document.querySelectorAll('.s-val').forEach(el=>el.classList.toggle('hidden-val',!valoresVisiveis));
   const eye=document.getElementById('btn-eye');
   if(eye)eye.innerHTML=valoresVisiveis
-    ?'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
-    :'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    ?'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+    :'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 }
 
 function remover(id){
@@ -5225,8 +5231,10 @@ function atualizarSaldoCCDisplay(){
   const el=document.getElementById('inv-cc-saldo-disp');
   if(!el)return;
   const saldo=calcSaldoCC();
-  el.textContent='R$ '+Math.abs(saldo).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  el.innerHTML='<span class="val-txt">R$ '+Math.abs(saldo).toLocaleString('pt-BR',{minimumFractionDigits:2})+'</span>';
+  el.classList.add('s-val');
   el.style.color=saldo>=0?'var(--teal)':'var(--danger)';
+  aplicarVisibilidade();
 }
 
 function criarBolso(){
@@ -5335,18 +5343,18 @@ function abrirBolsoDetalhe(id){
     </div>
     <div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:14px;text-align:center">
       <div style="font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Saldo atual</div>
-      <div style="font-family:var(--mono);font-size:1.5rem;color:var(--teal);font-weight:500">R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+      <div class="s-val" style="font-family:var(--mono);font-size:1.5rem;color:var(--teal);font-weight:500"><span class="val-txt">R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
       ${b.meta?`<div style="font-size:.65rem;color:var(--text3);margin-top:4px">Meta: R$ ${b.meta.toLocaleString('pt-BR',{minimumFractionDigits:0})} · ${pct}% atingido</div>`:''}
     </div>
     ${b.meta?`<div class="bolso-prog" style="margin-bottom:14px;height:6px"><div class="bolso-prog-bar" style="width:${pct}%;background:${pct>=100?'var(--teal)':'var(--accent)'}"></div></div>`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
       <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center">
         <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Entradas</div>
-        <div style="font-family:var(--mono);font-size:.88rem;color:var(--teal)">+ R$ ${(b.movimentos||[]).filter(m=>m.tipo==='deposito').reduce((s,m)=>s+m.valor,0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <div class="s-val" style="font-family:var(--mono);font-size:.88rem;color:var(--teal)"><span class="val-txt">+ R$ ${(b.movimentos||[]).filter(m=>m.tipo==='deposito').reduce((s,m)=>s+m.valor,0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
       </div>
       <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center">
         <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Saídas</div>
-        <div style="font-family:var(--mono);font-size:.88rem;color:var(--danger)">- R$ ${(b.movimentos||[]).filter(m=>m.tipo==='retirada').reduce((s,m)=>s+m.valor,0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <div class="s-val" style="font-family:var(--mono);font-size:.88rem;color:var(--danger)"><span class="val-txt">- R$ ${(b.movimentos||[]).filter(m=>m.tipo==='retirada').reduce((s,m)=>s+m.valor,0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
       </div>
     </div>
     <div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px">Últimos movimentos</div>
@@ -5358,7 +5366,7 @@ function abrirBolsoDetalhe(id){
             <div class="bmv-desc">${m.desc}</div>
             <div class="bmv-data">${m.data?m.data.split('-').reverse().join('/'):'—'} · ${m.origemCC?'🏦 via CC':'📥 Direto'}</div>
           </div>
-          <div class="bmv-val" style="color:${m.tipo==='deposito'?'var(--teal)':'var(--danger)'}">${m.tipo==='deposito'?'+':'-'} R$ ${m.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+          <div class="bmv-val s-val" style="color:${m.tipo==='deposito'?'var(--teal)':'var(--danger)'}"><span class="val-txt">${m.tipo==='deposito'?'+':'-'} R$ ${m.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
         </div>`).join('')
       :'<div style="text-align:center;color:var(--text3);font-size:.78rem;padding:20px 0">Nenhum movimento ainda.</div>'}
     </div>
@@ -5368,9 +5376,10 @@ function abrirBolsoDetalhe(id){
         <input type="number" id="bolso-rend-inp" value="${b.rendimento||0}" min="0" max="100" step="0.01" placeholder="0.00" style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:.9rem;padding:9px 12px;outline:none">
         <button onclick="salvarRendimento(${b.id})" style="background:var(--accent);border:none;border-radius:var(--r);padding:10px 16px;color:#fff;font-family:var(--sans);font-weight:700;font-size:.82rem;cursor:pointer">Salvar</button>
       </div>
-      ${b.rendimento?`<div style="margin-top:8px;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.15);border-radius:8px;padding:8px 11px;font-size:.72rem;color:var(--text3)">📈 Projeção em 12 meses: <span style="color:var(--teal);font-family:var(--mono)">R$ ${(b.saldo*Math.pow(1+b.rendimento/100,12)).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>`:'' }
+      ${b.rendimento?`<div style="margin-top:8px;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.15);border-radius:8px;padding:8px 11px;font-size:.72rem;color:var(--text3)">📈 Projeção em 12 meses: <span class="s-val" style="color:var(--teal);font-family:var(--mono)"><span class="val-txt">R$ ${(b.saldo*Math.pow(1+b.rendimento/100,12)).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></span></div>`:'' }
     </div>
   `;
+  aplicarVisibilidade();
   document.getElementById('bolso-ov').classList.add('show');
   setTimeout(()=>document.getElementById('bolso-detalhe').classList.add('show'),10);
 }
@@ -5399,18 +5408,18 @@ function renderInvestimentos(){
   pw.innerHTML=`
     <div class="inv-saldo-card" style="margin-bottom:10px">
       <div class="inv-saldo-label">Patrimônio total</div>
-      <div class="inv-saldo-val" style="color:${totalPatrimonio>=0?'var(--teal)':'var(--danger)'}">R$ ${Math.abs(totalPatrimonio).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+      <div class="inv-saldo-val s-val" style="color:${totalPatrimonio>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(totalPatrimonio).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
       <div class="inv-saldo-sub">Conta corrente + bolsos</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
         <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">🏦 Conta corrente</div>
-        <div style="font-family:var(--mono);font-size:1rem;font-weight:500;color:${saldoCC>=0?'var(--teal)':'var(--danger)'}">R$ ${Math.abs(saldoCC).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:${saldoCC>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(saldoCC).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
         <div style="font-size:.62rem;color:var(--text3);margin-top:3px">Baseado nos Registros</div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--teal)">
         <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">💰 Total em bolsos</div>
-        <div style="font-family:var(--mono);font-size:1rem;font-weight:500;color:var(--teal)">R$ ${totalBolsos.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:var(--teal)"><span class="val-txt">R$ ${totalBolsos.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
         <div style="font-size:.62rem;color:var(--text3);margin-top:3px">${APP.bolsos.length} bolso${APP.bolsos.length!==1?'s':''}</div>
       </div>
     </div>`;
@@ -5429,6 +5438,7 @@ function renderInvestimentos(){
   const g=document.getElementById('bolsos-grid');
   if(!APP.bolsos.length){
     g.innerHTML='<div class="empty" style="grid-column:1/-1;padding:20px 0"><div class="empty-v">🏦</div><h4>Nenhum bolso criado</h4><p style="font-size:.75rem">Crie seu primeiro bolso abaixo.</p></div>';
+    aplicarVisibilidade();
     return;
   }
   g.innerHTML=APP.bolsos.map(b=>{
@@ -5436,11 +5446,12 @@ function renderInvestimentos(){
     return`<div class="bolso-card ${b.cor}" onclick="abrirBolsoDetalhe(${b.id})">
       <div class="bolso-ico">${b.ico}</div>
       <div class="bolso-nome">${b.nome}</div>
-      <div class="bolso-val">R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+      <div class="bolso-val s-val"><span class="val-txt">R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
       ${b.meta?`<div class="bolso-meta">${pct}% de R$ ${(b.meta/1000).toLocaleString('pt-BR',{maximumFractionDigits:0})}k</div>`:''}
       ${b.meta?`<div class="bolso-prog"><div class="bolso-prog-bar" style="width:${pct}%"></div></div>`:''}
     </div>`;
   }).join('');
+  aplicarVisibilidade();
 }
 
 // Vincular bolso ao adicionar lançamento
