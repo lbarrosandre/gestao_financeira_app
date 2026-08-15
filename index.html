@@ -1843,6 +1843,19 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
 </div>
 
+<!-- Propaganda discreta de upgrade — só para quem está no plano Básico.
+     Mesma mecânica dos banners irmãos: some por sessão (sessionStorage). -->
+<div class="notif-banner" id="basico-ad-banner" onclick="assinaturaAbrirPlanos()">
+  <button class="notif-banner-close" onclick="event.stopPropagation();fecharBasicoAdBanner()" aria-label="Fechar aviso">✕</button>
+  <div class="notif-banner-title">💎 Desbloqueie mais recursos</div>
+  <div class="notif-banner-list">
+    <div class="notif-banner-item">
+      <span>👉</span>
+      <span>Transações ilimitadas, Dashboard com Insights e muito mais — a partir de R$9,90/mês.</span>
+    </div>
+  </div>
+</div>
+
 <div class="statsbar">
   <div class="stat"><div class="s-label">Receitas</div><div class="s-val" id="stat-rec" style="color:var(--teal)"><span class="val-txt">R$ 0,00</span></div></div>
   <div class="stat"><div class="s-label">Despesas</div><div class="s-val" id="stat-desp" style="color:var(--danger)"><span class="val-txt">R$ 0,00</span></div></div>
@@ -3240,14 +3253,19 @@ async function authLiberarApp(user, revelarUI){
      usuário do plano Básico — grátis, sem cartão, sem gate. TODO mundo entra
      no app; a tela de planos (#form-assinatura) só abre por ação do usuário.
      A linha fica em cache global pras telas de limite/paywall consultarem
-     (Fase B, ainda não implementada) sem re-consultar o Supabase. */
+     sem re-consultar o Supabase — sempre via planoEfetivo(), nunca lendo
+     _assinaturaAtual.plano direto. */
   const assinRow = await assinaturaBuscar();
   window._assinaturaAtual = assinRow;
 
   /* Aviso de assinatura (banner discreto, só 'atrasado'/'cancelado').
      Não bloqueia nem atrasa o login: roda solto e falha em silêncio. */
   if (typeof verificarStatusAssinatura === 'function') {
-    verificarStatusAssinatura(assinRow).catch(e => console.error('verificarStatusAssinatura:', e));
+    verificarStatusAssinatura(assinRow)
+      .catch(e => console.error('verificarStatusAssinatura:', e))
+      // Propaganda de upgrade do Básico: só DEPOIS do aviso acima decidir se
+      // vai aparecer, porque os dois banners não convivem (ver mostrarBasicoAdBanner).
+      .then(() => { try{ mostrarBasicoAdBanner(); }catch(e){ console.error('mostrarBasicoAdBanner:', e); } });
   }
 
   await revelarApp(user, revelarUI);
@@ -3834,6 +3852,56 @@ async function salvarPerfilEdicao(){
 ════════════════════════════════════════ */
 
 const ASSIN_BANNER_KEY = 'bussola_assin_banner_dismissed';
+const BASICO_AD_BANNER_KEY = 'bussola_basico_ad_fechado';
+
+/* ═══ MOTOR DE LIMITES POR PLANO (Fase B) ═══
+   Fonte única de verdade sobre "quem tem direito a quê". Toda checagem de
+   limite/paywall no app passa por planoEfetivo() — nunca leia
+   window._assinaturaAtual.plano direto, senão um plano pago com pagamento
+   atrasado continuaria valendo. */
+
+/* Plano efetivo de acesso: só 'ativo'/'cortesia' valem o plano contratado.
+   Qualquer outro status (trial, atrasado, cancelado, ou sem linha nenhuma)
+   cai pro Básico — é o comportamento correto: pagamento atrasado ou
+   cancelado não deve manter acesso pago indefinidamente. */
+function planoEfetivo(){
+  const r = window._assinaturaAtual;
+  if(!r) return 'basico';
+  if(r.status==='ativo' || r.status==='cortesia') return r.plano || 'basico';
+  return 'basico';
+}
+
+const LIMITE_TRANSACOES_BASICO = 35;
+const LIMITE_BOLSOS_BASICO     = 1;
+const LIMITE_CARTOES_PLUS      = 1;
+
+/* Conta lançamentos do MÊS ATUAL (mesmo vocabulário 'mmm/aa' usado em toda
+   parte, ex: MESES[new Date().getMonth()]). Independe de qualquer filtro de
+   tela — é sempre o mês corrente de verdade. */
+function transacoesMesAtual(){
+  const mesAtual = MESES[new Date().getMonth()];
+  return APP.dados.filter(d=>d.mes===mesAtual).length;
+}
+
+/* Mostra uma tela de "isso é plano X" dentro do pane, no lugar do conteúdo
+   normal. `paneId` é o container inteiro da aba (ex: 'pane-dash') — ele é
+   sobrescrito por completo, então isso só deve ser chamado quando a aba
+   está bloqueada (nunca em paralelo com o render de verdade).
+   LIMITAÇÃO CONHECIDA: se o usuário assinar DURANTE a sessão (sem dar F5), o
+   pane bloqueado só volta ao conteúdo real depois de um reload — o innerHTML
+   de fallback não é desfeito sozinho aqui. */
+function renderBloqueioPlano(paneId, icone, tituloRecurso, planoNecessario){
+  const el = document.getElementById(paneId);
+  if(!el) return;
+  const rotulo = planoNecessario==='premium' ? 'Premium (R$14,99/mês)' : 'Plus (R$9,90/mês) ou Premium (R$14,99/mês)';
+  el.innerHTML = `
+    <div class="empty" style="padding:60px 20px;text-align:center">
+      <div class="empty-v" style="font-size:2.4rem;margin-bottom:10px">${icone}</div>
+      <h4 style="margin-bottom:6px">${tituloRecurso} é exclusivo do plano ${planoNecessario==='premium'?'Premium':'Plus/Premium'}</h4>
+      <p style="font-size:.8rem;color:var(--text3);margin-bottom:18px">Assine o ${rotulo} para desbloquear.</p>
+      <button class="btn-add azul" style="max-width:260px;margin:0 auto" onclick="assinaturaAbrirPlanos()">💎 Ver planos</button>
+    </div>`;
+}
 
 async function assinaturaBuscar(){
   const uid = window._sbUID;
@@ -4165,6 +4233,22 @@ async function verificarStatusAssinatura(rowConhecida){
 function fecharAssinBanner(){
   document.getElementById('assin-banner')?.classList.remove('show');
   try{ sessionStorage.setItem(ASSIN_BANNER_KEY,'1'); }catch(e){}
+}
+
+/* Propaganda de upgrade — só pra quem está efetivamente no Básico, uma vez
+   por sessão. Se o banner de assinatura (atrasado/cancelado) está na tela,
+   este NÃO aparece: seriam dois avisos empilhados dizendo quase a mesma
+   coisa, e regularizar o pagamento é a mensagem mais urgente das duas. */
+function mostrarBasicoAdBanner(){
+  if(planoEfetivo()!=='basico') return;
+  try{ if(sessionStorage.getItem(BASICO_AD_BANNER_KEY)) return; }catch(e){}
+  if(document.getElementById('assin-banner')?.classList.contains('show')) return;
+  document.getElementById('basico-ad-banner')?.classList.add('show');
+}
+
+function fecharBasicoAdBanner(){
+  document.getElementById('basico-ad-banner')?.classList.remove('show');
+  try{ sessionStorage.setItem(BASICO_AD_BANNER_KEY,'1'); }catch(e){}
 }
 
 /* ═══ TELA DE ASSINATURA / UPGRADE (#form-assinatura) ═══
@@ -4578,10 +4662,22 @@ function trocarTab(t){
   if(t==='lista')renderLista();
   if(t==='plan')renderPlan();
   if(t==='inv'){renderInvestimentos();onInvOrigemChange();}
+  // Abas exclusivas de plano superior: quando o plano não atende, o pane
+  // recebe a tela de bloqueio NO LUGAR do conteúdo e o render real NÃO roda
+  // (ele populava ids que acabaram de ser removidos do DOM).
   // A aba Dívidas sempre abre na LISTA, nunca no último detalhe visto.
-  if(t==='div')renderDividas();
-  if(t==='dash'){populateDashFilters();renderDash();}
-  if(t==='info')infoInit();
+  if(t==='div'){
+    if(planoEfetivo()==='basico') renderBloqueioPlano('pane-div','💳','Passivos (Dívidas e Cartão de crédito)','plus');
+    else renderDividas();
+  }
+  if(t==='dash'){
+    if(planoEfetivo()!=='premium') renderBloqueioPlano('pane-dash','📊','O Dashboard','premium');
+    else {populateDashFilters();renderDash();}
+  }
+  if(t==='info'){
+    if(planoEfetivo()!=='premium') renderBloqueioPlano('pane-info','🌐','As cotações ao vivo','premium');
+    else infoInit();
+  }
 }
 
 function setMov(m){
@@ -4853,6 +4949,15 @@ function confirmarExec(){
     bolsoOrigem=APP.bolsos.find(x=>x.id===bid);
     if(!bolsoOrigem)return toast('⚠️ Bolso não encontrado',true);
     if(Math.abs(vr)>bolsoOrigem.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${bolsoOrigem.nome}"`,true);
+  }
+
+  // Executar um plano também gera lançamento em APP.dados → conta no limite do
+  // Básico. Checado ANTES de mutar o plano, senão ele ficaria marcado como
+  // executado sem lançamento nenhum.
+  if(planoEfetivo()==='basico' && transacoesMesAtual()>=LIMITE_TRANSACOES_BASICO){
+    toast(`⚠️ Você atingiu o limite de ${LIMITE_TRANSACOES_BASICO} transações do plano Básico este mês. Assine o Plus ou o Premium para lançar sem limite.`, true);
+    setTimeout(assinaturaAbrirPlanos, 900);
+    return;
   }
 
   p.status='executado';p.valorReal=Math.abs(vr);
@@ -5407,6 +5512,11 @@ function atualizarSaldoCCDisplay(){
 function criarBolso(){
   const nome=document.getElementById('inv-nome').value.trim();
   if(!nome)return toast('⚠️ Informe o nome do bolso',true);
+  if(planoEfetivo()==='basico' && APP.bolsos.length>=LIMITE_BOLSOS_BASICO){
+    toast(`⚠️ O plano Básico permite ${LIMITE_BOLSOS_BASICO} bolso. Assine o Plus ou o Premium para criar quantos quiser.`, true);
+    setTimeout(assinaturaAbrirPlanos, 900);
+    return;
+  }
   const meta=parseCurrency(document.getElementById('inv-meta').value)||0;
   const ico=document.getElementById('inv-ico').value;
   const cor=document.getElementById('inv-cor').value;
@@ -5635,6 +5745,15 @@ function addLancamento(){
   if(!vr||vr<=0)return toast('⚠️ Valor inválido',true);
   if(!tipo)return toast('⚠️ Selecione o tipo',true);
   if(!cat)return toast('⚠️ Selecione a categoria',true);
+
+  // Limite do plano Básico — checado DEPOIS das validações de campo (não faz
+  // sentido falar de limite com o formulário pela metade) e ANTES de criar
+  // qualquer lançamento/parcela.
+  if(planoEfetivo()==='basico' && transacoesMesAtual()>=LIMITE_TRANSACOES_BASICO){
+    toast(`⚠️ Você atingiu o limite de ${LIMITE_TRANSACOES_BASICO} transações do plano Básico este mês. Assine o Plus ou o Premium para lançar sem limite.`, true);
+    setTimeout(assinaturaAbrirPlanos, 900);
+    return;
+  }
 
   // ── Compra no cartão de crédito (opcional) ──
   // Lida ANTES da origem: com cartão escolhido a compra não debita CC nem
@@ -6102,6 +6221,9 @@ function _mostrarViewDiv(qual){
 
 /* ESTADO LISTA: um card por dívida (nome + saldo devedor + % pago). */
 function renderDividas(){
+  // Mesma guarda do renderDash(): no Básico o pane-div carrega a tela de
+  // bloqueio, então nada aqui tem onde escrever.
+  if(planoEfetivo()==='basico') return;
   dividaVisualizandoId=null;dividaEmEdicaoId=null;dividaCriandoNova=false;
   _mostrarViewDiv('lista');
   // A lista de cartões vive na MESMA view: volta para a lista repinta as duas.
@@ -6214,6 +6336,14 @@ function salvarCartao(){
   let alvo=getCartao(cartaoEmEdicaoId);
   if(alvo){alvo.nome=nome;alvo.limite=limite;alvo.diaFechamento=fech;alvo.diaVencimento=venc;}
   else{
+    // Só a CRIAÇÃO de cartão novo tem limite — editar um cartão existente
+    // (bloco `if` acima) nunca é barrado. Básico não chega aqui: a aba
+    // Passivos inteira já é bloqueada pra ele em trocarTab().
+    if(planoEfetivo()==='plus' && APP.cartoes.length>=LIMITE_CARTOES_PLUS){
+      toast(`⚠️ O plano Plus permite ${LIMITE_CARTOES_PLUS} cartão. Assine o Premium para ter cartões ilimitados.`, true);
+      setTimeout(assinaturaAbrirPlanos, 900);
+      return;
+    }
     alvo={id:novoId(),nome,limite,diaFechamento:fech,diaVencimento:venc,criado:new Date().toISOString()};
     APP.cartoes.push(alvo);
   }
@@ -6579,6 +6709,11 @@ function dashFilterDados(){
 }
 
 function renderDash(){
+  // Plano insuficiente: o pane já foi substituído pela tela de bloqueio em
+  // trocarTab(), então os ids (dash-kpi-row, chart-*) não existem mais.
+  // Sem esta guarda, um refresh de dados (sync/realtime → renderDash()) com o
+  // usuário parado na aba bloqueada estouraria TypeError.
+  if(planoEfetivo()!=='premium') return;
   const base=dashFilterDados();
   // Vazio = nada NO UNIVERSO do dashboard (não basta APP.dados ter registros de
   // outros anos, que os gráficos não plotam).
