@@ -248,7 +248,11 @@ function sbLancToApp(r) {
     // (faturaPagamento). Compras não tocam a CC até a fatura ser paga.
     cartaoId: r.cartao_id||null,
     faturaRef: r.fatura_ref||null,
-    faturaPagamento: r.fatura_pagamento||false
+    faturaPagamento: r.fatura_pagamento||false,
+    // Compra parcelada: N lançamentos (um por fatura) amarrados pelo grupo.
+    parcelaGrupoId: r.parcela_grupo_id||null,
+    parcelaNum: r.parcela_num||null,
+    parcelaTotal: r.parcela_total||null
   };
 }
 function sbPlanToApp(r) {
@@ -324,7 +328,10 @@ window._sbSync = async function(patch) {
         pagamento_divida: d.pagamentoDivida||false,
         cartao_id: d.cartaoId||null,
         fatura_ref: d.faturaRef||null,
-        fatura_pagamento: d.faturaPagamento||false
+        fatura_pagamento: d.faturaPagamento||false,
+        parcela_grupo_id: d.parcelaGrupoId||null,
+        parcela_num: d.parcelaNum||null,
+        parcela_total: d.parcelaTotal||null
       }));
       if (rows.length > 0) {
         const { error } = await _supa.from('lancamentos').upsert(rows, { onConflict: 'id' });
@@ -1842,6 +1849,20 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="fi" style="margin-bottom:0"><label>💳 Cartão de crédito (opcional)</label><div class="sw"><select id="lanc-cartao-sel" onchange="atualizarVisibilidadeOrigemLanc()">
         <option value="">Nenhum (pagamento normal)</option>
       </select></div></div>
+      <div class="fi" id="lanc-parcelas-wrap" style="display:none;margin-top:10px"><label>Parcelar em quantas vezes?</label><div class="sw"><select id="lanc-parcelas-sel">
+        <option value="1">À vista (1x)</option>
+        <option value="2">2x</option>
+        <option value="3">3x</option>
+        <option value="4">4x</option>
+        <option value="5">5x</option>
+        <option value="6">6x</option>
+        <option value="7">7x</option>
+        <option value="8">8x</option>
+        <option value="9">9x</option>
+        <option value="10">10x</option>
+        <option value="11">11x</option>
+        <option value="12">12x</option>
+      </select></div></div>
       <div class="rec-hint" id="lanc-cartao-hint" style="display:none;margin:10px 0 0">💳 A compra entra em Registros e no Dashboard como despesa, mas <strong>não debita a Conta Corrente nem a Poupança agora</strong> — só acumula no cartão até você pagar a fatura na aba Passivos.</div>
     </div>
     <!-- PAGAMENTO DE DÍVIDA (só aparece quando existe dívida cadastrada) -->
@@ -2786,6 +2807,15 @@ function calcularFaturaRef(dataISO,cartao){
   return`${prox.getFullYear()}-${String(prox.getMonth()+1).padStart(2,'0')}`;
 }
 
+/* Fatura seguinte de uma referência 'AAAA-MM' (parcelamento: cada parcela cai
+   na fatura do mês seguinte à anterior). new Date(y,m,1) com m 1-based já é o
+   mês seguinte e normaliza dez → jan do ano seguinte sozinho. */
+function proximaFaturaRef(ref){
+  const[y,m]=String(ref||'').split('-').map(Number);
+  const d=new Date(y,m,1);
+  return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
 /* '2026-09' → 'set/26' (mesmo vocabulário de mês usado no resto do app). */
 function faturaRefLabel(ref){
   const p=String(ref||'').split('-');
@@ -3137,6 +3167,9 @@ async function authLiberarApp(user, revelarUI){
     const { data, error } = await _supa.from('profiles').select('*').eq('uid', user.id).maybeSingle();
     if (error) console.error('authLiberarApp perfil select error:', error);
     else { perfil = data; perfilLido = true; }
+    // Cache global: os insights do Dashboard leem o objetivo daqui sem
+    // precisar re-consultar o Supabase (fica undefined se a leitura falhar).
+    window._perfilAtual = perfil;
   } catch(e){ console.error('authLiberarApp perfil select error:', e); }
 
   if (perfil?.nome && nameEl) nameEl.textContent = perfil.nome;
@@ -5506,19 +5539,53 @@ function addLancamento(){
   }
 
   const[y,m,d]=data.split('-');
-  const lancId=novoId();
   const comentario=(document.getElementById('inp-comment')?.value||'').trim();
-  const lanc={id:lancId,data:`${d}/${m}/${y}`,dataISO:data,mes,descricao:desc.toUpperCase(),movimento:mov,valor:mov==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:cat,classificacao:mov==='Credito'?'Receita':'Despesas',tipo,comentario:comentario||undefined};
-  if(ehDivida)lanc.pagamentoDivida=true;
-  // Compra no cartão: entra em Registros/Dashboard como despesa normal, mas
-  // NÃO debita CC nem bolso — só acumula na fatura (calcSaldoCC ignora
-  // compras de cartão ainda não pagas).
-  if(cartaoSel){lanc.cartaoId=cartaoSel.id;lanc.faturaRef=calcularFaturaRef(data,cartaoSel);}
-  // Baixa na Poupança: entra em Registros como despesa real, mas fica fora do
-  // saldo da CC (o dinheiro nunca passou pela conta) — igual ao confirmarExec.
-  if(divOrigem==='bolso'){lanc.pagoDoBolso=true;lanc.bolsoId=divBolso.id;}
-  APP.dados.push(lanc);
-  salvar();atualizarStats();
+  // Parcelamento: só existe com cartão selecionado. 1x = fluxo de sempre.
+  const parcelas=cartaoSel?Math.max(1,parseInt(document.getElementById('lanc-parcelas-sel')?.value||'1')||1):1;
+  let lancId,lanc,primeiraFaturaRef='';
+  if(parcelas>1){
+    // Uma compra, N lançamentos (um por fatura). O valor é dividido sem perder
+    // centavo: as N-1 primeiras arredondam para baixo e a ÚLTIMA absorve a
+    // diferença, então Σ parcelas === valor digitado, exatamente.
+    const totalCompra=Math.abs(vr);
+    const valorParcela=Math.floor((totalCompra/parcelas)*100)/100;
+    const valorUltimaParcela=Math.round((totalCompra-valorParcela*(parcelas-1))*100)/100;
+    const parcelaGrupoId='parc_'+Date.now();
+    let faturaRef='';
+    for(let i=0;i<parcelas;i++){
+      const valorEssaParcela=i===parcelas-1?valorUltimaParcela:valorParcela;
+      // Parcela 1 na fatura da data real da compra; as demais, sempre a fatura
+      // anterior + 1 mês.
+      faturaRef=i===0?calcularFaturaRef(data,cartaoSel):proximaFaturaRef(faturaRef);
+      if(i===0)primeiraFaturaRef=faturaRef;
+      const pid=novoId()+i;
+      // mes = mês da FATURA da parcela (não o do formulário, que só valeria
+      // para a 1ª). data/dataISO continuam os da compra em todas elas.
+      const p={id:pid,data:`${d}/${m}/${y}`,dataISO:data,mes:faturaRefLabel(faturaRef),
+        descricao:`${desc.toUpperCase()} (${i+1}/${parcelas})`,movimento:mov,
+        valor:mov==='Debito'?-valorEssaParcela:valorEssaParcela,valorAbs:valorEssaParcela,
+        categoria:cat,classificacao:mov==='Credito'?'Receita':'Despesas',tipo,
+        comentario:comentario||undefined,
+        cartaoId:cartaoSel.id,faturaRef,
+        parcelaGrupoId,parcelaNum:i+1,parcelaTotal:parcelas};
+      APP.dados.push(p);
+      if(i===0){lancId=pid;lanc=p;}
+    }
+    salvar();atualizarStats();
+  } else {
+    lancId=novoId();
+    lanc={id:lancId,data:`${d}/${m}/${y}`,dataISO:data,mes,descricao:desc.toUpperCase(),movimento:mov,valor:mov==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:cat,classificacao:mov==='Credito'?'Receita':'Despesas',tipo,comentario:comentario||undefined};
+    if(ehDivida)lanc.pagamentoDivida=true;
+    // Compra no cartão: entra em Registros/Dashboard como despesa normal, mas
+    // NÃO debita CC nem bolso — só acumula na fatura (calcSaldoCC ignora
+    // compras de cartão ainda não pagas).
+    if(cartaoSel){lanc.cartaoId=cartaoSel.id;lanc.faturaRef=calcularFaturaRef(data,cartaoSel);}
+    // Baixa na Poupança: entra em Registros como despesa real, mas fica fora do
+    // saldo da CC (o dinheiro nunca passou pela conta) — igual ao confirmarExec.
+    if(divOrigem==='bolso'){lanc.pagoDoBolso=true;lanc.bolsoId=divBolso.id;}
+    APP.dados.push(lanc);
+    salvar();atualizarStats();
+  }
   if(cartaoSel&&document.getElementById('pane-div')?.classList.contains('ativo'))renderCartoesUI();
 
   // Qualquer débito com origem = Poupança debita o bolso (dívida ou não).
@@ -5544,7 +5611,8 @@ function addLancamento(){
   if(cartaoSel){
     // Compra no cartão: nenhum dinheiro se moveu agora, então o bolso destino
     // também não se aplica.
-    toast(`✅ Lançado no cartão ${cartaoSel.nome}! Fatura ${faturaRefLabel(lanc.faturaRef)}`,false,true);
+    if(parcelas>1)toast(`✅ Compra parcelada em ${parcelas}x! 1ª fatura: ${faturaRefLabel(primeiraFaturaRef)}`,false,true);
+    else toast(`✅ Lançado no cartão ${cartaoSel.nome}! Fatura ${faturaRefLabel(lanc.faturaRef)}`,false,true);
   } else if(ehDivida){
     toast(`✅ Pagamento de dívida registrado! [${divOrigem==='bolso'?'🐷 Poupança':'🏦 CC'}]`,false,true);
   } else if(divOrigem==='bolso'){
@@ -5730,6 +5798,11 @@ function atualizarVisibilidadeCartaoLanc(){
   const comCartao=mostra&&!!sel?.value;
   const hint=document.getElementById('lanc-cartao-hint');
   if(hint)hint.style.display=comCartao?'block':'none';
+  // Parcelamento só existe com cartão escolhido. Sem cartão o select volta a
+  // 1x — senão sobraria um "3x" de uma seleção anterior invisível no form.
+  const pWrap=document.getElementById('lanc-parcelas-wrap');
+  if(pWrap)pWrap.style.display=comCartao?'block':'none';
+  if(!comCartao){const pSel=document.getElementById('lanc-parcelas-sel');if(pSel)pSel.value='1';}
   // Compra no cartão não é pagamento de dívida: esconde e desmarca o checkbox.
   const dbox=document.getElementById('lanc-divida-box');
   if(dbox){
@@ -5788,6 +5861,8 @@ function resetLancDivida(){
   const w=document.getElementById('lanc-divida-bolso-wrap');if(w)w.style.display='none';
   const cfg=document.getElementById('lanc-divida-cfg');if(cfg)cfg.style.display='none';
   const ct=document.getElementById('lanc-cartao-sel');if(ct)ct.value='';
+  const pS=document.getElementById('lanc-parcelas-sel');if(pS)pS.value='1';
+  const pW=document.getElementById('lanc-parcelas-wrap');if(pW)pW.style.display='none';
   atualizarVisibilidadeOrigemLanc();
 }
 
@@ -6141,7 +6216,11 @@ function renderCartaoDetalhe(cartaoId){
   const pct=limite>0?Math.max(0,Math.min(100,Math.round(saldo/limite*100))):0;
   const alerta=limite>0&&pct>=90;
   const disponivel=Math.max(0,limite-saldo);
-  const qtdAberta=comprasDoCartao(c.id).filter(d=>d.faturaRef===refAberta).length;
+  // Compras da fatura aberta, da mais recente para a mais antiga: o total
+  // sozinho não deixa conferir o que caiu no cartão no período.
+  const comprasAberta=comprasDoCartao(c.id).filter(d=>d.faturaRef===refAberta)
+    .slice().sort((a,b)=>String(b.dataISO||'').localeCompare(String(a.dataISO||'')));
+  const qtdAberta=comprasAberta.length;
   document.getElementById('cartao-hero-wrap').innerHTML=`
     <div class="cartao-hero">
       <div class="divida-hero-top">
@@ -6174,11 +6253,53 @@ function renderCartaoDetalhe(cartaoId){
         <div class="fs">${fechada>0.005?'aguardando pagamento':'nada em atraso'}</div>
       </div>
     </div>
+    ${qtdAberta?`<div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin:0 0 8px">Compras na fatura aberta</div>
+    <div class="bolso-mv-list" style="margin-bottom:12px">
+      ${comprasAberta.map(d=>{
+        // A descrição já vem com "(1/3)" quando é parcelada — tira do texto e
+        // mostra como marcador, para não duplicar o mesmo "(1/3)" na linha.
+        const marca=(Number(d.parcelaTotal)||0)>1?`(${d.parcelaNum}/${d.parcelaTotal})`:'';
+        const descBase=marca&&String(d.descricao||'').endsWith(marca)
+          ?String(d.descricao).slice(0,-marca.length).trim():String(d.descricao||'');
+        return`<div class="bmv">
+          <div class="bmv-ico saida">💳</div>
+          <div class="bmv-info">
+            <div class="bmv-desc">${descBase}${marca?` <span style="color:var(--text3);font-weight:600">${marca}</span>`:''}</div>
+            <div class="bmv-data">${d.data||'—'}</div>
+          </div>
+          <div class="bmv-val s-val" style="color:var(--purple)"><span class="val-txt">R$ ${(Number(d.valorAbs)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+          ${d.parcelaGrupoId?`<button onclick="removerGrupoParcelas('${d.parcelaGrupoId}')" title="Excluir a compra parcelada inteira" style="background:none;border:none;color:var(--danger);font-size:.82rem;cursor:pointer;padding:0 0 0 6px;flex-shrink:0;font-family:var(--sans)">🗑</button>`:''}
+        </div>`;}).join('')}
+    </div>`:''}
     ${fechada>0.005?`<button class="btn-add azul" onclick="abrirPagarFatura()" style="margin-bottom:12px"><span>💰</span> Pagar fatura — R$ ${fechada.toLocaleString('pt-BR',{minimumFractionDigits:2})}</button>`:''}
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <button onclick="abrirCfgCartao(${c.id})" style="display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 12px;color:var(--text3);font-size:.72rem;cursor:pointer;font-family:var(--sans)">⚙️ Editar cartão</button>
       <button onclick="excluirCartao(${c.id})" style="display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 12px;color:var(--danger);font-size:.72rem;cursor:pointer;font-family:var(--sans)">🗑 Excluir</button>
     </div>`;
+  // A lista de compras traz valores com .s-val: respeita o botão de olho.
+  aplicarVisibilidade();
+}
+
+/* Exclui TODAS as parcelas de uma compra parcelada de uma vez (o botão 🗑 da
+   linha na fatura aberta). Compra de cartão nunca tem vínculo com dívida nem
+   bolso — addLancamento garante isso —, então não há nada a estornar. */
+function removerGrupoParcelas(grupoId){
+  const itens=APP.dados.filter(d=>d.parcelaGrupoId===grupoId);
+  if(!itens.length)return;
+  const total=itens.reduce((s,d)=>s+(Number(d.valorAbs)||0),0);
+  const desc=String(itens[0].descricao||'').replace(/\s*\(\d+\/\d+\)$/,'');
+  confirmar({
+    icone:'💳',
+    titulo:'Excluir compra parcelada?',
+    msg:`"${desc}" — ${itens.length} parcela${itens.length>1?'s':''} · R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})} no total. Todas as parcelas saem das faturas do cartão.`,
+    btnTxt:'Excluir tudo',
+    cor:'var(--danger)',
+    fn:()=>{
+      APP.dados=APP.dados.filter(d=>d.parcelaGrupoId!==grupoId);
+      salvar();atualizarStats();renderCartoesUI();
+      toast('🗑 Compra parcelada removida');
+    }
+  });
 }
 
 /* Re-render que respeita o estado atual da seção de cartões. */
@@ -7035,24 +7156,124 @@ function renderTopStocksBrapi(results){
   }).join('');
 }
 
-/* ═══ DASH INSIGHTS ══════════════════════ */
+/* ═══ DASH INSIGHTS ══════════════════════
+   Tudo é calculado LOCALMENTE a partir de APP.dados/APP.plan/APP.cartoes/
+   APP.dividas — nenhuma chamada de IA ou API externa. Os insights vêm
+   agrupados: metas, principais gastos, comparação com o mês anterior e
+   sugestões. Grupos sem nenhuma linha simplesmente não aparecem. */
 function dashInsights(base){
-  const ins=[];
-  const{taxa}=somaRecDesp(base);
-  if(taxa>=metaEconomia)ins.push({ic:'🏆',txt:`Taxa de economia acima de ${metaEconomia}% — parabéns! Continue assim.`});
-  else if(taxa<0)ins.push({ic:'⚠️',txt:'Suas despesas superam as receitas. Revise os gastos variáveis.'});
-  else ins.push({ic:'💡',txt:`Taxa de economia de ${taxa.toFixed(1)}%. Sua meta é ${metaEconomia}%.`});
-  const byCateg={};
-  base.filter(d=>d.movimento==='Debito').forEach(d=>{byCateg[d.categoria]=(byCateg[d.categoria]||0)+d.valorAbs;});
-  const topCat=Object.entries(byCateg).sort((a,b)=>b[1]-a[1]);
-  if(topCat[0])ins.push({ic:'📌',txt:`Maior gasto: <strong>${topCat[0][0]}</strong> — R$ ${topCat[0][1].toLocaleString('pt-BR',{minimumFractionDigits:2})}`});
+  const alvo=document.getElementById('dash-insights');
+  if(!alvo)return;
+  const fmt=v=>(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  // Descrição de planejamento e objetivo do perfil são texto livre do usuário
+  // e entram via innerHTML — escapa antes de interpolar.
+  const esc=s=>String(s==null?'':s).replace(/[&<>]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+  const grupos=[];
+  const{taxa,rec,desp}=somaRecDesp(base);
+
+  // Mês de referência: o do filtro do dashboard ou, sem filtro, o mês corrente.
+  // O mês anterior é buscado FORA do filtro (base só tem o período filtrado).
+  const fM=document.getElementById('df-mes')?.value||'';
+  const mesAtualLabel=fM||MESES[new Date().getMonth()];
+  const idxAtual=MESES.indexOf(mesAtualLabel);
+  const mesAnteriorLabel=idxAtual>0?MESES[idxAtual-1]:null;
+  const baseAnterior=mesAnteriorLabel
+    ?APP.dados.filter(d=>!d.deBolso&&!d.faturaPagamento&&d.mes===mesAnteriorLabel)
+    :null;
+
+  /* ── 1. Metas do período ── */
+  const metas=[];
+  if(taxa>=metaEconomia)metas.push({ic:'🏆',txt:`Taxa de economia acima de ${metaEconomia}% — parabéns! Continue assim.`});
+  else if(taxa<0)metas.push({ic:'⚠️',txt:'Suas despesas superam as receitas. Revise os gastos variáveis.'});
+  else metas.push({ic:'💡',txt:`Taxa de economia de ${taxa.toFixed(1)}%. Sua meta é ${metaEconomia}%.`});
+  const exec=APP.plan.filter(p=>p.status==='executado'&&p.mes===mesAtualLabel);
+  const estourou=exec.filter(p=>p.movimento==='Debito'&&(Number(p.valorReal)||0)>(Number(p.valorPlanejado)||0))
+    .map(p=>({p,dif:(Number(p.valorReal)||0)-(Number(p.valorPlanejado)||0)}))
+    .sort((a,b)=>b.dif-a.dif)[0];
+  const faltou=exec.filter(p=>p.movimento==='Credito'&&(Number(p.valorReal)||0)<(Number(p.valorPlanejado)||0))
+    .map(p=>({p,dif:(Number(p.valorPlanejado)||0)-(Number(p.valorReal)||0)}))
+    .sort((a,b)=>b.dif-a.dif)[0];
+  if(estourou){
+    const plan=Number(estourou.p.valorPlanejado)||0;
+    const pct=plan>0?Math.round(estourou.dif/plan*100):0;
+    metas.push({ic:'⚠️',txt:`"<strong>${esc(estourou.p.descricao)}</strong>" estourou o planejado em R$ ${fmt(estourou.dif)}${pct?` (${pct}% acima)`:''}.`});
+  }
+  if(faltou)metas.push({ic:'📉',txt:`Receita "<strong>${esc(faltou.p.descricao)}</strong>" ficou R$ ${fmt(faltou.dif)} abaixo do planejado.`});
+  // Só faz sentido elogiar quando havia algo executado para estourar.
+  if(exec.length&&!estourou&&!faltou)metas.push({ic:'✅',txt:'Nenhum item planejado estourou o orçamento neste mês.'});
   const vencidos=APP.plan.filter(p=>p.status==='vencido').length;
-  if(vencidos>0)ins.push({ic:'🔴',txt:`Você tem <strong>${vencidos} pagamento${vencidos>1?'s':''} vencido${vencidos>1?'s':''}</strong> no planejamento.`});
+  if(vencidos>0)metas.push({ic:'🔴',txt:`Você tem <strong>${vencidos} pagamento${vencidos>1?'s':''} vencido${vencidos>1?'s':''}</strong> no planejamento.`});
+  grupos.push({titulo:'🎯 Metas do período',linhas:metas});
+
+  /* ── 2. Principais gastos (top 3 categorias) ── */
+  const byCateg={};
+  base.filter(d=>d.movimento==='Debito').forEach(d=>{byCateg[d.categoria]=(byCateg[d.categoria]||0)+(Number(d.valorAbs)||0);});
+  const topCats=Object.entries(byCateg).sort((a,b)=>b[1]-a[1]);
+  const gastos=topCats.slice(0,3).map(([cat,v],i)=>({
+    ic:i===0?'📌':'▪️',
+    txt:`<strong>${esc(cat)}</strong> — R$ ${fmt(v)}${desp>0?` (${Math.round(v/desp*100)}% do total gasto no período)`:''}`
+  }));
+  if(gastos.length)grupos.push({titulo:'💸 Principais gastos',linhas:gastos});
+
+  /* ── 3. Comparação com o mês anterior ── */
+  let maiorAumento=null;
+  if(baseAnterior&&baseAnterior.length){
+    const ant=somaRecDesp(baseAnterior);
+    const comp=[];
+    const difDesp=desp-ant.desp;
+    if(difDesp<-0.005){
+      const pct=ant.desp>0?Math.round(Math.abs(difDesp)/ant.desp*100):0;
+      comp.push({ic:'🟢',txt:`Você gastou R$ ${fmt(Math.abs(difDesp))} a menos que em ${mesAnteriorLabel}${pct?` (${pct}% de queda)`:''}.`});
+    } else if(difDesp>0.005){
+      const pct=ant.desp>0?Math.round(difDesp/ant.desp*100):0;
+      comp.push({ic:'🔴',txt:`Você gastou R$ ${fmt(difDesp)} a mais que em ${mesAnteriorLabel}${pct?` (${pct}% de aumento)`:''}.`});
+    }
+    const difRec=rec-ant.rec;
+    if(Math.abs(difRec)>0.005)
+      comp.push({ic:'💰',txt:`Receitas ${difRec>0?'subiram':'caíram'} R$ ${fmt(Math.abs(difRec))} em relação a ${mesAnteriorLabel}.`});
+    const antCateg={};
+    baseAnterior.filter(d=>d.movimento==='Debito').forEach(d=>{antCateg[d.categoria]=(antCateg[d.categoria]||0)+(Number(d.valorAbs)||0);});
+    Object.keys(byCateg).forEach(cat=>{
+      const inc=byCateg[cat]-(antCateg[cat]||0);
+      if(inc>0.005&&(!maiorAumento||inc>maiorAumento.inc))maiorAumento={cat,inc};
+    });
+    if(maiorAumento)comp.push({ic:'🔎',txt:`O maior aumento de gasto foi em <strong>${esc(maiorAumento.cat)}</strong>: +R$ ${fmt(maiorAumento.inc)}.`});
+    if(comp.length)grupos.push({titulo:`📊 Comparado a ${mesAnteriorLabel}`,linhas:comp});
+  }
+
+  /* ── 4. Sugestões (no máximo 3, só as que os dados sustentam) ── */
+  const sugs=[];
+  if(taxa<metaEconomia&&topCats[0])
+    sugs.push({ic:'💡',txt:`Considere reduzir os gastos em "<strong>${esc(topCats[0][0])}</strong>" — é sua maior categoria de despesa no período.`});
+  if(maiorAumento)
+    sugs.push({ic:'👀',txt:`Fique de olho em "<strong>${esc(maiorAumento.cat)}</strong>": foi onde o gasto mais cresceu em relação a ${mesAnteriorLabel}.`});
+  if(APP.cartoes.length&&rec>0){
+    const somaFat=APP.cartoes.reduce((s,c)=>s+faturaAbertaValor(c.id),0);
+    if(somaFat>rec*0.3)
+      sugs.push({ic:'💳',txt:`A fatura em aberto do cartão já soma R$ ${fmt(somaFat)}, ${Math.round(somaFat/rec*100)}% da sua receita do período — vale acompanhar de perto até o fechamento.`});
+  }
+  if(APP.dividas.length){
+    const somaDiv=APP.dividas.reduce((s,dv)=>s+Math.max(0,saldoDividaAtual(dv.id)),0);
+    if(somaDiv>0.005)
+      sugs.push({ic:'📉',txt:`Você ainda tem R$ ${fmt(somaDiv)} em dívidas — continuar pagando reduz juros no médio prazo.`});
+  }
+  if(!sugs.length)sugs.push({ic:'✨',txt:'Continue registrando seus gastos — é o que torna esses insights cada vez mais precisos.'});
+  grupos.push({titulo:'💡 Sugestões para os próximos meses',linhas:sugs.slice(0,3)});
+
+  /* ── Linhas finais, fora dos grupos ── */
+  const extras=[];
   const mesesAtivos=new Set(base.map(d=>d.mes)).size;
-  ins.push({ic:'📅',txt:`Dados registrados em <strong>${mesesAtivos} mês${mesesAtivos!==1?'es':''}</strong> do ano.`});
-  document.getElementById('dash-insights').innerHTML=
+  extras.push({ic:'📅',txt:`Dados registrados em <strong>${mesesAtivos} mês${mesesAtivos!==1?'es':''}</strong> do ano.`});
+  // Perfil cacheado no login; ausente (offline/erro de rede) → linha omitida.
+  const objetivo=String(window._perfilAtual?.objetivo||'').trim();
+  if(objetivo)extras.push({ic:'🎯',txt:`Seu objetivo: "<strong>${esc(objetivo)}</strong>" — cada decisão financeira deste mês te aproxima ou afasta dele.`});
+
+  const row=i=>`<div class="dash-insight-row"><span class="dash-insight-ico">${i.ic}</span><span>${i.txt}</span></div>`;
+  const sub=t=>`<div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:10px 0 4px">${t}</div>`;
+  alvo.innerHTML=
     '<div class="dash-insight-title">💡 Insights do período</div>'+
-    ins.map(i=>`<div class="dash-insight-row"><span class="dash-insight-ico">${i.ic}</span><span>${i.txt}</span></div>`).join('');
+    grupos.filter(g=>g.linhas.length).map(g=>sub(g.titulo)+g.linhas.map(row).join('')).join('')+
+    extras.map(row).join('');
 }
 
 /* ═══ EDIÇÃO DE LANÇAMENTOS ════════════ */
