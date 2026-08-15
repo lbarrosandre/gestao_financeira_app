@@ -5,6 +5,10 @@
    hospedado + 7 dias de teste grátis e devolve a URL de checkout
    pro client redirecionar.
 
+   O client escolhe o PLANO ('plus' ou 'premium'); o PREÇO de cada um
+   é decidido aqui no servidor (VALORES_PLANO) — o client nunca manda
+   valor, só o nome do plano.
+
    CommonJS puro, sem dependências npm: usa o `fetch` nativo do
    runtime Node 18+ da Netlify e chama Mercado Pago / Supabase via REST.
 
@@ -16,7 +20,10 @@
    NENHUM desses valores pode ser exposto no client — eles só existem aqui.
    ═══════════════════════════════════════════════════════════════════ */
 
-const VALOR_MENSAL   = 19.90;
+/* Preço mensal de cada plano PAGO. O plano 'basico' não aparece aqui de
+   propósito: ele é grátis e não gera preapproval nenhuma no Mercado Pago —
+   pedir checkout pra 'basico' é requisição inválida (400 no passo 3). */
+const VALORES_PLANO  = { plus: 9.90, premium: 14.99 };
 const TRIAL_DIAS     = 7;
 const BACK_URL       = 'https://bussola-finance.netlify.app/?assinatura=retorno';
 const RE_UUID        = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -53,7 +60,7 @@ exports.handler = async (event) => {
 
   const supaBase = String(SUPABASE_URL).replace(/\/+$/, '');
 
-  /* ── 2. Corpo JSON: { uid, email } ── */
+  /* ── 2. Corpo JSON: { uid, email, plano } ── */
   let payload;
   try {
     const raw = event.isBase64Encoded && event.body
@@ -67,13 +74,19 @@ exports.handler = async (event) => {
 
   const uid   = typeof payload?.uid   === 'string' ? payload.uid.trim()             : '';
   const email = typeof payload?.email === 'string' ? payload.email.trim().toLowerCase() : '';
+  const plano = typeof payload?.plano === 'string' ? payload.plano.trim().toLowerCase() : '';
 
   /* ── 3. Validação básica ── */
   if (!uid || !email)          return json(400, { erro: 'uid e email são obrigatórios.' });
   if (!RE_UUID.test(uid))      return json(400, { erro: 'uid inválido.' });
   if (!RE_EMAIL.test(email))   return json(400, { erro: 'e-mail inválido.' });
+  /* O valor cobrado vem SÓ daqui (VALORES_PLANO), nunca do client — o client
+     manda apenas qual plano quer. Plano desconhecido (ou 'basico', que é
+     grátis) não tem preço nesta tabela e é rejeitado. */
+  if (!VALORES_PLANO[plano])   return json(400, { erro: 'plano inválido.' });
 
-  console.log('[criar-assinatura] início — uid:', uid);
+  console.log('[criar-assinatura] início — uid:', uid, 'plano:', plano,
+              'valor:', VALORES_PLANO[plano]);
 
   /* ── 4. Confirma que o uid é um usuário real (evita chamada direta à
          function com uid inventado, sem passar pelo app). Checa a tabela
@@ -122,14 +135,14 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        reason: 'Bússola Finance — Assinatura mensal',
+        reason: `Bússola Finance — Assinatura ${plano === 'premium' ? 'Premium' : 'Plus'}`,
         external_reference: uid,
         payer_email: email,
         back_url: BACK_URL,
         auto_recurring: {
           frequency: 1,
           frequency_type: 'months',
-          transaction_amount: VALOR_MENSAL,
+          transaction_amount: VALORES_PLANO[plano],
           currency_id: 'BRL',
           free_trial: { frequency: TRIAL_DIAS, frequency_type: 'days' }
         },
@@ -170,7 +183,13 @@ exports.handler = async (event) => {
   console.log('[criar-assinatura] preapproval criada — uid:', uid, 'mp_subscription_id:', mpSubscriptionId);
 
   /* ── 8. Grava o mp_subscription_id JÁ (antes de qualquer pagamento):
-         é isso que permite o webhook achar o usuário certo depois ── */
+         é isso que permite o webhook achar o usuário certo depois.
+
+         Grava também o `plano` escolhido AGORA, e não depois: o webhook só
+         mexe em `status`, nunca em `plano` — e não precisa mesmo, porque o
+         valor da preapproval já saiu daqui com o preço certo do plano.
+         Assim, quando o pagamento confirmar, a linha já sabe o que foi
+         contratado. ── */
   try {
     const rPatch = await fetch(
       `${supaBase}/rest/v1/assinaturas?uid=eq.${encodeURIComponent(uid)}`,
@@ -185,6 +204,7 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           mp_subscription_id: mpSubscriptionId,
           mp_payer_email: email,
+          plano: plano,
           atualizado_em: new Date().toISOString()
         })
       }

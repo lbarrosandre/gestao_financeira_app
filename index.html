@@ -657,6 +657,20 @@ body.light .tab .ti{background:linear-gradient(145deg,#fff,var(--surface2));box-
 .tog{padding:9px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--surface2);color:var(--text3);font-family:var(--sans);font-size:.85rem;font-weight:700;cursor:pointer;transition:all .18s;text-align:center;user-select:none;display:flex;align-items:center;justify-content:center;gap:6px}
 .tog.debito.ativo{background:rgba(239,68,68,.1);color:var(--danger);border-color:var(--danger);box-shadow:0 0 12px var(--danger-glow)}
 .tog.credito.ativo{background:rgba(16,185,129,.1);color:var(--teal);border-color:var(--teal);box-shadow:0 0 12px var(--teal-glow)}
+/* Cartões de escolha de plano (tela de assinatura/upgrade). Mesma mecânica
+   de toggle do .tog acima — só um fica .ativo por vez —, mas com o formato
+   de cartão do .bolso-card (título + valor + linhas de detalhe). */
+.plano-g{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.plano-card{position:relative;background:var(--surface2);border:1.5px solid var(--border2);border-radius:var(--r);padding:11px;cursor:pointer;transition:all .18s;user-select:none;text-align:left}
+.plano-card:active{transform:scale(.98)}
+.plano-card.ativo{border-color:var(--purple);background:rgba(139,92,246,.1);box-shadow:0 0 12px var(--purple-glow)}
+.plano-check{position:absolute;top:8px;right:9px;font-size:.72rem;color:var(--purple);opacity:0;transition:opacity .18s}
+.plano-card.ativo .plano-check{opacity:1}
+.plano-nome{font-size:.78rem;font-weight:700;color:var(--text3);margin-bottom:2px}
+.plano-card.ativo .plano-nome{color:var(--purple)}
+.plano-preco{font-family:var(--mono);font-size:1rem;font-weight:500;color:var(--text);margin-bottom:7px}
+.plano-preco small{font-family:var(--sans);font-size:.58rem;font-weight:400;color:var(--text3)}
+.plano-bullets{font-size:.65rem;color:var(--text3);line-height:1.5}
 
 /* ─── FIELDS ─────────────────────────── */
 .fi{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
@@ -1688,23 +1702,51 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       </div>
     </div>
 
-    <!-- FORM: ASSINATURA OBRIGATÓRIA (cartão antes de liberar o app) -->
+    <!-- FORM: ESCOLHA DE PLANO / UPGRADE
+         NÃO é mais um gate de cadastro: conta nova nasce no plano Básico
+         (grátis) e entra direto no app. Esta tela só aparece por ação do
+         usuário — banner de assinatura, menu, ou o botão "Assinar agora"
+         do sheet de assinatura (assinaturaAbrirPlanos()). -->
     <div class="auth-form" id="form-assinatura">
 
-      <!-- Estado 1: oferta dos 7 dias grátis + cadastro do cartão -->
+      <!-- Estado 1: escolha do plano + cadastro do cartão -->
       <div id="assin-gate-oferta">
         <div class="auth-header">
-          <div class="auth-title">🎉 Bem-vindo(a)! Você tem <em>7 dias grátis</em></div>
-          <div class="auth-sub">Cadastre seu cartão para começar a usar o Bússola Finance agora mesmo</div>
+          <div class="auth-title">💎 Desbloqueie <em>mais recursos</em></div>
+          <div class="auth-sub">Você pode continuar no plano Básico, grátis para sempre. Assine só quando fizer sentido pra você.</div>
         </div>
+
+        <!-- Toggle de plano: só um .ativo por vez (assinaturaSelecionarPlano) -->
+        <div class="plano-g">
+          <div class="plano-card" id="plano-card-plus" onclick="assinaturaSelecionarPlano('plus')">
+            <div class="plano-check">✓</div>
+            <div class="plano-nome">Plus</div>
+            <div class="plano-preco">R$ 9,90<small>/mês</small></div>
+            <div class="plano-bullets">
+              • Transações e bolsos ilimitados<br>
+              • 1 cartão de crédito<br>
+              • Dívidas ilimitadas
+            </div>
+          </div>
+          <div class="plano-card ativo" id="plano-card-premium" onclick="assinaturaSelecionarPlano('premium')">
+            <div class="plano-check">✓</div>
+            <div class="plano-nome">Premium</div>
+            <div class="plano-preco">R$ 14,99<small>/mês</small></div>
+            <div class="plano-bullets">
+              • Tudo do Plus<br>
+              • Dashboard completo com Insights<br>
+              • Cotações ao vivo e cartões ilimitados
+            </div>
+          </div>
+        </div>
+
         <div style="font-size:.78rem;color:var(--text2);line-height:1.6;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
-          • Durante os <strong>7 primeiros dias você não paga nada</strong>.<br>
-          • Para continuar sem interrupção depois do teste, cadastre seu cartão agora — o pagamento é processado pelo <strong>Mercado Pago</strong> (seus dados de cartão não passam por aqui).<br>
-          • Depois do teste, o plano é <strong>R$ 19,90/mês</strong>.<br>
-          • Você pode <strong>cancelar quando quiser</strong>, direto no app.
+          • Os <strong>7 primeiros dias são grátis</strong> — nada é cobrado antes disso.<br>
+          • O pagamento é processado pelo <strong>Mercado Pago</strong> (seus dados de cartão não passam por aqui).<br>
+          • Você pode <strong>cancelar quando quiser</strong>, direto no app, e voltar pro plano Básico sem perder seus dados.
         </div>
         <div id="assin-gate-trial" style="display:none;font-size:.72rem;color:var(--text3);text-align:center;margin-bottom:12px"></div>
-        <button class="btn-auth-next" id="assin-gate-btn" onclick="assinaturaIniciarCheckout(this)">💳 Cadastrar cartão e continuar</button>
+        <button class="btn-auth-next" id="assin-gate-btn" onclick="assinaturaIniciarCheckout(this)">💳 Assinar Premium — R$14,99/mês</button>
       </div>
 
       <!-- Estado 2: voltou do checkout do Mercado Pago (?assinatura=retorno) -->
@@ -1719,8 +1761,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         </div>
       </div>
 
+      <!-- Saída da tela. Antes era "Sair da conta" porque isto era um gate de
+           login sem volta; hoje o usuário já está DENTRO do app quando chega
+           aqui, então a saída natural é voltar pro app (segue no Básico). -->
       <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-        <button class="auth-link" onclick="authDesconectar()">Sair da conta</button>
+        <button class="auth-link" onclick="assinaturaFecharPlanos()">← Voltar ao app</button>
       </div>
     </div>
   </div>
@@ -2603,7 +2648,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <!-- Os dois botões abaixo são mutuamente exclusivos: abrirAssinaturaSheet()
          mostra um OU outro (ou nenhum) conforme `r.acao` do assinaturaResumo(). -->
     <button class="sh-cancel" id="assin-btn-cancelar" style="display:none;color:var(--danger);border-color:var(--danger)" onclick="assinaturaConfirmarCancelamento()">Cancelar assinatura</button>
-    <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaIniciarCheckout(this)">💳 Assinar agora</button>
+    <!-- Não vai direto pro checkout: abre a tela de escolha de plano
+         (#form-assinatura), que é quem sabe qual plano mandar pro MP. -->
+    <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaAbrirPlanos()">💳 Assinar agora</button>
   </div>
 </div>
 
@@ -3188,15 +3235,14 @@ async function authLiberarApp(user, revelarUI){
     return;
   }
 
-  /* Gate de assinatura: quem ainda está em 'trial' (ou não tem linha) precisa
-     cadastrar o cartão antes de usar o app. 'ativo'/'cortesia' entram normal;
-     'atrasado'/'cancelado' também entram (só o banner discreto avisa). */
+  /* Assinatura: NÃO bloqueia mais o login. Desde a migração pra 3 planos,
+     quem está em 'trial' (ou sem linha em `assinaturas`) é simplesmente um
+     usuário do plano Básico — grátis, sem cartão, sem gate. TODO mundo entra
+     no app; a tela de planos (#form-assinatura) só abre por ação do usuário.
+     A linha fica em cache global pras telas de limite/paywall consultarem
+     (Fase B, ainda não implementada) sem re-consultar o Supabase. */
   const assinRow = await assinaturaBuscar();
-  const assinSt  = assinRow?.status || null;
-  if (assinSt === 'trial' || assinSt === null) {
-    authMostrarAssinaturaObrigatoria(user, assinRow);
-    return;
-  }
+  window._assinaturaAtual = assinRow;
 
   /* Aviso de assinatura (banner discreto, só 'atrasado'/'cancelado').
      Não bloqueia nem atrasa o login: roda solto e falha em silêncio. */
@@ -3884,7 +3930,10 @@ function assinaturaResumo(row){
   }
 
   /* status === 'trial' — e também o edge case de não existir linha nenhuma
-     (null), que tratamos como teste já expirado. */
+     (null). Com os 3 planos, esse estado NÃO é mais "acesso expirado": é o
+     plano Básico, grátis e permanente. Quem ainda tem dias de teste vê a
+     contagem; quem não tem, vê que está no Básico — nos dois casos com o
+     caminho de upgrade disponível, nunca como perda de acesso. */
   const dias = row ? assinaturaDiasAte(row.trial_fim) : null;
   if(dias !== null && dias > 0){
     return {
@@ -3898,12 +3947,12 @@ function assinaturaResumo(row){
     };
   }
   return {
-    titulo: 'Teste grátis encerrado',
-    texto: 'Seu período de teste chegou ao fim. Assine para manter o acesso completo ao Bússola Finance.',
-    cor: 'var(--danger)',
+    titulo: 'Plano Básico (grátis)',
+    texto: 'Você está no plano Básico — grátis para sempre. Assine o Plus ou o Premium quando quiser desbloquear mais recursos.',
+    cor: 'var(--text2)',
     acao: 'assinar',
-    botao: 'Assinar agora',
-    alerta: true
+    botao: 'Ver planos',
+    alerta: false
   };
 }
 
@@ -3932,7 +3981,7 @@ async function abrirAssinaturaSheet(){
       '<div style="font-weight:700;font-size:.95rem;color:'+r.cor+';margin-bottom:6px">'+r.titulo+'</div>'
       + '<div>'+r.texto+'</div>'
       + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:.75rem;opacity:.7">'
-      + 'Plano mensal — R$ 19,90/mês, com 7 dias de teste grátis. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
+      + 'Planos: Básico (grátis, para sempre), Plus R$ 9,90/mês e Premium R$ 14,99/mês — os pagos com 7 dias de teste grátis. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
       + '</div>';
   }
   /* Um botão de ação por vez, conforme `r.acao`:
@@ -3958,11 +4007,38 @@ function fecharAssinaturaSheet(){
   document.getElementById('sh-assinatura-ov').classList.remove('show');
 }
 
+/* ── Escolha de plano na tela #form-assinatura ──
+   Premium pré-selecionado: é o plano cheio, e o cartão dele já nasce com
+   a classe .ativo no HTML. O PREÇO de cada plano é decidido no servidor
+   (VALORES_PLANO em criar-assinatura.js) — aqui só viaja o NOME do plano. */
+let planoEscolhido = 'premium';
+
+const PLANO_ROTULO = {
+  plus:    'Plus — R$9,90/mês',
+  premium: 'Premium — R$14,99/mês'
+};
+
+function assinaturaSelecionarPlano(plano){
+  if(plano !== 'plus' && plano !== 'premium') return;
+  planoEscolhido = plano;
+  document.getElementById('plano-card-plus')?.classList.toggle('ativo', plano === 'plus');
+  document.getElementById('plano-card-premium')?.classList.toggle('ativo', plano === 'premium');
+  assinaturaAtualizarBotaoPlano();
+}
+
+/* Mantém o texto do botão de checkout coerente com o cartão selecionado.
+   Não mexe no botão enquanto ele está em estado de loading (disabled) —
+   senão apagaria o "⏳ Abrindo checkout...". */
+function assinaturaAtualizarBotaoPlano(){
+  const b = document.getElementById('assin-gate-btn');
+  if(!b || b.disabled) return;
+  b.textContent = '💳 Assinar ' + (PLANO_ROTULO[planoEscolhido] || PLANO_ROTULO.premium);
+}
+
 /* Cria a assinatura no Mercado Pago (via Netlify Function) e redireciona
    o usuário pro checkout hospedado.
-   `botaoEl` é o botão que disparou a ação (sheet de assinatura OU gate
-   obrigatório) — recebe o estado de loading. Sem argumento, cai no botão
-   do sheet por compatibilidade. */
+   `botaoEl` é o botão que disparou a ação — recebe o estado de loading.
+   Sem argumento, cai no botão do sheet por compatibilidade. */
 async function assinaturaIniciarCheckout(botaoEl){
   const uid = window._sbUID;
   if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
@@ -3981,7 +4057,7 @@ async function assinaturaIniciarCheckout(botaoEl){
     const resp = await fetch('/.netlify/functions/criar-assinatura', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, email })
+      body: JSON.stringify({ uid, email, plano: planoEscolhido })
     });
 
     let data = null;
@@ -4065,8 +4141,9 @@ async function assinaturaExecutarCancelamento(){
 }
 
 /* Banner discreto de aviso — NÃO bloqueia o app, só sugere regularizar.
-   Só trata 'atrasado'/'cancelado': quem está em 'trial' (ou sem linha) nunca
-   chega aqui, porque o gate obrigatório de assinatura barra antes de revelarApp. */
+   Só trata 'atrasado'/'cancelado': 'trial'/sem linha é o plano Básico, que é
+   um estado normal e permanente (não tem nada a regularizar), e 'ativo'/
+   'cortesia' também não precisam de aviso — ambos saem daqui no early return. */
 async function verificarStatusAssinatura(rowConhecida){
   try{
     if(sessionStorage.getItem(ASSIN_BANNER_KEY)) return;
@@ -4090,9 +4167,14 @@ function fecharAssinBanner(){
   try{ sessionStorage.setItem(ASSIN_BANNER_KEY,'1'); }catch(e){}
 }
 
-/* ═══ TELA OBRIGATÓRIA DE ASSINATURA (gate do cartão) ═══
-   Quem está em 'trial' (ou sem linha em `assinaturas`) não entra no app sem
-   cadastrar o cartão no Mercado Pago. Mesmo padrão de authMostrarCompletarPerfil. */
+/* ═══ TELA DE ASSINATURA / UPGRADE (#form-assinatura) ═══
+   NÃO é mais um gate: desde a migração pra 3 planos, quem está em 'trial'
+   (ou sem linha em `assinaturas`) é usuário do plano Básico e entra no app
+   normalmente — authLiberarApp() não chama mais esta tela sozinho.
+   Ela só abre por ação explícita do usuário, via assinaturaAbrirPlanos().
+   O nome da função foi mantido pra não espalhar renomeação pelo arquivo.
+   `authEmAssinaturaObrigatoria` continua servindo pra um SIGNED_IN/
+   TOKEN_REFRESHED no meio do caminho não resetar a tela aberta. */
 let authEmAssinaturaObrigatoria = false;
 let _assinaturaUserPendente     = null;
 /* Ligado no boot quando a URL volta do checkout com ?assinatura=retorno. */
@@ -4135,6 +4217,50 @@ function authMostrarAssinaturaObrigatoria(user, row){
   authSetLoading(false);
 }
 
+/* ── Abre a tela de planos a partir de DENTRO do app ──
+   Chamada pelo botão "Assinar agora" do sheet de assinatura. Fecha o sheet,
+   busca o usuário da sessão (authMostrarAssinaturaObrigatoria precisa dele
+   pra conseguir devolver a pessoa ao app depois) e mostra a tela. */
+async function assinaturaAbrirPlanos(){
+  if(!window._sbUID) return toast('⚠️ Faça login para assinar.', true);
+
+  let user = null;
+  try{
+    const { data } = await _supa.auth.getUser();
+    user = data?.user || null;
+  }catch(e){ console.error('assinaturaAbrirPlanos getUser:', e); }
+
+  if(!user) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+
+  if(typeof fecharAssinaturaSheet === 'function') fecharAssinaturaSheet();
+
+  const row = await assinaturaBuscar();
+  authMostrarAssinaturaObrigatoria(user, row);
+}
+
+/* ── Volta pro app sem assinar (segue no plano Básico) ──
+   Desfaz exatamente o que authMostrarAssinaturaObrigatoria fez na UI. Não
+   chama revelarApp(): os dados já estão carregados — quem chega nesta tela
+   veio de dentro do app, não do login. */
+function assinaturaFecharPlanos(){
+  authEmAssinaturaObrigatoria = false;
+  _assinaturaUserPendente     = null;
+  _assinaturaRetornoCheckout  = false;
+
+  document.getElementById('form-assinatura')?.classList.remove('ativo');
+  document.getElementById('auth-tabs-wrap')?.style.removeProperty('display');
+
+  const auth = document.getElementById('auth-screen');
+  const app  = document.getElementById('appRoot');
+  if (auth) {
+    auth.classList.add('hide');
+    setTimeout(() => { auth.style.display = 'none'; auth.classList.add('gone'); }, 450);
+  }
+  if (app) {
+    app.style.cssText = 'display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden;';
+  }
+}
+
 function assinaturaGateMostrarOferta(){
   _assinaturaRetornoCheckout = false;
   const o = document.getElementById('assin-gate-oferta');
@@ -4142,7 +4268,7 @@ function assinaturaGateMostrarOferta(){
   if(o) o.style.display = '';
   if(r) r.style.display = 'none';
   const b = document.getElementById('assin-gate-btn');
-  if(b){ b.disabled = false; b.textContent = '💳 Cadastrar cartão e continuar'; }
+  if(b){ b.disabled = false; assinaturaAtualizarBotaoPlano(); }
 }
 
 function assinaturaGateMostrarRetorno(){
@@ -4304,9 +4430,11 @@ window.addEventListener('load',()=>{
   if (authRecoveryPendente()) authMostrarNovaSenha();
 
   /* Volta do checkout do Mercado Pago (back_url = .../?assinatura=retorno).
-     O webhook pode não ter processado ainda — o gate mostra a tela de
-     "confirmando pagamento" em vez da oferta. Limpa o parâmetro da URL
-     (mesmo padrão do ?reset=1) para um F5 não repetir esse estado. */
+     O login NÃO é mais barrado por isso: a pessoa entra direto no app (no
+     Básico, se o webhook ainda não confirmou). A flag só faz a tela de
+     planos abrir no estado "confirmando pagamento" em vez da oferta, se ela
+     for aberta nesta sessão. Limpa o parâmetro da URL (mesmo padrão do
+     ?reset=1) para um F5 não repetir esse estado. */
   try{
     if (new URLSearchParams(location.search).get('assinatura') === 'retorno') {
       _assinaturaRetornoCheckout = true;
@@ -4345,7 +4473,7 @@ window.addEventListener('load',()=>{
       if (authEmRecuperacao) return;
       // Tela obrigatória de perfil aberta: não reprocessa (apagaria o que já foi digitado)
       if (authEmCompletarPerfil) return;
-      // Gate obrigatório de assinatura aberto: não reprocessa (resetaria a tela)
+      // Tela de planos aberta: não reprocessa (resetaria a tela)
       if (authEmAssinaturaObrigatoria) return;
       const revelar = (event === 'SIGNED_IN');
       setTimeout(() => { authLiberarApp(session.user, revelar); }, 0);
