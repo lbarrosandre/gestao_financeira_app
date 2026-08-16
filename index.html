@@ -658,30 +658,57 @@ body.light .tab .ti{background:linear-gradient(145deg,#fff,var(--surface2));box-
 .tog.debito.ativo{background:rgba(239,68,68,.1);color:var(--danger);border-color:var(--danger);box-shadow:0 0 12px var(--danger-glow)}
 .tog.credito.ativo{background:rgba(16,185,129,.1);color:var(--teal);border-color:var(--teal);box-shadow:0 0 12px var(--teal-glow)}
 /* ─── CARTÕES DE PLANO (tela #form-assinatura) ─────────────────────
-   Três cartões grandes empilhados (Básico / Plus / Premium), cada um
-   com o seu próprio botão de ação — não há mais toggle de seleção.
-   A cor de destaque de cada cartão vem da variável local --pc-cor,
-   no mesmo espírito da faixa colorida do .bolso-card. */
-.planos-lista{display:flex;flex-direction:column;gap:13px;margin-bottom:14px}
-.plano-card-full{--pc-cor:var(--text2);position:relative;background:var(--surface);border:1.5px solid var(--border2);border-radius:var(--r2);padding:17px 16px 16px;overflow:hidden;text-align:left}
-.plano-card-full::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--pc-cor)}
-.plano-card-full.destaque{--pc-cor:var(--purple);border:2px solid var(--purple);box-shadow:0 0 24px var(--purple-glow);padding:21px 17px 18px}
-.plano-badge{position:absolute;top:0;right:15px;background:var(--purple);color:#fff;font-size:.56rem;font-weight:700;letter-spacing:.7px;text-transform:uppercase;padding:4px 10px 5px;border-radius:0 0 9px 9px;box-shadow:0 3px 12px var(--purple-glow)}
-.plano-f-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.plano-f-ico{width:36px;height:36px;flex-shrink:0;border-radius:11px;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:1.05rem}
-.plano-f-nome{font-size:1.05rem;font-weight:700;color:var(--pc-cor);letter-spacing:.2px}
-.plano-f-preco{font-family:var(--mono);font-size:2rem;font-weight:500;color:var(--text);line-height:1.1;display:flex;align-items:baseline;gap:5px}
-.plano-f-preco small{font-family:var(--sans);font-size:.72rem;font-weight:600;color:var(--text2)}
-.plano-f-sub{font-size:.68rem;color:var(--text3);margin-top:3px;letter-spacing:.3px}
-.plano-f-lista{display:flex;flex-direction:column;gap:8px;margin:15px 0 16px}
-.plano-f-item{display:flex;align-items:flex-start;gap:9px;font-size:.83rem;color:var(--text2);line-height:1.35}
-.plano-f-item i{font-style:normal;color:var(--pc-cor);font-weight:700;flex-shrink:0;font-size:.8rem;line-height:1.45}
-.plano-f-nota{display:flex;align-items:center;gap:9px;font-size:.75rem;color:var(--text3);border-top:1px dashed var(--border);padding-top:11px;margin-top:3px}
-.plano-f-btn{width:100%;padding:13px;border:none;border-radius:var(--r);font-family:var(--sans);font-size:.92rem;font-weight:700;color:#fff;background:var(--pc-cor);cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.28)}
-.plano-f-btn:active{transform:scale(.98);box-shadow:none}
-.plano-f-btn:disabled{opacity:.65;cursor:default;transform:none}
-.plano-f-atual{width:100%;padding:12px;border-radius:var(--r);background:var(--surface2);border:1px dashed var(--border2);color:var(--text2);font-size:.82rem;font-weight:700;text-align:center;user-select:none}
-.plano-f-atual.on{color:var(--pc-cor);border-style:solid;border-color:var(--pc-cor);background:transparent}
+   Layout "cápsula · corpo · cápsula": cabeçalho em pílula colorida
+   com o nome do plano e um círculo numerado, corpo escuro com a MESMA
+   lista de 7 recursos nos três cartões (✓ verde / ✖ vermelho — só o
+   texto ao lado muda de plano pra plano), preço em destaque e rodapé
+   em pílula com o botão de ação.
+
+   --pp-cor  = cor do plano (teal / accent / gold, já no :root).
+   --pp-ink  = cor do texto E do miolo dos círculos POR CIMA dessa cor.
+               Branco em quase todos; no dourado do Premium o branco
+               não tem contraste, então lá o ink é a cor de fundo do
+               tema (escura no dark, clara no light). */
+.planos-lista{display:flex;flex-direction:column;gap:16px;margin-bottom:14px}
+.plano-pill-card{--pp-cor:var(--text2);--pp-ink:#fff;position:relative;display:flex;flex-direction:column;background:var(--surface);border:1.5px solid var(--border2);border-radius:28px;padding:9px;text-align:left}
+.plano-pill-card.basico{--pp-cor:var(--teal)}
+.plano-pill-card.plus{--pp-cor:var(--accent)}
+/* Premium segue sendo o destaque da tela — anel + sombra na própria
+   cor, sem badge sobreposto (que arrebentaria a cápsula do topo). */
+.plano-pill-card.premium{--pp-cor:var(--gold);--pp-ink:var(--bg);border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 12px 34px rgba(0,0,0,.30)}
+body.light .plano-pill-card.premium{--pp-ink:#fff}
+
+/* 1) Cabeçalho em cápsula */
+.plano-pill-head{position:relative;display:flex;align-items:center;justify-content:center;min-height:52px;padding:14px 48px;background:var(--pp-cor);border-radius:999px}
+.plano-pill-nome{color:var(--pp-ink);font-size:.95rem;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;line-height:1;text-align:center}
+.plano-pill-num{position:absolute;top:50%;right:9px;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;background:var(--pp-ink);color:var(--pp-cor);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.9rem;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,.20)}
+
+/* 2) Corpo: checklist comparativo + preço */
+.plano-pill-corpo{display:flex;flex-direction:column;flex:1;padding:16px 13px 4px}
+.plano-pill-lista{display:flex;flex-direction:column;gap:9px}
+.plano-pill-item{display:flex;align-items:flex-start;gap:9px;font-size:.82rem;line-height:1.35}
+.plano-pill-item.sim{color:var(--text2)}
+.plano-pill-item.nao{color:var(--text3)}
+.plano-pill-item i{flex-shrink:0;width:19px;height:19px;margin-top:1px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:.66rem;font-weight:700}
+.plano-pill-item.sim i{background:var(--teal-glow);color:var(--teal)}
+.plano-pill-item.nao i{background:var(--danger-glow);color:var(--danger)}
+.plano-pill-preco{margin-top:auto;padding:16px 0 14px;display:flex;align-items:baseline;justify-content:center;gap:5px;font-family:var(--mono);font-size:2rem;font-weight:500;color:var(--text);line-height:1.1}
+.plano-pill-preco small{font-family:var(--sans);font-size:.72rem;font-weight:600;color:var(--text2)}
+
+/* 3) Rodapé em cápsula: botão de assinar OU selo neutro.
+   O círculo do ícone é ::before + attr(data-ico) de propósito —
+   assinaturaIniciarCheckout() troca o textContent do botão pelo estado
+   de loading, e um elemento filho seria apagado junto. */
+.plano-pill-btn,.plano-pill-selo{position:relative;width:100%;min-height:52px;display:flex;align-items:center;justify-content:center;padding:14px 48px;border-radius:999px;font-family:var(--sans);font-size:.82rem;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;text-align:center;line-height:1.2}
+.plano-pill-btn::before,.plano-pill-selo::before{content:attr(data-ico);position:absolute;left:9px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;letter-spacing:0}
+.plano-pill-btn{border:none;background:var(--pp-cor);color:var(--pp-ink);cursor:pointer;transition:transform .16s,box-shadow .16s,opacity .16s;box-shadow:0 5px 18px rgba(0,0,0,.28)}
+.plano-pill-btn::before{background:var(--pp-ink);box-shadow:0 2px 8px rgba(0,0,0,.20)}
+.plano-pill-btn:active{transform:scale(.98);box-shadow:none}
+.plano-pill-btn:disabled{opacity:.65;cursor:default;transform:none}
+.plano-pill-selo{background:var(--surface2);border:1.5px dashed var(--border2);color:var(--text2);user-select:none}
+.plano-pill-selo::before{background:var(--surface3)}
+.plano-pill-selo.on{background:transparent;border-style:solid;border-color:var(--pp-cor);color:var(--pp-cor)}
+.plano-pill-selo.on::before{background:var(--pp-cor);color:var(--pp-ink)}
 
 /* ─── FIELDS ─────────────────────────── */
 .fi{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
@@ -1585,6 +1612,28 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     margin:0;
     padding:28px 26px;
   }
+
+  /* ─── TELA DE PLANOS: 3 CARTÕES LADO A LADO ───
+     A tela de assinatura mora no MESMO .auth-card do login, que aqui em
+     cima tem 420px — estreito demais pra três colunas. Quando (e só
+     quando) #form-assinatura está ativo, o card vira uma faixa larga e o
+     hero de login sai de cena, deixando os planos centralizados.
+     Navegadores sem :has() ignoram o bloco inteiro e ficam com o
+     empilhamento vertical do mobile, que continua correto. */
+  #auth-screen:has(#form-assinatura.ativo) .auth-hero{display:none}
+  #auth-screen:has(#form-assinatura.ativo) .auth-card{
+    flex:0 1 auto;
+    width:940px;
+    max-width:940px;
+    padding:30px 28px;
+  }
+  #auth-screen:has(#form-assinatura.ativo) .planos-lista{
+    flex-direction:row;
+    align-items:stretch;   /* os 3 cartões com a mesma altura */
+    gap:20px;
+    margin-bottom:20px;
+  }
+  #auth-screen:has(#form-assinatura.ativo) .plano-pill-card{flex:1 1 0;min-width:0}
 }
 </style>
 </head>
@@ -1727,60 +1776,74 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
           <div class="auth-sub">Você pode continuar no plano Básico, grátis para sempre. Assine só quando fizer sentido pra você.</div>
         </div>
 
-        <!-- Três cartões empilhados, cada um com o seu próprio botão. A área
-             de ação (#plano-acao-*) é reescrita por assinaturaRenderAcoesPlanos()
+        <!-- Três cartões no formato cápsula · corpo · cápsula. A lista de
+             recursos é COMPARATIVA: as mesmas 7 linhas, na mesma ordem, nos
+             três cartões — muda só o ✓/✖ e o valor ao lado. A área de ação
+             (#plano-acao-*) é reescrita por assinaturaRenderAcoesPlanos()
              toda vez que a tela aparece, pra marcar o plano atual da pessoa. -->
         <div class="planos-lista">
 
-          <div class="plano-card-full" style="--pc-cor:var(--teal)">
-            <div class="plano-f-head">
-              <div class="plano-f-ico">🆓</div>
-              <div class="plano-f-nome">Básico</div>
+          <div class="plano-pill-card basico">
+            <div class="plano-pill-head">
+              <div class="plano-pill-nome">Básico</div>
+              <div class="plano-pill-num">1</div>
             </div>
-            <div class="plano-f-preco">Grátis</div>
-            <div class="plano-f-sub">para sempre</div>
-            <div class="plano-f-lista">
-              <div class="plano-f-item"><i>✓</i><span>Até 35 transações por mês</span></div>
-              <div class="plano-f-item"><i>✓</i><span>1 bolso na Carteira</span></div>
-              <div class="plano-f-item"><i>✓</i><span>Lançar, Registros e Planejar</span></div>
-              <div class="plano-f-nota"><span>📢</span><span>Com anúncios</span></div>
+            <div class="plano-pill-corpo">
+              <div class="plano-pill-lista">
+                <div class="plano-pill-item sim"><i>✓</i><span>35 transações por mês</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>1 bolso na Carteira</span></div>
+                <div class="plano-pill-item nao"><i>✖</i><span>Cartão de crédito</span></div>
+                <div class="plano-pill-item nao"><i>✖</i><span>Dívidas</span></div>
+                <div class="plano-pill-item nao"><i>✖</i><span>Dashboard com Insights</span></div>
+                <div class="plano-pill-item nao"><i>✖</i><span>Cotações ao vivo</span></div>
+                <div class="plano-pill-item nao"><i>✖</i><span>Com anúncios</span></div>
+              </div>
+              <div class="plano-pill-preco">Grátis</div>
             </div>
-            <div id="plano-acao-basico"><div class="plano-f-atual">Sempre incluso</div></div>
+            <div id="plano-acao-basico"><div class="plano-pill-selo" data-ico="✓">Sempre incluso</div></div>
           </div>
 
-          <div class="plano-card-full" style="--pc-cor:var(--accent)">
-            <div class="plano-f-head">
-              <div class="plano-f-ico">⭐</div>
-              <div class="plano-f-nome">Plus</div>
+          <div class="plano-pill-card plus">
+            <div class="plano-pill-head">
+              <div class="plano-pill-nome">Plus</div>
+              <div class="plano-pill-num">2</div>
             </div>
-            <div class="plano-f-preco">R$ 9,90<small>/mês</small></div>
-            <div class="plano-f-lista">
-              <div class="plano-f-item"><i>✓</i><span>Transações e bolsos ilimitados</span></div>
-              <div class="plano-f-item"><i>✓</i><span>1 cartão de crédito</span></div>
-              <div class="plano-f-item"><i>✓</i><span>Dívidas ilimitadas</span></div>
-              <div class="plano-f-item"><i>✓</i><span>Sem anúncios</span></div>
+            <div class="plano-pill-corpo">
+              <div class="plano-pill-lista">
+                <div class="plano-pill-item sim"><i>✓</i><span>Transações ilimitadas</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Bolsos ilimitados na Carteira</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>1 cartão de crédito</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Dívidas ilimitadas</span></div>
+                <div class="plano-pill-item nao"><i>✖</i><span>Dashboard com Insights</span></div>
+                <div class="plano-pill-item nao"><i>✖</i><span>Cotações ao vivo</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Sem anúncios</span></div>
+              </div>
+              <div class="plano-pill-preco">R$ 9,90<small>/mês</small></div>
             </div>
             <div id="plano-acao-plus">
-              <button class="plano-f-btn" onclick="assinaturaSelecionarPlano('plus');assinaturaIniciarCheckout(this)">💳 Assinar Plus</button>
+              <button class="plano-pill-btn" data-ico="💳" onclick="assinaturaSelecionarPlano('plus');assinaturaIniciarCheckout(this)">Assinar</button>
             </div>
           </div>
 
-          <div class="plano-card-full destaque">
-            <div class="plano-badge">⭐ Mais completo</div>
-            <div class="plano-f-head">
-              <div class="plano-f-ico">💎</div>
-              <div class="plano-f-nome">Premium</div>
+          <div class="plano-pill-card premium">
+            <div class="plano-pill-head">
+              <div class="plano-pill-nome">Premium</div>
+              <div class="plano-pill-num">3</div>
             </div>
-            <div class="plano-f-preco">R$ 14,99<small>/mês</small></div>
-            <div class="plano-f-lista">
-              <div class="plano-f-item"><i>✓</i><span>Tudo do Plus</span></div>
-              <div class="plano-f-item"><i>✓</i><span>Cartões de crédito ilimitados</span></div>
-              <div class="plano-f-item"><i>✓</i><span>Dashboard completo com Insights automáticos</span></div>
-              <div class="plano-f-item"><i>✓</i><span>Cotações ao vivo (dólar, euro, bitcoin, ações)</span></div>
-              <div class="plano-f-item"><i>✓</i><span>Sem anúncios</span></div>
+            <div class="plano-pill-corpo">
+              <div class="plano-pill-lista">
+                <div class="plano-pill-item sim"><i>✓</i><span>Transações ilimitadas</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Bolsos ilimitados na Carteira</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Cartões de crédito ilimitados</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Dívidas ilimitadas</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Dashboard com Insights</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Cotações ao vivo</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Sem anúncios</span></div>
+              </div>
+              <div class="plano-pill-preco">R$ 14,99<small>/mês</small></div>
             </div>
             <div id="plano-acao-premium">
-              <button class="plano-f-btn" onclick="assinaturaSelecionarPlano('premium');assinaturaIniciarCheckout(this)">💳 Assinar Premium</button>
+              <button class="plano-pill-btn" data-ico="💳" onclick="assinaturaSelecionarPlano('premium');assinaturaIniciarCheckout(this)">Assinar</button>
             </div>
           </div>
 
@@ -4124,22 +4187,24 @@ function assinaturaSelecionarPlano(plano){
    existe no sheet de assinatura. */
 function assinaturaRenderAcoesPlanos(){
   const atual = (typeof planoEfetivo === 'function') ? planoEfetivo() : 'basico';
-  const selo  = '<div class="plano-f-atual on">✓ Seu plano atual</div>';
+  /* O selo herda --pp-cor/--pp-ink do .plano-pill-card em que cai, então a
+     mesma string sai teal no Básico, azul no Plus e dourada no Premium. */
+  const selo  = '<div class="plano-pill-selo on" data-ico="✓">Plano atual</div>';
 
   const bas = document.getElementById('plano-acao-basico');
   if(bas) bas.innerHTML = (atual === 'basico')
     ? selo
-    : '<div class="plano-f-atual">Sempre incluso</div>';
+    : '<div class="plano-pill-selo" data-ico="✓">Sempre incluso</div>';
 
   const plus = document.getElementById('plano-acao-plus');
   if(plus) plus.innerHTML = (atual === 'plus')
     ? selo
-    : '<button class="plano-f-btn" onclick="assinaturaSelecionarPlano(\'plus\');assinaturaIniciarCheckout(this)">💳 Assinar Plus</button>';
+    : '<button class="plano-pill-btn" data-ico="💳" onclick="assinaturaSelecionarPlano(\'plus\');assinaturaIniciarCheckout(this)">Assinar</button>';
 
   const prem = document.getElementById('plano-acao-premium');
   if(prem) prem.innerHTML = (atual === 'premium')
     ? selo
-    : '<button class="plano-f-btn" onclick="assinaturaSelecionarPlano(\'premium\');assinaturaIniciarCheckout(this)">💳 Assinar Premium</button>';
+    : '<button class="plano-pill-btn" data-ico="💳" onclick="assinaturaSelecionarPlano(\'premium\');assinaturaIniciarCheckout(this)">Assinar</button>';
 }
 
 /* Cria a assinatura no Mercado Pago (via Netlify Function) e redireciona
