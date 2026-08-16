@@ -2,8 +2,9 @@
    Bússola Finance — criar-assinatura
    ───────────────────────────────────────────────────────────────────
    Cria uma assinatura (preapproval) no Mercado Pago com checkout
-   hospedado + 7 dias de teste grátis e devolve a URL de checkout
-   pro client redirecionar.
+   hospedado e devolve a URL de checkout pro client redirecionar.
+   NÃO existe período de teste: a cobrança começa imediatamente, na
+   hora em que a pessoa conclui o checkout.
 
    O client escolhe o PLANO ('plus' ou 'premium'); o PREÇO de cada um
    é decidido aqui no servidor (VALORES_PLANO) — o client nunca manda
@@ -24,7 +25,6 @@
    propósito: ele é grátis e não gera preapproval nenhuma no Mercado Pago —
    pedir checkout pra 'basico' é requisição inválida (400 no passo 3). */
 const VALORES_PLANO  = { plus: 9.90, premium: 14.99 };
-const TRIAL_DIAS     = 7;
 const BACK_URL       = 'https://bussola-finance.netlify.app/?assinatura=retorno';
 const RE_UUID        = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const RE_EMAIL       = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -125,7 +125,7 @@ exports.handler = async (event) => {
   }
 
   /* ── 5. Cria a preapproval no Mercado Pago (sem plano associado,
-         checkout hospedado, 7 dias de teste grátis) ── */
+         checkout hospedado, cobrança imediata — sem período de teste) ── */
   let mpData;
   try {
     const rMp = await fetch('https://api.mercadopago.com/preapproval', {
@@ -143,8 +143,7 @@ exports.handler = async (event) => {
           frequency: 1,
           frequency_type: 'months',
           transaction_amount: VALORES_PLANO[plano],
-          currency_id: 'BRL',
-          free_trial: { frequency: TRIAL_DIAS, frequency_type: 'days' }
+          currency_id: 'BRL'
         },
         status: 'pending'
       })

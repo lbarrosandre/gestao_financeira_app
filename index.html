@@ -657,20 +657,31 @@ body.light .tab .ti{background:linear-gradient(145deg,#fff,var(--surface2));box-
 .tog{padding:9px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--surface2);color:var(--text3);font-family:var(--sans);font-size:.85rem;font-weight:700;cursor:pointer;transition:all .18s;text-align:center;user-select:none;display:flex;align-items:center;justify-content:center;gap:6px}
 .tog.debito.ativo{background:rgba(239,68,68,.1);color:var(--danger);border-color:var(--danger);box-shadow:0 0 12px var(--danger-glow)}
 .tog.credito.ativo{background:rgba(16,185,129,.1);color:var(--teal);border-color:var(--teal);box-shadow:0 0 12px var(--teal-glow)}
-/* Cartões de escolha de plano (tela de assinatura/upgrade). Mesma mecânica
-   de toggle do .tog acima — só um fica .ativo por vez —, mas com o formato
-   de cartão do .bolso-card (título + valor + linhas de detalhe). */
-.plano-g{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-.plano-card{position:relative;background:var(--surface2);border:1.5px solid var(--border2);border-radius:var(--r);padding:11px;cursor:pointer;transition:all .18s;user-select:none;text-align:left}
-.plano-card:active{transform:scale(.98)}
-.plano-card.ativo{border-color:var(--purple);background:rgba(139,92,246,.1);box-shadow:0 0 12px var(--purple-glow)}
-.plano-check{position:absolute;top:8px;right:9px;font-size:.72rem;color:var(--purple);opacity:0;transition:opacity .18s}
-.plano-card.ativo .plano-check{opacity:1}
-.plano-nome{font-size:.78rem;font-weight:700;color:var(--text3);margin-bottom:2px}
-.plano-card.ativo .plano-nome{color:var(--purple)}
-.plano-preco{font-family:var(--mono);font-size:1rem;font-weight:500;color:var(--text);margin-bottom:7px}
-.plano-preco small{font-family:var(--sans);font-size:.58rem;font-weight:400;color:var(--text3)}
-.plano-bullets{font-size:.65rem;color:var(--text3);line-height:1.5}
+/* ─── CARTÕES DE PLANO (tela #form-assinatura) ─────────────────────
+   Três cartões grandes empilhados (Básico / Plus / Premium), cada um
+   com o seu próprio botão de ação — não há mais toggle de seleção.
+   A cor de destaque de cada cartão vem da variável local --pc-cor,
+   no mesmo espírito da faixa colorida do .bolso-card. */
+.planos-lista{display:flex;flex-direction:column;gap:13px;margin-bottom:14px}
+.plano-card-full{--pc-cor:var(--text2);position:relative;background:var(--surface);border:1.5px solid var(--border2);border-radius:var(--r2);padding:17px 16px 16px;overflow:hidden;text-align:left}
+.plano-card-full::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--pc-cor)}
+.plano-card-full.destaque{--pc-cor:var(--purple);border:2px solid var(--purple);box-shadow:0 0 24px var(--purple-glow);padding:21px 17px 18px}
+.plano-badge{position:absolute;top:0;right:15px;background:var(--purple);color:#fff;font-size:.56rem;font-weight:700;letter-spacing:.7px;text-transform:uppercase;padding:4px 10px 5px;border-radius:0 0 9px 9px;box-shadow:0 3px 12px var(--purple-glow)}
+.plano-f-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.plano-f-ico{width:36px;height:36px;flex-shrink:0;border-radius:11px;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:1.05rem}
+.plano-f-nome{font-size:1.05rem;font-weight:700;color:var(--pc-cor);letter-spacing:.2px}
+.plano-f-preco{font-family:var(--mono);font-size:2rem;font-weight:500;color:var(--text);line-height:1.1;display:flex;align-items:baseline;gap:5px}
+.plano-f-preco small{font-family:var(--sans);font-size:.72rem;font-weight:600;color:var(--text2)}
+.plano-f-sub{font-size:.68rem;color:var(--text3);margin-top:3px;letter-spacing:.3px}
+.plano-f-lista{display:flex;flex-direction:column;gap:8px;margin:15px 0 16px}
+.plano-f-item{display:flex;align-items:flex-start;gap:9px;font-size:.83rem;color:var(--text2);line-height:1.35}
+.plano-f-item i{font-style:normal;color:var(--pc-cor);font-weight:700;flex-shrink:0;font-size:.8rem;line-height:1.45}
+.plano-f-nota{display:flex;align-items:center;gap:9px;font-size:.75rem;color:var(--text3);border-top:1px dashed var(--border);padding-top:11px;margin-top:3px}
+.plano-f-btn{width:100%;padding:13px;border:none;border-radius:var(--r);font-family:var(--sans);font-size:.92rem;font-weight:700;color:#fff;background:var(--pc-cor);cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.28)}
+.plano-f-btn:active{transform:scale(.98);box-shadow:none}
+.plano-f-btn:disabled{opacity:.65;cursor:default;transform:none}
+.plano-f-atual{width:100%;padding:12px;border-radius:var(--r);background:var(--surface2);border:1px dashed var(--border2);color:var(--text2);font-size:.82rem;font-weight:700;text-align:center;user-select:none}
+.plano-f-atual.on{color:var(--pc-cor);border-style:solid;border-color:var(--pc-cor);background:transparent}
 
 /* ─── FIELDS ─────────────────────────── */
 .fi{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
@@ -1716,37 +1727,70 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
           <div class="auth-sub">Você pode continuar no plano Básico, grátis para sempre. Assine só quando fizer sentido pra você.</div>
         </div>
 
-        <!-- Toggle de plano: só um .ativo por vez (assinaturaSelecionarPlano) -->
-        <div class="plano-g">
-          <div class="plano-card" id="plano-card-plus" onclick="assinaturaSelecionarPlano('plus')">
-            <div class="plano-check">✓</div>
-            <div class="plano-nome">Plus</div>
-            <div class="plano-preco">R$ 9,90<small>/mês</small></div>
-            <div class="plano-bullets">
-              • Transações e bolsos ilimitados<br>
-              • 1 cartão de crédito<br>
-              • Dívidas ilimitadas
+        <!-- Três cartões empilhados, cada um com o seu próprio botão. A área
+             de ação (#plano-acao-*) é reescrita por assinaturaRenderAcoesPlanos()
+             toda vez que a tela aparece, pra marcar o plano atual da pessoa. -->
+        <div class="planos-lista">
+
+          <div class="plano-card-full" style="--pc-cor:var(--teal)">
+            <div class="plano-f-head">
+              <div class="plano-f-ico">🆓</div>
+              <div class="plano-f-nome">Básico</div>
+            </div>
+            <div class="plano-f-preco">Grátis</div>
+            <div class="plano-f-sub">para sempre</div>
+            <div class="plano-f-lista">
+              <div class="plano-f-item"><i>✓</i><span>Até 35 transações por mês</span></div>
+              <div class="plano-f-item"><i>✓</i><span>1 bolso na Carteira</span></div>
+              <div class="plano-f-item"><i>✓</i><span>Lançar, Registros e Planejar</span></div>
+              <div class="plano-f-nota"><span>📢</span><span>Com anúncios</span></div>
+            </div>
+            <div id="plano-acao-basico"><div class="plano-f-atual">Sempre incluso</div></div>
+          </div>
+
+          <div class="plano-card-full" style="--pc-cor:var(--accent)">
+            <div class="plano-f-head">
+              <div class="plano-f-ico">⭐</div>
+              <div class="plano-f-nome">Plus</div>
+            </div>
+            <div class="plano-f-preco">R$ 9,90<small>/mês</small></div>
+            <div class="plano-f-lista">
+              <div class="plano-f-item"><i>✓</i><span>Transações e bolsos ilimitados</span></div>
+              <div class="plano-f-item"><i>✓</i><span>1 cartão de crédito</span></div>
+              <div class="plano-f-item"><i>✓</i><span>Dívidas ilimitadas</span></div>
+              <div class="plano-f-item"><i>✓</i><span>Sem anúncios</span></div>
+            </div>
+            <div id="plano-acao-plus">
+              <button class="plano-f-btn" onclick="assinaturaSelecionarPlano('plus');assinaturaIniciarCheckout(this)">💳 Assinar Plus</button>
             </div>
           </div>
-          <div class="plano-card ativo" id="plano-card-premium" onclick="assinaturaSelecionarPlano('premium')">
-            <div class="plano-check">✓</div>
-            <div class="plano-nome">Premium</div>
-            <div class="plano-preco">R$ 14,99<small>/mês</small></div>
-            <div class="plano-bullets">
-              • Tudo do Plus<br>
-              • Dashboard completo com Insights<br>
-              • Cotações ao vivo e cartões ilimitados
+
+          <div class="plano-card-full destaque">
+            <div class="plano-badge">⭐ Mais completo</div>
+            <div class="plano-f-head">
+              <div class="plano-f-ico">💎</div>
+              <div class="plano-f-nome">Premium</div>
+            </div>
+            <div class="plano-f-preco">R$ 14,99<small>/mês</small></div>
+            <div class="plano-f-lista">
+              <div class="plano-f-item"><i>✓</i><span>Tudo do Plus</span></div>
+              <div class="plano-f-item"><i>✓</i><span>Cartões de crédito ilimitados</span></div>
+              <div class="plano-f-item"><i>✓</i><span>Dashboard completo com Insights automáticos</span></div>
+              <div class="plano-f-item"><i>✓</i><span>Cotações ao vivo (dólar, euro, bitcoin, ações)</span></div>
+              <div class="plano-f-item"><i>✓</i><span>Sem anúncios</span></div>
+            </div>
+            <div id="plano-acao-premium">
+              <button class="plano-f-btn" onclick="assinaturaSelecionarPlano('premium');assinaturaIniciarCheckout(this)">💳 Assinar Premium</button>
             </div>
           </div>
+
         </div>
 
-        <div style="font-size:.78rem;color:var(--text2);line-height:1.6;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
-          • Os <strong>7 primeiros dias são grátis</strong> — nada é cobrado antes disso.<br>
+        <div style="font-size:.75rem;color:var(--text2);line-height:1.6;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px">
+          • Plus e Premium são <strong>cobrados na hora da assinatura</strong>, com acesso liberado imediatamente.<br>
           • O pagamento é processado pelo <strong>Mercado Pago</strong> (seus dados de cartão não passam por aqui).<br>
           • Você pode <strong>cancelar quando quiser</strong>, direto no app, e voltar pro plano Básico sem perder seus dados.
         </div>
-        <div id="assin-gate-trial" style="display:none;font-size:.72rem;color:var(--text3);text-align:center;margin-bottom:12px"></div>
-        <button class="btn-auth-next" id="assin-gate-btn" onclick="assinaturaIniciarCheckout(this)">💳 Assinar Premium — R$14,99/mês</button>
       </div>
 
       <!-- Estado 2: voltou do checkout do Mercado Pago (?assinatura=retorno) -->
@@ -2503,7 +2547,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">💎</div>
       <div class="menu-item-body">
         <div class="menu-item-label">Assinatura</div>
-        <div class="menu-item-sub">Plano, teste grátis e cobrança</div>
+        <div class="menu-item-sub">Plano, cobrança e cancelamento</div>
       </div>
     </button>
     <button class="menu-item" onclick="authDesconectar()">
@@ -3998,22 +4042,10 @@ function assinaturaResumo(row){
   }
 
   /* status === 'trial' — e também o edge case de não existir linha nenhuma
-     (null). Com os 3 planos, esse estado NÃO é mais "acesso expirado": é o
-     plano Básico, grátis e permanente. Quem ainda tem dias de teste vê a
-     contagem; quem não tem, vê que está no Básico — nos dois casos com o
-     caminho de upgrade disponível, nunca como perda de acesso. */
-  const dias = row ? assinaturaDiasAte(row.trial_fim) : null;
-  if(dias !== null && dias > 0){
-    return {
-      titulo: 'Período de teste grátis 🎉',
-      texto: 'Você está no período de teste grátis — faltam <strong>'
-             + dias + (dias === 1 ? ' dia' : ' dias') + '</strong>.',
-      cor: 'var(--purple)',
-      acao: 'assinar',
-      botao: 'Assinar agora',
-      alerta: false
-    };
-  }
+     (null). Com os 3 planos, esse estado NÃO é mais "acesso expirado" nem
+     período de teste (que deixou de existir): é simplesmente o plano
+     Básico, grátis e permanente, sempre com o caminho de upgrade
+     disponível e nunca como perda de acesso. */
   return {
     titulo: 'Plano Básico (grátis)',
     texto: 'Você está no plano Básico — grátis para sempre. Assine o Plus ou o Premium quando quiser desbloquear mais recursos.',
@@ -4049,7 +4081,7 @@ async function abrirAssinaturaSheet(){
       '<div style="font-weight:700;font-size:.95rem;color:'+r.cor+';margin-bottom:6px">'+r.titulo+'</div>'
       + '<div>'+r.texto+'</div>'
       + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:.75rem;opacity:.7">'
-      + 'Planos: Básico (grátis, para sempre), Plus R$ 9,90/mês e Premium R$ 14,99/mês — os pagos com 7 dias de teste grátis. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
+      + 'Básico é grátis para sempre. Plus e Premium são cobrados na hora da assinatura, com acesso liberado imediatamente. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
       + '</div>';
   }
   /* Um botão de ação por vez, conforme `r.acao`:
@@ -4076,31 +4108,38 @@ function fecharAssinaturaSheet(){
 }
 
 /* ── Escolha de plano na tela #form-assinatura ──
-   Premium pré-selecionado: é o plano cheio, e o cartão dele já nasce com
-   a classe .ativo no HTML. O PREÇO de cada plano é decidido no servidor
-   (VALORES_PLANO em criar-assinatura.js) — aqui só viaja o NOME do plano. */
+   Cada cartão tem o seu próprio botão e seta o plano no clique, logo antes
+   de abrir o checkout — não existe mais seleção prévia nem botão único.
+   O PREÇO de cada plano é decidido no servidor (VALORES_PLANO em
+   criar-assinatura.js) — aqui só viaja o NOME do plano. */
 let planoEscolhido = 'premium';
-
-const PLANO_ROTULO = {
-  plus:    'Plus — R$9,90/mês',
-  premium: 'Premium — R$14,99/mês'
-};
 
 function assinaturaSelecionarPlano(plano){
   if(plano !== 'plus' && plano !== 'premium') return;
   planoEscolhido = plano;
-  document.getElementById('plano-card-plus')?.classList.toggle('ativo', plano === 'plus');
-  document.getElementById('plano-card-premium')?.classList.toggle('ativo', plano === 'premium');
-  assinaturaAtualizarBotaoPlano();
 }
 
-/* Mantém o texto do botão de checkout coerente com o cartão selecionado.
-   Não mexe no botão enquanto ele está em estado de loading (disabled) —
-   senão apagaria o "⏳ Abrindo checkout...". */
-function assinaturaAtualizarBotaoPlano(){
-  const b = document.getElementById('assin-gate-btn');
-  if(!b || b.disabled) return;
-  b.textContent = '💳 Assinar ' + (PLANO_ROTULO[planoEscolhido] || PLANO_ROTULO.premium);
+/* Área de ação de cada um dos 3 cartões, conforme o plano atual da pessoa.
+   O Básico nunca tem botão: "voltar" pra ele é cancelamento, fluxo que já
+   existe no sheet de assinatura. */
+function assinaturaRenderAcoesPlanos(){
+  const atual = (typeof planoEfetivo === 'function') ? planoEfetivo() : 'basico';
+  const selo  = '<div class="plano-f-atual on">✓ Seu plano atual</div>';
+
+  const bas = document.getElementById('plano-acao-basico');
+  if(bas) bas.innerHTML = (atual === 'basico')
+    ? selo
+    : '<div class="plano-f-atual">Sempre incluso</div>';
+
+  const plus = document.getElementById('plano-acao-plus');
+  if(plus) plus.innerHTML = (atual === 'plus')
+    ? selo
+    : '<button class="plano-f-btn" onclick="assinaturaSelecionarPlano(\'plus\');assinaturaIniciarCheckout(this)">💳 Assinar Plus</button>';
+
+  const prem = document.getElementById('plano-acao-premium');
+  if(prem) prem.innerHTML = (atual === 'premium')
+    ? selo
+    : '<button class="plano-f-btn" onclick="assinaturaSelecionarPlano(\'premium\');assinaturaIniciarCheckout(this)">💳 Assinar Premium</button>';
 }
 
 /* Cria a assinatura no Mercado Pago (via Netlify Function) e redireciona
@@ -4281,18 +4320,6 @@ function authMostrarAssinaturaObrigatoria(user, row){
   document.getElementById('form-perfil')?.classList.remove('ativo');
   authLimparMensagens();
 
-  // Data-limite do teste grátis (quando o banco já tem a linha de trial)
-  const trialEl = document.getElementById('assin-gate-trial');
-  const trialAte = row ? assinaturaFmtData(row.trial_fim) : '';
-  if (trialEl) {
-    if (trialAte) {
-      trialEl.innerHTML = 'Seu teste grátis vai até <strong>'+trialAte+'</strong> — nada é cobrado antes disso.';
-      trialEl.style.display = '';
-    } else {
-      trialEl.style.display = 'none';
-    }
-  }
-
   // Voltando do checkout: o webhook do MP pode levar alguns segundos
   if (_assinaturaRetornoCheckout) assinaturaGateMostrarRetorno();
   else assinaturaGateMostrarOferta();
@@ -4351,8 +4378,10 @@ function assinaturaGateMostrarOferta(){
   const r = document.getElementById('assin-gate-retorno');
   if(o) o.style.display = '';
   if(r) r.style.display = 'none';
-  const b = document.getElementById('assin-gate-btn');
-  if(b){ b.disabled = false; assinaturaAtualizarBotaoPlano(); }
+  /* Redesenha os botões dos 3 cartões: isso também zera qualquer estado de
+     loading ("⏳ Abrindo checkout...") que tenha ficado de uma tentativa
+     anterior, já que o HTML da área de ação é recriado do zero. */
+  assinaturaRenderAcoesPlanos();
 }
 
 function assinaturaGateMostrarRetorno(){
