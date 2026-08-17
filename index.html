@@ -4076,8 +4076,11 @@ function assinaturaResumo(row){
       texto: 'Acesso cortesia — obrigado por fazer parte! 🎁'
         + (ate ? '<br>Válido até <strong>'+ate+'</strong>.' : ''),
       cor: 'var(--gold)',
-      acao: null,          /* cortesia não tem o que assinar nem o que cancelar */
-      botao: null,
+      /* Cortesia não tem o que CANCELAR (não é uma cobrança de verdade),
+         mas precisa de um jeito de ver os planos mesmo assim — sem isso a
+         tela fica sem nenhum botão e sem saída nenhuma. */
+      acao: 'assinar',
+      botao: 'Ver planos',
       alerta: false
     };
   }
