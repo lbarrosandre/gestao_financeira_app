@@ -4955,7 +4955,18 @@ function renderPlan(){
   // Só persiste se ALGUM item realmente mudou de pendente→vencido.
   // Salvar a cada render disparava sync no Supabase e podia formar loop com o realtime.
   let mudouStatus=false;
-  APP.plan.forEach(p=>{if(p.status==='pendente'){const dp=new Date(p.dataISO);dp.setHours(0,0,0,0);if(dp<hoje){p.status='vencido';mudouStatus=true;}}});
+  // `new Date('AAAA-MM-DD')` é interpretado como meia-noite UTC, não local —
+  // em fuso negativo (Brasil, UTC-3) isso volta um dia (ex: 17/08 virava
+  // 16/08 21h local, e o setHours(0,0,0,0) seguinte fixava em 16/08, não
+  // 17/08). Resultado: um item vencia um dia ANTES da data real. Construir
+  // com y/m/d direto evita a conversão UTC por completo.
+  APP.plan.forEach(p=>{
+    if(p.status==='pendente'){
+      const[ay,am,ad]=p.dataISO.split('-').map(Number);
+      const dp=new Date(ay,am-1,ad);
+      if(dp<hoje){p.status='vencido';mudouStatus=true;}
+    }
+  });
   if(mudouStatus)salvarPlan();
   const lista=[...APP.plan].filter(p=>(!fM||p.mes===fM)&&(!fMov||p.movimento===fMov)&&(!fTipo||p.tipo===fTipo)).sort((a,b)=>{const o={vencido:0,pendente:1,executado:2};return o[a.status]!==o[b.status]?o[a.status]-o[b.status]:a.dataISO.localeCompare(b.dataISO);});
   atualizarStatsPlan();
