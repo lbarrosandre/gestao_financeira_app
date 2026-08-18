@@ -55,6 +55,7 @@ window.APP = {
   dividas: [],
   pagamentos: [],
   cartoes: [],
+  orcamentos: [],
   remoteLoaded: false
 };
 
@@ -86,6 +87,7 @@ function sbIniciarRealtime() {
     .on('postgres_changes',{ event:'*', schema:'public', table:'dividas',           filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
     .on('postgres_changes',{ event:'*', schema:'public', table:'pagamentos_divida', filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
     .on('postgres_changes',{ event:'*', schema:'public', table:'cartoes',           filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
+    .on('postgres_changes',{ event:'*', schema:'public', table:'orcamentos_categoria', filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
     .subscribe();
 }
 
@@ -147,7 +149,7 @@ async function sbCarregarDados() {
     const uid = window._sbUID;
 
     // Paralelo: busca todas as tabelas ao mesmo tempo
-    const [rLanc, rPlan, rBolsos, rMovs, rDiv, rPag, rCart] = await Promise.all([
+    const [rLanc, rPlan, rBolsos, rMovs, rDiv, rPag, rCart, rOrc] = await Promise.all([
       _supa.from('lancamentos').select('*').eq('uid', uid).order('data_lancto', { ascending: false }),
       _supa.from('planejamentos').select('*').eq('uid', uid).order('data_prevista', { ascending: true }),
       _supa.from('bolsos').select('*').eq('uid', uid).order('created_at', { ascending: true }),
@@ -155,12 +157,13 @@ async function sbCarregarDados() {
       _supa.from('dividas').select('*').eq('uid', uid).order('criado_em', { ascending: false }),
       _supa.from('pagamentos_divida').select('*').eq('uid', uid).order('data_pag', { ascending: false }),
       _supa.from('cartoes').select('*').eq('uid', uid).order('criado_em', { ascending: false }),
+      _supa.from('orcamentos_categoria').select('*').eq('uid', uid),
     ]);
 
     const falhas = [
       ['lancamentos', rLanc], ['planejamentos', rPlan], ['bolsos', rBolsos],
       ['bolso_movimentos', rMovs], ['dividas', rDiv], ['pagamentos_divida', rPag],
-      ['cartoes', rCart]
+      ['cartoes', rCart], ['orcamentos_categoria', rOrc]
     ].filter(([, r]) => r.error);
     if (falhas.length > 0) {
       falhas.forEach(([tabela, r]) => console.error('sbCarregarDados error em ' + tabela + ':', r.error));
@@ -208,6 +211,10 @@ async function sbCarregarDados() {
       }));
       localStorage.setItem('bussola_cartoes', JSON.stringify(APP.cartoes));
     }
+    if (rOrc.data) {
+      APP.orcamentos = rOrc.data.map(sbOrcToApp);
+      localStorage.setItem('bussola_orcamentos', JSON.stringify(APP.orcamentos));
+    }
 
     APP.remoteLoaded = true;
 
@@ -223,6 +230,7 @@ async function sbCarregarDados() {
       window.atualizarStatsPlan(); window.renderInvestimentos();
       (window.renderDividasUI || window.renderDividas)();
       if (typeof window.renderDash === 'function') window.renderDash();
+      if (typeof window.renderOrcamentos === 'function') window.renderOrcamentos();
     }
     if (typeof window.atualizarVisibilidadeCheckboxDivida === 'function') {
       window.atualizarVisibilidadeCheckboxDivida();
@@ -290,6 +298,11 @@ function sbPlanToApp(r) {
 function sbMovToApp(r) {
   return { id: r.id, tipo: r.tipo, valor: parseFloat(r.valor||0),
            descricao: r.descricao||'', data: r.data_mov, mesRef: r.mes_ref||'', lancId: r.lanc_id||null };
+}
+/* Orçamento por categoria: uma linha por (uid, categoria), sem dimensão de mês —
+   a meta é "viva" e vale para o mês que estiver sendo olhado. */
+function sbOrcToApp(r) {
+  return { categoria: r.categoria, valorMeta: parseFloat(r.valor_meta) || 0 };
 }
 function sbPagToApp(r) {
   const [y,m,d] = (r.data_pag||'').split('-');
@@ -522,6 +535,20 @@ window._sbSync = async function(patch) {
       }
     }
 
+    if (patch.orcamentos) {
+      // Chave composta uid+categoria (a tabela não tem coluna id).
+      // Sem delete-orphans: as 12 categorias são um conjunto fixo e meta 0
+      // já significa "sem acompanhamento" — não há órfão a apagar.
+      const rows = (patch.orcamentos).map(o => ({
+        uid, categoria: o.categoria, valor_meta: o.valorMeta || 0,
+        atualizado_em: new Date().toISOString()
+      }));
+      if (rows.length > 0) {
+        const { error } = await _supa.from('orcamentos_categoria').upsert(rows, { onConflict: 'uid,categoria' });
+        houveErro = _sbErr('orcamentos_categoria.upsert', error) || houveErro;
+      }
+    }
+
     if (!houveErro) window._sbSetSyncStatus('synced');
   } catch(e) {
     console.error('_sbSync error:', e);
@@ -535,7 +562,7 @@ window.sbSyncTodos = async function() {
   await window._sbSync({
     dados: APP.dados, plan: APP.plan, bolsos: APP.bolsos,
     dividas: APP.dividas, pagamentos: APP.pagamentos,
-    cartoes: APP.cartoes
+    cartoes: APP.cartoes, orcamentos: APP.orcamentos
   });
 };
 
@@ -1444,6 +1471,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 .dash-topcat-det-in{padding:7px 0 2px}
 .dash-topcat-det .bmv{background:var(--surface2);margin-bottom:4px}
 .dash-topcat-det-vazio{font-size:.62rem;color:var(--text3);padding:4px 0 6px}
+/* ─ Barra de orçamento por categoria (mesmo espírito de .bolso-prog, mais fina) ─ */
+.orc-prog-wrap{padding:2px 0 3px 19px}
+.orc-prog-txt{font-size:.6rem;color:var(--text3);margin-bottom:3px}
+.orc-prog{height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.orc-prog-bar{height:3px;border-radius:2px;background:var(--teal);transition:width .4s ease}
 
 /* ─ Insight card ─ */
 .dash-insight{
@@ -2101,6 +2133,14 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="ps"><div class="pl">Executado</div><div class="pv" id="ps-exec" style="color:var(--teal)">R$ 0</div></div>
       <div class="ps"><div class="pl">Pendente</div><div class="pv" id="ps-pend" style="color:var(--warn)">R$ 0</div></div>
     </div>
+
+    <!-- ORÇAMENTO POR CATEGORIA — teto mensal por categoria de gasto variável.
+         Complementar ao Planejar: aqui não há "dar baixa", o app soma sozinho
+         os lançamentos normais da categoria e compara com a meta. -->
+    <div class="sec" style="margin-top:14px">🎯 Orçamento por categoria</div>
+    <div class="rec-hint" style="margin-bottom:10px">Defina um teto mensal pras categorias de gasto variável — o app soma sozinho tudo que você lançar nelas e compara com a meta. Deixe em branco pra não acompanhar.</div>
+    <div id="orcamento-lista"></div>
+
     <div style="margin-top:12px">
       <div class="filtros-plan">
         <select id="pf-mes" onchange="renderPlan()"><option value="">Todos os meses</option></select>
@@ -3071,6 +3111,7 @@ const _rawDivida=JSON.parse(localStorage.getItem('bussola_divida')||'null');
 APP.dividas=Array.isArray(_rawDivida)?_rawDivida:(_rawDivida?[_rawDivida]:[]);
 APP.pagamentos=JSON.parse(localStorage.getItem('bussola_pagamentos')||'[]');
 APP.cartoes=JSON.parse(localStorage.getItem('bussola_cartoes')||'[]');
+APP.orcamentos=JSON.parse(localStorage.getItem('bussola_orcamentos')||'[]');
 let mov='Debito',planMov='Debito',invMov='deposito',execId=null;
 /* Estado da aba Dívidas: qual dívida está aberta no detalhe e qual está em edição
    (null = criando uma nova). */
@@ -4741,7 +4782,7 @@ function init(){
   buildMesesGrid();
   // Espelha em Registros os pagamentos de dívida antigos (idempotente).
   migrarPagamentosDividaParaRegistros();
-  renderLista();renderPlan();atualizarStats();atualizarStatsPlan();
+  renderLista();renderPlan();renderOrcamentos();atualizarStats();atualizarStatsPlan();
   renderInvestimentos();renderDividas();populateDashFilters();
   document.getElementById('df-mes').value=MESES[hoje.getMonth()];
   atualizarVisibilidadeCheckboxDivida();
@@ -4783,7 +4824,7 @@ function trocarTab(t){
   // Ao sair de Registros, restaura stats globais
   if(t!=='lista')atualizarStats();
   if(t==='lista')renderLista();
-  if(t==='plan')renderPlan();
+  if(t==='plan'){renderPlan();renderOrcamentos();}
   if(t==='inv'){renderInvestimentos();onInvOrigemChange();}
   // Abas exclusivas de plano superior: quando o plano não atende, o pane
   // recebe a tela de bloqueio NO LUGAR do conteúdo e o render real NÃO roda
@@ -4970,6 +5011,50 @@ function renderLista(){
         :`<span class="tag" title="Compra no cartão de crédito — não debita a conta até a fatura ser paga" style="background:rgba(59,130,246,.15);color:var(--accent)">💳 ${getCartao(d.cartaoId)?.nome||'Cartão'}${d.faturaRef?' · '+faturaRefLabel(d.faturaRef):''}</span>`)
       :'';
     return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${dividaBadge}${cartaoBadge}${origemBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
+  }).join('');
+}
+
+/* ═══ ORÇAMENTO POR CATEGORIA ══════════
+   Teto mensal por categoria de gasto variável/eventual. Diferente do Planejar
+   (que agenda itens específicos e exige "Executar"), aqui não há baixa: o app
+   soma os lançamentos que já entram pelo +Lançar naquela categoria e compara
+   com a meta. Meta 0/vazia = categoria sem acompanhamento. */
+function getMetaCategoria(categoria){
+  const o = APP.orcamentos.find(x => x.categoria === categoria);
+  return o ? (Number(o.valorMeta) || 0) : 0;
+}
+
+function salvarMetaCategoria(categoria, inputEl){
+  const valor = parseCurrency(inputEl.value) || 0;
+  let o = APP.orcamentos.find(x => x.categoria === categoria);
+  if (o) o.valorMeta = valor;
+  else APP.orcamentos.push({ categoria, valorMeta: valor });
+  salvarOrcamentos();
+  toast(valor ? '✅ Meta salva!' : 'Meta removida', false, true);
+  // O dashboard mostra as barras de meta em Top Categorias — refaz se estiver montado.
+  if(typeof renderDash==='function' && document.getElementById('dash-topcat')) renderDash();
+}
+
+function renderOrcamentos(){
+  const alvo=document.getElementById('orcamento-lista');
+  if(!alvo)return;
+  const grupos=[['Despesas variáveis','Despesas variaveis'],['Despesas eventuais','Despesas eventuais']];
+  alvo.innerHTML=grupos.map(([rotulo,tipo])=>{
+    const cats=CATS[tipo]||[];
+    const campos=cats.map(cat=>{
+      const m=getMetaCategoria(cat);
+      const val=m>0?m.toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
+      return `<div class="fi">
+        <label>${cat}</label>
+        <input type="text" inputmode="decimal" placeholder="0,00" autocomplete="off"
+          value="${val}" oninput="maskCurrency(this)"
+          onblur="salvarMetaCategoria('${cat.replace(/'/g,"\\'")}',this)">
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:10px">
+      <div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:0 0 6px">${rotulo}</div>
+      <div class="r2">${campos}</div>
+    </div>`;
   }).join('');
 }
 
@@ -5256,6 +5341,11 @@ function salvarCartoes(){
   localStorage.setItem('bussola_cartoes',JSON.stringify(APP.cartoes));
   window._sbUltimaEscritaLocal = Date.now();
   if(window._sbSync) window._sbSync({ cartoes: APP.cartoes });
+}
+function salvarOrcamentos(){
+  localStorage.setItem('bussola_orcamentos',JSON.stringify(APP.orcamentos));
+  window._sbUltimaEscritaLocal = Date.now();
+  if(window._sbSync) window._sbSync({ orcamentos: APP.orcamentos });
 }
 /* ── Dialog universal ── */
 function confirmar({icone='⚠️', titulo='Confirmar?', msg='Esta ação não pode ser desfeita.', btnTxt='Excluir', cor='var(--danger)', fn}){
@@ -7026,6 +7116,21 @@ function dashTopCat(base){
             <div class="bmv-val s-val" style="color:var(--danger)"><span class="val-txt">${fmt(Number(d.valorAbs)||0)}</span></div>
           </div>`).join('')
         : '<div class="dash-topcat-det-vazio">Sem lançamentos detalhados</div>';
+      // Orçamento por categoria: barrinha gasto x meta, só quando a categoria tem
+      // meta definida. LIMITAÇÃO CONHECIDA: só aparece nas categorias que já estão
+      // no top 6 por valor gasto — uma categoria com meta e gasto baixo (ou zero)
+      // não entra nesta lista e portanto não mostra a barra aqui.
+      const meta=typeof getMetaCategoria==='function'?getMetaCategoria(k):0;
+      let orc='';
+      if(meta>0){
+        const pctM=v/meta*100;
+        const corM=pctM>100?'var(--danger)':pctM>=80?'var(--warn)':'var(--teal)';
+        orc=`
+        <div class="orc-prog-wrap">
+          <div class="orc-prog-txt">🎯 ${fmt(v)} de ${fmt(meta)} <span style="color:${corM};font-weight:700">(${Math.round(pctM)}%)</span></div>
+          <div class="orc-prog"><div class="orc-prog-bar" style="width:${Math.min(100,pctM).toFixed(1)}%;background:${corM}"></div></div>
+        </div>`;
+      }
       return `
       <div class="dash-topcat-item" id="dash-topcat-det-${i}">
         <div class="dash-hbar-row" onclick="dashToggleTopCat(${i})">
@@ -7033,7 +7138,7 @@ function dashTopCat(base){
           <div class="dash-hbar-label" title="${k}">${k}</div>
           <div class="dash-hbar-track"><div class="dash-hbar-fill" style="width:${(v/max*100).toFixed(1)}%;background:${CHART_PALETTE[i]}"></div></div>
           <div class="dash-hbar-val">${fmt(v)}</div>
-        </div>
+        </div>${orc}
         <div class="dash-topcat-det"><div class="dash-topcat-det-in">${det}</div></div>
       </div>`;}).join('')
     : '<p style="font-size:.72rem;color:var(--text3);padding:8px 0">Sem despesas no período</p>';
@@ -7654,6 +7759,21 @@ function dashInsights(base){
   if(faltou)metas.push({ic:'📉',txt:`Receita "<strong>${esc(faltou.p.descricao)}</strong>" ficou R$ ${fmt(faltou.dif)} abaixo do planejado.`});
   // Só faz sentido elogiar quando havia algo executado para estourar.
   if(exec.length&&!estourou&&!faltou)metas.push({ic:'✅',txt:'Nenhum item planejado estourou o orçamento neste mês.'});
+  // Orçamento por categoria (teto mensal definido na aba Planejar). Mesmo critério
+  // de "só o pior" usado no item de planejamento estourado: uma linha só, para não
+  // poluir. Se nada estourou, avisa a pior entre 90% e 100% — nunca as duas juntas.
+  const catsOrc=[...(CATS['Despesas variaveis']||[]),...(CATS['Despesas eventuais']||[])];
+  let piorEstouro=null,piorQuase=null;
+  catsOrc.forEach(cat=>{
+    const metaCat=typeof getMetaCategoria==='function'?getMetaCategoria(cat):0;
+    if(metaCat<=0)return;
+    const gastoCat=base.filter(d=>d.movimento==='Debito'&&d.categoria===cat).reduce((s,d)=>s+(Number(d.valorAbs)||0),0);
+    const pctCat=gastoCat/metaCat*100;
+    if(pctCat>=100){if(!piorEstouro||pctCat>piorEstouro.pct)piorEstouro={cat,pct:pctCat,gasto:gastoCat,meta:metaCat};}
+    else if(pctCat>=90){if(!piorQuase||pctCat>piorQuase.pct)piorQuase={cat,pct:pctCat,gasto:gastoCat,meta:metaCat};}
+  });
+  if(piorEstouro)metas.push({ic:'⚠️',txt:`Orçamento de "<strong>${esc(piorEstouro.cat)}</strong>" estourado: R$ ${fmt(piorEstouro.gasto)} de R$ ${fmt(piorEstouro.meta)} (${Math.round(piorEstouro.pct)}%).`});
+  else if(piorQuase)metas.push({ic:'👀',txt:`Orçamento de "<strong>${esc(piorQuase.cat)}</strong>" quase no limite: ${Math.round(piorQuase.pct)}% usado.`});
   const vencidos=APP.plan.filter(p=>p.status==='vencido').length;
   if(vencidos>0)metas.push({ic:'🔴',txt:`Você tem <strong>${vencidos} pagamento${vencidos>1?'s':''} vencido${vencidos>1?'s':''}</strong> no planejamento.`});
   grupos.push({titulo:'🎯 Metas do período',linhas:metas});
