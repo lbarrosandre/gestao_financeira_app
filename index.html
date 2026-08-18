@@ -5127,12 +5127,17 @@ function renderPlan(){
   if(!lista.length){c.innerHTML='<div class="empty"><div class="empty-v">📅</div><h4>Nenhum planejamento</h4><p>Agende pagamentos acima.</p></div>';return;}
   const grupos={};
   lista.forEach(p=>{if(!grupos[p.mes])grupos[p.mes]=[];grupos[p.mes].push(p);});
-  c.innerHTML=MESES.filter(m=>grupos[m]).map(m=>{
+  // Fechamento dos meses: mesmo acordeão genérico (toggleAcc) já usado em
+  // Registros e no Orçamento por categoria. Um único mês no resultado (ex.:
+  // filtro de mês travado) começa aberto; vários meses começam fechados.
+  const mesesComItens=MESES.filter(m=>grupos[m]);
+  const aberto=mesesComItens.length===1?' aberto':'';
+  c.innerHTML=mesesComItens.map(m=>{
     const items=grupos[m];
     const tP=items.reduce((s,p)=>s+p.valorPlanejado,0);
     const tE=items.filter(p=>p.status==='executado').reduce((s,p)=>s+p.valorReal,0);
     const pn=items.filter(p=>p.status!=='executado').length;
-    return`<div class="pmg"><div class="pmh"><span class="pmt">📅 ${m}</span><span class="pms">Plan: R$ ${tP.toLocaleString('pt-BR',{maximumFractionDigits:0})} · Exec: R$ ${tE.toLocaleString('pt-BR',{maximumFractionDigits:0})} · ${pn} pend.</span></div>${items.map(p=>planCard(p)).join('')}</div>`;
+    return`<div class="pmg"><div class="pmh acc-head${aberto}" onclick="toggleAcc(this)"><span class="pmt">📅 ${m} <span class="acc-ico">›</span></span><span class="pms">Plan: R$ ${tP.toLocaleString('pt-BR',{maximumFractionDigits:0})} · Exec: R$ ${tE.toLocaleString('pt-BR',{maximumFractionDigits:0})} · ${pn} pend.</span></div><div class="acc-body${aberto}">${items.map(p=>planCard(p)).join('')}</div></div>`;
   }).join('');
 }
 
