@@ -1432,6 +1432,18 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 .dash-hbar-track{flex:1;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden}
 .dash-hbar-fill{height:100%;border-radius:4px;transition:width .6s cubic-bezier(.34,1.56,.64,1)}
 .dash-hbar-val{font-family:var(--mono);font-size:.62rem;color:var(--text3);width:62px;text-align:right;flex-shrink:0}
+/* Top categorias expansível: a linha inteira é clicável e revela as maiores
+   compras da categoria, reusando o visual .bmv das outras listas de movimento. */
+.dash-topcat-item{margin-bottom:7px}
+.dash-topcat-item .dash-hbar-row{margin-bottom:0;cursor:pointer;padding:3px 5px;margin-left:-5px;margin-right:-5px;border-radius:8px;transition:background .15s}
+.dash-topcat-item .dash-hbar-row:hover{background:var(--surface3)}
+.dash-hbar-caret{font-size:.55rem;color:var(--text3);width:11px;text-align:center;flex-shrink:0;transition:transform .2s ease}
+.dash-topcat-item.aberto .dash-hbar-caret{transform:rotate(90deg)}
+.dash-topcat-det{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.dash-topcat-item.aberto .dash-topcat-det{max-height:400px}
+.dash-topcat-det-in{padding:7px 0 2px}
+.dash-topcat-det .bmv{background:var(--surface2);margin-bottom:4px}
+.dash-topcat-det-vazio{font-size:.62rem;color:var(--text3);padding:4px 0 6px}
 
 /* ─ Insight card ─ */
 .dash-insight{
@@ -2172,11 +2184,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="dash-filters">
       <select id="df-mes" onchange="renderDash()"><option value="">Todos os meses</option></select>
       <select id="df-tipo" onchange="renderDash()">
-        <option value="">Todos tipos</option>
+        <option value="">Todos os tipos</option>
         <option value="Receita">Receita</option>
-        <option value="Despesas fixas">Desp. fixas</option>
-        <option value="Despesas variaveis">Desp. variáveis</option>
-        <option value="Despesas eventuais">Desp. eventuais</option>
+        <option value="Despesas">Despesas</option>
       </select>
       <button class="btn-dash-reset" onclick="resetDashFilters()">↺ Limpar</button>
     </div>
@@ -6829,12 +6839,16 @@ function dashDestroyChart(id){
 function dashFilterDados(){
   const fM=document.getElementById('df-mes')?.value||'';
   const fT=document.getElementById('df-tipo')?.value||'';
+  // Filtro de tipo simplificado (Receita / Despesas / todos): usa o movimento
+  // binário (Credito/Debito) em vez do campo granular d.tipo, que continua
+  // guardando 'Despesas fixas'/'variaveis'/'eventuais' em cada lançamento.
+  const passaTipo=d=>!fT||(fT==='Receita'?d.movimento==='Credito':d.movimento==='Debito');
   // Universo único do dashboard: sem transferências internas CC↔bolso (não são
   // receita nem despesa) e só os meses que os gráficos conseguem plotar (MESES =
   // ano corrente) — antes os KPIs somavam anos que as barras descartavam.
   // faturaPagamento fica de fora pelo mesmo motivo de lancEfetivos: a despesa
   // já foi contada na COMPRA do cartão, o pagamento não é um gasto novo.
-  return APP.dados.filter(d=>!d.deBolso&&!d.faturaPagamento&&isMesDoGrafico(d.mes)&&(!fM||d.mes===fM)&&(!fT||d.tipo===fT));
+  return APP.dados.filter(d=>!d.deBolso&&!d.faturaPagamento&&isMesDoGrafico(d.mes)&&(!fM||d.mes===fM)&&passaTipo(d));
 }
 
 function renderDash(){
@@ -6993,14 +7007,44 @@ function dashTopCat(base){
   const entries=Object.entries(byCateg).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const max=entries[0]?entries[0][1]:1;
   const fmt=v=>'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  // Cada barra vira um bloco clicável que abre as 5 maiores compras da categoria
+  // dentro do MESMO `base` já filtrado. O innerHTML é reconstruído inteiro a cada
+  // chamada (troca de mês/tipo, reload realtime), então nenhum bloco fica preso
+  // aberto: o estado de expansão não persiste entre re-renders — é aceitável.
   document.getElementById('dash-topcat').innerHTML=entries.length
-    ? entries.map(([k,v],i)=>`
-      <div class="dash-hbar-row">
-        <div class="dash-hbar-label" title="${k}">${k}</div>
-        <div class="dash-hbar-track"><div class="dash-hbar-fill" style="width:${(v/max*100).toFixed(1)}%;background:${CHART_PALETTE[i]}"></div></div>
-        <div class="dash-hbar-val">${fmt(v)}</div>
-      </div>`).join('')
+    ? entries.map(([k,v],i)=>{
+      const tops=base.filter(d=>d.movimento==='Debito'&&d.categoria===k)
+        .sort((a,b)=>b.valorAbs-a.valorAbs).slice(0,5);
+      const det=tops.length
+        ? tops.map(d=>`
+          <div class="bmv">
+            <div class="bmv-ico saida">↓</div>
+            <div class="bmv-info">
+              <div class="bmv-desc">${d.descricao||'—'}</div>
+              <div class="bmv-data">${d.data||'—'}</div>
+            </div>
+            <div class="bmv-val s-val" style="color:var(--danger)"><span class="val-txt">${fmt(Number(d.valorAbs)||0)}</span></div>
+          </div>`).join('')
+        : '<div class="dash-topcat-det-vazio">Sem lançamentos detalhados</div>';
+      return `
+      <div class="dash-topcat-item" id="dash-topcat-det-${i}">
+        <div class="dash-hbar-row" onclick="dashToggleTopCat(${i})">
+          <div class="dash-hbar-caret">▸</div>
+          <div class="dash-hbar-label" title="${k}">${k}</div>
+          <div class="dash-hbar-track"><div class="dash-hbar-fill" style="width:${(v/max*100).toFixed(1)}%;background:${CHART_PALETTE[i]}"></div></div>
+          <div class="dash-hbar-val">${fmt(v)}</div>
+        </div>
+        <div class="dash-topcat-det"><div class="dash-topcat-det-in">${det}</div></div>
+      </div>`;}).join('')
     : '<p style="font-size:.72rem;color:var(--text3);padding:8px 0">Sem despesas no período</p>';
+  // Os valores do detalhe usam .s-val: respeita o botão de olho.
+  aplicarVisibilidade();
+}
+
+/* Abre/fecha o detalhe de uma categoria do Top Categorias (HTML/CSS puro). */
+function dashToggleTopCat(i){
+  const el=document.getElementById('dash-topcat-det-'+i);
+  if(el)el.classList.toggle('aberto');
 }
 
 /* ── Gauge taxa de economia ── */
@@ -7067,10 +7111,21 @@ function dashReceitaCat(base){
 
 /* ── Planejado vs Realizado ── */
 function dashPlanReal(){
+  // Lê os MESMOS filtros do dashboard direto do DOM (igual dashFilterDados),
+  // com o mesmo critério binário de tipo — antes este gráfico ignorava os
+  // filtros e mostrava o ano inteiro mesmo com um mês/tipo selecionado.
+  const fM=document.getElementById('df-mes')?.value||'';
+  const fT=document.getElementById('df-tipo')?.value||'';
+  const passaTipo=p=>!fT||(fT==='Receita'?p.movimento==='Credito':p.movimento==='Debito');
   const byMes={};
   MESES.forEach(m=>{byMes[m]={plan:0,real:0};});
-  APP.plan.forEach(p=>{if(byMes[p.mes]){byMes[p.mes].plan+=p.valorPlanejado;if(p.status==='executado')byMes[p.mes].real+=p.valorReal;}});
-  const mesesComDados=MESES.filter(m=>byMes[m].plan>0||byMes[m].real>0);
+  APP.plan.forEach(p=>{
+    if(byMes[p.mes]&&passaTipo(p)&&(!fM||p.mes===fM)){
+      byMes[p.mes].plan+=p.valorPlanejado;
+      if(p.status==='executado')byMes[p.mes].real+=p.valorReal;
+    }
+  });
+  const mesesComDados=MESES.filter(m=>(!fM||m===fM)&&(byMes[m].plan>0||byMes[m].real>0));
   dashDestroyChart('chart-planreal');
   if(!mesesComDados.length){const ctx2=document.getElementById('chart-planreal').getContext('2d');ctx2.clearRect(0,0,999,999);return;}
   const ctx=document.getElementById('chart-planreal').getContext('2d');
