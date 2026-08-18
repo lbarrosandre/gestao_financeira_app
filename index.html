@@ -817,6 +817,20 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 /* ─── CARDS LANÇAMENTOS ──────────────── */
 .lc{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:10px;animation:fadeUp .2s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ─── ACORDEÃO GENÉRICO (toggleAcc) ──────
+   Par CSS+JS reutilizável: qualquer .acc-head clicável abre/fecha o
+   .acc-body que vem IMEDIATAMENTE depois dele. Sem ids fixos. */
+.acc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none}
+.acc-head .acc-ico{transition:transform .2s ease;color:var(--text3);font-size:.8rem;flex-shrink:0}
+.acc-head.aberto .acc-ico{transform:rotate(90deg)}
+.acc-body{display:none;overflow:hidden}
+.acc-body.aberto{display:block;animation:fadeUp .2s ease}
+/* Variante: cabeçalho de mês no fechamento da lista de registros */
+.acc-mes{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;margin-bottom:6px;font-size:.74rem;font-weight:700;color:var(--text2)}
+.acc-mes .acc-qtd{font-weight:500;color:var(--text3);font-size:.66rem}
+/* Variante: subtítulo de grupo no Orçamento por categoria */
+.acc-sub{font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:0 0 6px;padding:2px 0}
 .ci{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:14px;flex-shrink:0}
 .ci.debito{background:rgba(239,68,68,.1)}.ci.credito{background:rgba(16,185,129,.1)}
 .cb{flex:1;min-width:0}
@@ -2953,6 +2967,16 @@ function toggleMenuConta(){
   if(ico)ico.style.transform=isOpen?'rotate(90deg)':'';
 }
 
+/* Acordeão genérico e reutilizável: alterna o próprio cabeçalho e o
+   .acc-body que vem logo em seguida. Usado no Orçamento por categoria
+   (Planejar) e no fechamento por mês da lista de Registros. */
+function toggleAcc(headEl){
+  if(!headEl)return;
+  headEl.classList.toggle('aberto');
+  const body=headEl.nextElementSibling;
+  if(body)body.classList.toggle('aberto');
+}
+
 const APP_VERSION='3.0';
 const CATS={'Receita':['Renda do Trabalho','Trabalho Autônomo / Freelance','Rendimentos Financeiros','Benefícios e Transferências','Receitas Eventuais'],'Despesas fixas':['Moradia','Serviços Essenciais','Saúde e Proteção','Educação','Assinaturas e Serviços Digitais','Compromissos Financeiros'],'Despesas variaveis':['Alimentação','Transporte','Higiene e Cuidados Pessoais','Vestuário','Lazer e Entretenimento','Família e Dependentes'],'Despesas eventuais':['Manutenção e Reparos','Saúde Eventual','Datas Especiais e Sociais','Obrigações Anuais','Viagens e Turismo','Compras Não Recorrentes']};
 // Gera MESES dinamicamente para o ano corrente e suporta anos passados nos dados
@@ -4992,7 +5016,7 @@ function renderLista(){
   // Ledger da dívida indexado por id: o vínculo lançamento↔pagamento é o id.
   const pagPorId=new Map(APP.pagamentos.map(p=>[p.id,p]));
   const idsPagDivida=new Set(APP.pagamentos.map(p=>p.id));
-  c.innerHTML=fil.map(d=>{
+  const cardHTML=d=>{
     const cor=d.movimento==='Credito'?'var(--teal)':'var(--danger)';
     const s=d.movimento==='Credito'?'+':'-';
     const commentBadge=d.comentario?`<span class="has-comment" title="${d.comentario}" onclick="showCommentTooltip(event,'${d.comentario.replace(/'/g,"\\'")}')" style="margin-left:2px"></span>`:'';
@@ -5011,6 +5035,22 @@ function renderLista(){
         :`<span class="tag" title="Compra no cartão de crédito — não debita a conta até a fatura ser paga" style="background:rgba(59,130,246,.15);color:var(--accent)">💳 ${getCartao(d.cartaoId)?.nome||'Cartão'}${d.faturaRef?' · '+faturaRefLabel(d.faturaRef):''}</span>`)
       :'';
     return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${dividaBadge}${cartaoBadge}${origemBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
+  };
+  // Fechamento dos meses: agrupa os MESMOS cards por d.mes. Como fil já vem
+  // ordenado por dataISO decrescente, a ordem de aparição dos meses já sai
+  // cronológica decrescente — não precisa reordenar.
+  const grupos=[];const idxGrupo=new Map();
+  fil.forEach(d=>{
+    let g=idxGrupo.get(d.mes);
+    if(!g){g={mes:d.mes,itens:[]};idxGrupo.set(d.mes,g);grupos.push(g);}
+    g.itens.push(d);
+  });
+  // Um único mês no resultado (ex.: filtro de mês travado): não faz sentido
+  // esconder — começa aberto. Vários meses: todos fechados.
+  const aberto=grupos.length===1?' aberto':'';
+  c.innerHTML=grupos.map(g=>{
+    const qtd=g.itens.length+(g.itens.length!==1?' lançamentos':' lançamento');
+    return`<div class="acc-head acc-mes${aberto}" onclick="toggleAcc(this)"><span>${g.mes} <span class="acc-qtd">· ${qtd}</span></span><span class="acc-ico">›</span></div><div class="acc-body${aberto}">${g.itens.map(cardHTML).join('')}</div>`;
   }).join('');
 }
 
@@ -5051,9 +5091,11 @@ function renderOrcamentos(){
           onblur="salvarMetaCategoria('${cat.replace(/'/g,"\\'")}',this)">
       </div>`;
     }).join('');
+    // Cada grupo é um acordeão fechado por padrão — a seção fica compacta e a
+    // pessoa abre só o grupo que vai ajustar.
     return `<div style="margin-bottom:10px">
-      <div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:0 0 6px">${rotulo}</div>
-      <div class="r2">${campos}</div>
+      <div class="acc-head acc-sub" onclick="toggleAcc(this)"><span>${rotulo}</span><span class="acc-ico">›</span></div>
+      <div class="acc-body"><div class="r2">${campos}</div></div>
     </div>`;
   }).join('');
 }
@@ -7230,6 +7272,28 @@ function dashPlanReal(){
       if(p.status==='executado')byMes[p.mes].real+=p.valorReal;
     }
   });
+  // ─── Orçamento por categoria (APP.orcamentos) ───
+  // Ao contrário de APP.plan, a meta de categoria é um teto "vivo": não tem mês
+  // próprio, vale igualmente para TODO mês do ano. Só entra quando o filtro de
+  // tipo não é exclusivamente Receita — teto de categoria é sempre despesa.
+  if(fT!=='Receita'){
+    const catsOrc=[...(CATS['Despesas variaveis']||[]),...(CATS['Despesas eventuais']||[])];
+    const mesesAlvo=MESES.filter(m=>!fM||m===fM);
+    catsOrc.forEach(cat=>{
+      const meta=typeof getMetaCategoria==='function'?getMetaCategoria(cat):0;
+      if(meta<=0)return; // sem meta = sem acompanhamento, fica fora dos dois lados
+      mesesAlvo.forEach(m=>{
+        if(!byMes[m])return;
+        byMes[m].plan+=meta;
+        // O Realizado precisa crescer junto: o gasto real da categoria vem do
+        // +Lançar (não tem "executar"), senão o gráfico mostraria um Planejado
+        // inflado sem o Realizado correspondente.
+        byMes[m].real+=APP.dados
+          .filter(d=>d.movimento==='Debito'&&d.categoria===cat&&d.mes===m)
+          .reduce((s,d)=>s+(d.valorAbs||0),0);
+      });
+    });
+  }
   const mesesComDados=MESES.filter(m=>(!fM||m===fM)&&(byMes[m].plan>0||byMes[m].real>0));
   dashDestroyChart('chart-planreal');
   if(!mesesComDados.length){const ctx2=document.getElementById('chart-planreal').getContext('2d');ctx2.clearRect(0,0,999,999);return;}
