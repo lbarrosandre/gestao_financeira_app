@@ -43,6 +43,7 @@ const _supa = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
 window._sbReady = false;
 window._sbUID   = null;
 let _sbChannel  = null;   // realtime channel
+window._sbUltimaEscritaLocal = 0;   // timestamp da última escrita local (anti-eco do realtime)
 
 /* Estado da aplicação — objeto único compartilhado entre este bloco e o script do app.
    `let`/`const` no topo de um script clássico não criam propriedade em window; por isso
@@ -89,8 +90,23 @@ function sbIniciarRealtime() {
 }
 
 /* ── Reload leve após evento realtime ── */
-async function sbReloadDados() {
-  await sbCarregarDados();
+let _sbReloadTimer = null;
+function sbReloadDados() {
+  // Agrupa rajadas de eventos (uma ação local pode mexer em mais de uma
+  // tabela ao mesmo tempo) numa recarga só, e dá tempo dos próprios
+  // upserts do cliente confirmarem no servidor antes de reler — senão a
+  // recarga pega o dado ainda velho e apaga por cima a mutação local que
+  // ainda estava em trânsito (bug real, já aconteceu: ver histórico).
+  if (_sbReloadTimer) clearTimeout(_sbReloadTimer);
+  _sbReloadTimer = setTimeout(() => {
+    _sbReloadTimer = null;
+    // Escrita local recente = os eventos que chegaram são eco da própria
+    // escrita deste cliente, não mudança de outro dispositivo/sessão.
+    // Pular aqui não perde dado: na pior hipótese, uma mudança de OUTRO
+    // dispositivo dentro dessa janela só é pega no próximo evento/reload.
+    if (Date.now() - window._sbUltimaEscritaLocal < 4000) return;
+    sbCarregarDados();
+  }, 1200);
 }
 
 /* ══════════════════════════════════════════════
@@ -5207,23 +5223,28 @@ function remover(id){
 }
 function salvar(){
   localStorage.setItem('gastos_v2',JSON.stringify(APP.dados));
+  window._sbUltimaEscritaLocal = Date.now();
   if(window._sbSync) window._sbSync({ dados: APP.dados });
 }
 function salvarPlan(){
   localStorage.setItem('gastos_plan',JSON.stringify(APP.plan));
+  window._sbUltimaEscritaLocal = Date.now();
   if(window._sbSync) window._sbSync({ plan: APP.plan });
 }
 function salvarBolsos(){
   localStorage.setItem('bussola_bolsos',JSON.stringify(APP.bolsos));
+  window._sbUltimaEscritaLocal = Date.now();
   if(window._sbSync) window._sbSync({ bolsos: APP.bolsos });
 }
 function salvarDivida(){
   localStorage.setItem('bussola_divida',JSON.stringify(APP.dividas));
   localStorage.setItem('bussola_pagamentos',JSON.stringify(APP.pagamentos));
+  window._sbUltimaEscritaLocal = Date.now();
   if(window._sbSync) window._sbSync({ dividas: APP.dividas, pagamentos: APP.pagamentos });
 }
 function salvarCartoes(){
   localStorage.setItem('bussola_cartoes',JSON.stringify(APP.cartoes));
+  window._sbUltimaEscritaLocal = Date.now();
   if(window._sbSync) window._sbSync({ cartoes: APP.cartoes });
 }
 /* ── Dialog universal ── */
