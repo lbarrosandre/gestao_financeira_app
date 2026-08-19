@@ -5004,12 +5004,9 @@ function renderLista(){
     const matchBusca=!busca||d.descricao.toLowerCase().includes(busca)||(d.comentario&&d.comentario.toLowerCase().includes(busca));
     return matchBusca&&(!fM||d.movimento===fM)&&(!fT||d.tipo===fT)&&(!fMs||d.mes===fMs)&&(!fCom||!!d.comentario);
   }).sort((a,b)=>b.dataISO.localeCompare(a.dataISO));
-  // Atualiza stats conforme filtro ativo
-  if(fMs||fM||fT||busca){
-    atualizarStats(fil);
-  } else {
-    atualizarStats();
-  }
+  // A barra de Receitas/Despesas/Saldo agora é sempre do mês atual (ver
+  // atualizarStats) — não depende mais do filtro de Registros.
+  atualizarStats();
   document.getElementById('count-label').textContent=fil.length+(fil.length!==1?' registros encontrados':' registro encontrado');
   const c=document.getElementById('lista-container');
   if(!fil.length){c.innerHTML='<div class="empty"><div class="empty-v">🔍</div><h4>Nenhum lançamento encontrado</h4><p>Adicione seu primeiro lançamento<br>para começar a organizar suas finanças.</p></div>';return;}
@@ -5274,7 +5271,13 @@ function confirmarExec(){
 let valoresVisiveis=false;
 function fmtStat(v){return'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function atualizarStats(filteredDados){
-  const base=filteredDados||APP.dados;
+  // A barra de Receitas/Despesas/Saldo aparece em TODAS as abas — por pedido
+  // do usuário, ela sempre reflete o MÊS ATUAL, independente de qualquer
+  // filtro que esteja ativo em Registros (o parâmetro filteredDados não é
+  // mais usado pra isso; fica só por compatibilidade com quem já chama a
+  // função passando um argumento).
+  const mesAtual=MESES[new Date().getMonth()];
+  const base=APP.dados.filter(d=>d.mes===mesAtual);
   // Fonte única (já exclui transferências internas CC↔bolso)
   const{rec,desp,saldo:sal}=somaRecDesp(base);
   document.getElementById('stat-rec').querySelector('.val-txt').textContent=fmtStat(rec);
