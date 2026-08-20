@@ -905,6 +905,9 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .sh-edit{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+28px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:303;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh-edit.show{transform:none}
 .sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+/* ─── ONBOARDING (tour de boas-vindas) ── */
+.onb-dot{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:.2s}
+.onb-dot.on{background:var(--purple);width:16px;border-radius:3px}
 /* ─── DIALOG ─────────────────────────── */
 /* Acima do #auth-screen (10000): o gate obrigatório de assinatura usa
    confirmar() no "Sair da conta" e o diálogo ficaria escondido atrás dele. */
@@ -2855,6 +2858,30 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
 </div>
 
+<!-- ONBOARDING (tour de boas-vindas) — carrossel de 7 passos, um por aba.
+     Abre UMA única vez na vida da conta, via salvarCompletarPerfil().
+     O overlay NÃO tem onclick de fechar (diferente dos outros sheets): é
+     proposital, a saída é só pelo "Pular" ou terminando o tour, pra ninguém
+     fechar sem querer no primeiro contato com o app. -->
+<div class="sh-edit-ov" id="onb-ov"></div>
+<div class="sh-edit" id="onb-sheet">
+  <div class="sh-h"></div>
+  <div id="onb-content"></div>
+  <div style="display:flex;justify-content:center;gap:6px;margin:16px 0 4px">
+    <span class="onb-dot" id="onb-dot-0"></span>
+    <span class="onb-dot" id="onb-dot-1"></span>
+    <span class="onb-dot" id="onb-dot-2"></span>
+    <span class="onb-dot" id="onb-dot-3"></span>
+    <span class="onb-dot" id="onb-dot-4"></span>
+    <span class="onb-dot" id="onb-dot-5"></span>
+    <span class="onb-dot" id="onb-dot-6"></span>
+  </div>
+  <div class="sh-btns">
+    <button class="sh-cancel" onclick="onbPular()">Pular</button>
+    <button class="sh-ok" id="onb-btn-next" onclick="onbAvancar()">Próximo</button>
+  </div>
+</div>
+
 <!-- ASSINATURA SHEET -->
 <div class="sh-edit-ov" id="sh-assinatura-ov" onclick="fecharAssinaturaSheet()"></div>
 <div class="sh-edit" id="sh-assinatura">
@@ -4007,12 +4034,56 @@ async function salvarCompletarPerfil(){
     atualizarSaudacaoTopbar(p.nome, p.apelido);
     authOk('✅ Perfil salvo! Entrando...');
     await revelarApp(user, true);
+    setTimeout(onbAbrir, 600);
   } catch(e){
     console.error('salvarCompletarPerfil error:', e);
     authErro('Erro de conexão. Verifique sua internet.');
   } finally {
     authSetLoading(false);
   }
+}
+
+/* ═══ ONBOARDING — TOUR DE BOAS-VINDAS ═══
+   Carrossel de 7 passos (um por aba). Disparado só por salvarCompletarPerfil(),
+   que roda uma única vez por conta — por isso não precisa de flag no
+   localStorage nem coluna nova no banco. */
+const ONB_PASSOS=[
+  {ico:'👜',tab:'Carteira',txt:'Controle sua conta corrente e crie "bolsos" de poupança com metas — tudo em um só lugar.'},
+  {ico:'📅',tab:'Planejar',txt:'Agende pagamentos e recebimentos futuros, e defina um orçamento mensal por categoria pra gastos variáveis.'},
+  {ico:'💳',tab:'Passivos',txt:'Acompanhe suas dívidas e o cartão de crédito, com fatura e parcelamento — disponível nos planos Plus e Premium.'},
+  {ico:'➕',tab:'Lançar',txt:'Registre receitas e despesas rapidamente, no dia a dia — é o coração do app.'},
+  {ico:'📋',tab:'Registros',txt:'Veja todo o seu histórico de lançamentos, organizado por mês.'},
+  {ico:'📊',tab:'Dashboard',txt:'Gráficos e insights automáticos sobre sua vida financeira — disponível no plano Premium.'},
+  {ico:'🌐',tab:'Info',txt:'Cotações ao vivo: dólar, euro, bitcoin e ações — disponível no plano Premium.'}
+];
+let onbPasso=0;
+function onbAbrir(){
+  onbPasso=0;
+  onbRender();
+  document.getElementById('onb-ov')?.classList.add('show');
+  setTimeout(()=>document.getElementById('onb-sheet')?.classList.add('show'),10);
+}
+function onbRender(){
+  const p=ONB_PASSOS[onbPasso];
+  const c=document.getElementById('onb-content');
+  if(c) c.innerHTML=`
+    <div style="text-align:center;padding:14px 8px 4px">
+      <div style="font-size:2.6rem;margin-bottom:10px">${p.ico}</div>
+      <h3 style="font-size:1.05rem;margin-bottom:8px">${p.tab}</h3>
+      <p style="font-size:.85rem;color:var(--text2);line-height:1.5">${p.txt}</p>
+    </div>`;
+  ONB_PASSOS.forEach((_,i)=>document.getElementById('onb-dot-'+i)?.classList.toggle('on',i===onbPasso));
+  const btn=document.getElementById('onb-btn-next');
+  if(btn) btn.textContent = onbPasso===ONB_PASSOS.length-1 ? '🚀 Começar a usar' : 'Próximo →';
+}
+function onbAvancar(){
+  if(onbPasso<ONB_PASSOS.length-1){ onbPasso++; onbRender(); }
+  else onbFechar();
+}
+function onbPular(){ onbFechar(); }
+function onbFechar(){
+  document.getElementById('onb-sheet')?.classList.remove('show');
+  document.getElementById('onb-ov')?.classList.remove('show');
 }
 
 /* ═══ SHEET DE EDIÇÃO DE PERFIL (dentro do app) ═══ */
