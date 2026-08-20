@@ -3001,12 +3001,18 @@ function toggleComment(ctx){
 }
 
 let ttip=null;
-function showCommentTooltip(e,txt){
+function showCommentTooltip(e,tipo,id){
   e.stopPropagation();
   if(ttip){ttip.remove();ttip=null;return;}
+  const item = tipo==='plan' ? APP.plan.find(x=>x.id===id) : APP.dados.find(x=>x.id===id);
+  const txt = item?.comentario || '';
   const div=document.createElement('div');
   div.className='comment-tooltip show';
-  div.innerHTML='<strong style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">💬 Comentário</strong>'+txt;
+  const rotulo=document.createElement('strong');
+  rotulo.style.cssText='font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px';
+  rotulo.textContent='💬 Comentário';
+  div.appendChild(rotulo);
+  div.appendChild(document.createTextNode(txt));
   document.body.appendChild(div);
   ttip=div;
   const r=e.target.getBoundingClientRect();
@@ -4861,6 +4867,13 @@ function parseCurrency(str){
   return parseFloat(str.replace(/\./g,'').replace(',','.'))||0;
 }
 
+/* Escapa HTML de texto digitado pelo usuário antes de entrar em innerHTML.
+   NUNCA use isto em destino que já seja .textContent/.value — lá já é seguro
+   por natureza, e escapar de novo mostraria entidades HTML literais na tela. */
+function escHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
 /* ═══ SYNC DATA → MÊS ══════════════════ */
 function syncMesFromData(dataId,mesId){
   const d=document.getElementById(dataId).value;
@@ -5195,22 +5208,22 @@ function renderLista(){
   const cardHTML=d=>{
     const cor=d.movimento==='Credito'?'var(--teal)':'var(--danger)';
     const s=d.movimento==='Credito'?'+':'-';
-    const commentBadge=d.comentario?`<span class="has-comment" title="${d.comentario}" onclick="showCommentTooltip(event,'${d.comentario.replace(/'/g,"\\'")}')" style="margin-left:2px"></span>`:'';
+    const commentBadge=d.comentario?`<span class="has-comment" title="${escHtml(d.comentario)}" onclick="showCommentTooltip(event,'lanc',${d.id})" style="margin-left:2px"></span>`:'';
     // A flag pagamentoDivida não é persistida no Supabase; o ledger APP.pagamentos
     // é — por isso o id no ledger vale como fallback após o sync.
     const ehDiv=!!(d.pagamentoDivida||idsPagDivida.has(d.id));
     const origemBadge=(d.dePlan||ehDiv||d.faturaPagamento)?(d.pagoDoBolso?'<span class="tag" title="Baixa dada na Poupança">🐷 Poupança</span>':'<span class="tag" title="Baixa dada na Conta Corrente">🏦 CC</span>'):'';
     // Nome da dívida no badge quando o pagamento está vinculado a uma delas.
     const nomeDiv=ehDiv?(getDivida(pagPorId.get(d.id)?.dividaId)?.nome||''):'';
-    const dividaBadge=ehDiv?`<span class="tag" title="Pagamento de dívida" style="background:rgba(139,92,246,.15);color:var(--purple)">💳 ${nomeDiv||'Dívida'}</span>`:'';
+    const dividaBadge=ehDiv?`<span class="tag" title="Pagamento de dívida" style="background:rgba(139,92,246,.15);color:var(--purple)">💳 ${escHtml(nomeDiv||'Dívida')}</span>`:'';
     // Cartão de crédito: compra (azul, com o nome do cartão) vs pagamento de
     // fatura (roxo — mesma cor da dívida, é uma quitação de passivo).
     const cartaoBadge=d.cartaoId
       ?(d.faturaPagamento
         ?`<span class="tag" title="Pagamento de fatura de cartão (não conta como despesa nova)" style="background:rgba(139,92,246,.15);color:var(--purple)">💳 Pagamento fatura</span>`
-        :`<span class="tag" title="Compra no cartão de crédito — não debita a conta até a fatura ser paga" style="background:rgba(59,130,246,.15);color:var(--accent)">💳 ${getCartao(d.cartaoId)?.nome||'Cartão'}${d.faturaRef?' · '+faturaRefLabel(d.faturaRef):''}</span>`)
+        :`<span class="tag" title="Compra no cartão de crédito — não debita a conta até a fatura ser paga" style="background:rgba(59,130,246,.15);color:var(--accent)">💳 ${escHtml(getCartao(d.cartaoId)?.nome||'Cartão')}${d.faturaRef?' · '+faturaRefLabel(d.faturaRef):''}</span>`)
       :'';
-    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.descricao}">${d.descricao}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${dividaBadge}${cartaoBadge}${origemBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
+    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(d.descricao)}">${escHtml(d.descricao)}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${dividaBadge}${cartaoBadge}${origemBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
   };
   // Fechamento dos meses: agrupa os MESMOS cards por d.mes. Como fil já vem
   // ordenado por dataISO decrescente, a ordem de aparição dos meses já sai
@@ -5325,11 +5338,11 @@ function planCard(p){
   const s=p.movimento==='Credito'?'+':'-';
   const vH=isE?`<div><div class="pvp">R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="pvr" style="color:${cor}">${s} R$ ${p.valorReal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`:`<div class="pvr" style="color:var(--purple)">${s} R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>`;
   const rTag=p.recorrente?'<span class="tag tag-r">🔁 Rec.</span>':'';
-  const commentBadge=p.comentario?`<span class="has-comment" title="${p.comentario}" onclick="showCommentTooltip(event,'${p.comentario.replace(/'/g,"\\'")}')" style="margin-left:4px"></span>`:'';
+  const commentBadge=p.comentario?`<span class="has-comment" title="${escHtml(p.comentario)}" onclick="showCommentTooltip(event,'plan',${p.id})" style="margin-left:4px"></span>`:'';
   const btnExec=!isE?`<button class="btn-exec-ic" onclick="abrirSh(${p.id})" title="Confirmar pagamento">▶</button>`:'';
   const btnDel=`<button class="btn-del-ic" onclick="removerPlan(${p.id})" title="Excluir">🗑</button>`;
   const acts=isE?`<div class="pca"><div style="font-size:.68rem;color:var(--text3)">✅ Executado em ${p.dataExec}</div></div>`:'';
-  return`<div class="pc ${p.status}"><div class="pct"><div class="pi ${ic2}">${ic}</div><div class="pb"><div class="pd" style="display:flex;align-items:center;gap:4px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.descricao}">${p.descricao}</span>${commentBadge}</div><div class="pm"><span>${p.data}</span><span class="tag tag-p">${p.mes}</span>${rTag}<span>${p.categoria}</span></div></div><div class="pr"><div class="pr-top">${vH}${btnExec}${btnDel}</div><span class="bs ${p.status}">${{pendente:'Pendente',executado:'Executado',vencido:'Vencido'}[p.status]}</span></div></div>${acts}</div>`;
+  return`<div class="pc ${p.status}"><div class="pct"><div class="pi ${ic2}">${ic}</div><div class="pb"><div class="pd" style="display:flex;align-items:center;gap:4px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(p.descricao)}">${escHtml(p.descricao)}</span>${commentBadge}</div><div class="pm"><span>${p.data}</span><span class="tag tag-p">${p.mes}</span>${rTag}<span>${p.categoria}</span></div></div><div class="pr"><div class="pr-top">${vH}${btnExec}${btnDel}</div><span class="bs ${p.status}">${{pendente:'Pendente',executado:'Executado',vencido:'Vencido'}[p.status]}</span></div></div>${acts}</div>`;
 }
 
 function atualizarStatsPlan(){
@@ -6072,7 +6085,7 @@ function abrirBolsoDetalhe(id){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div>
         <div style="font-size:1.5rem;margin-bottom:4px">${b.ico}</div>
-        <h3 style="font-size:1rem;font-weight:700">${b.nome}</h3>
+        <h3 style="font-size:1rem;font-weight:700">${escHtml(b.nome)}</h3>
       </div>
       <button onclick="removerBolso(${b.id})" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:7px 11px;color:var(--danger);font-size:.75rem;cursor:pointer;font-family:var(--sans)">🗑 Remover</button>
     </div>
@@ -6098,7 +6111,7 @@ function abrirBolsoDetalhe(id){
         <div class="bmv">
           <div class="bmv-ico ${m.tipo==='deposito'?'entrada':'saida'}">${m.tipo==='deposito'?'↑':'↓'}</div>
           <div class="bmv-info">
-            <div class="bmv-desc">${m.desc}</div>
+            <div class="bmv-desc">${escHtml(m.desc)}</div>
             <div class="bmv-data">${m.data?m.data.split('-').reverse().join('/'):'—'} · ${m.origemCC?'🏦 via CC':'📥 Direto'}</div>
           </div>
           <div class="bmv-val s-val" style="color:${m.tipo==='deposito'?'var(--teal)':'var(--danger)'}"><span class="val-txt">${m.tipo==='deposito'?'+':'-'} R$ ${m.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
@@ -6180,7 +6193,7 @@ function renderInvestimentos(){
     const pct=b.meta?Math.min(100,Math.round(b.saldo/b.meta*100)):null;
     return`<div class="bolso-card ${b.cor}" onclick="abrirBolsoDetalhe(${b.id})">
       <div class="bolso-ico">${b.ico}</div>
-      <div class="bolso-nome">${b.nome}</div>
+      <div class="bolso-nome">${escHtml(b.nome)}</div>
       <div class="bolso-val s-val"><span class="val-txt">R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
       ${b.meta?`<div class="bolso-meta">${pct}% de R$ ${(b.meta/1000).toLocaleString('pt-BR',{maximumFractionDigits:0})}k</div>`:''}
       ${b.meta?`<div class="bolso-prog"><div class="bolso-prog-bar" style="width:${pct}%"></div></div>`:''}
@@ -6501,7 +6514,7 @@ function atualizarVisibilidadeCartaoLanc(){
   if(sel){
     const prev=sel.value;
     sel.innerHTML='<option value="">Nenhum (pagamento normal)</option>'+
-      APP.cartoes.map(c=>`<option value="${c.id}">💳 ${c.nome}</option>`).join('');
+      APP.cartoes.map(c=>`<option value="${c.id}">💳 ${escHtml(c.nome)}</option>`).join('');
     // Mantém a escolha anterior quando o cartão ainda existe; nunca pré-seleciona
     // um cartão sozinho (o padrão é "pagamento normal").
     sel.value=(mostra&&prev&&APP.cartoes.some(c=>String(c.id)===String(prev)))?prev:'';
@@ -6703,7 +6716,7 @@ function renderDividas(){
     return`<div class="divida-card${saldo<=0?' quitada':''}" onclick="abrirDividaDetalhe(${d.id})">
       <div class="divida-card-top">
         <div style="min-width:0;flex:1">
-          <div class="divida-hero-label" style="margin-bottom:3px">💳 ${d.nome}</div>
+          <div class="divida-hero-label" style="margin-bottom:3px">💳 ${escHtml(d.nome)}</div>
           <div class="divida-hero-val" style="color:${saldo<=0?'var(--teal)':'var(--danger)'};font-size:1.1rem">R$ ${saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
           <div style="font-size:.62rem;color:var(--text3);margin-top:2px">saldo devedor · total R$ ${total.toLocaleString('pt-BR',{maximumFractionDigits:0})} · ${qtd} pagamento${qtd!==1?'s':''}</div>
         </div>
@@ -6738,7 +6751,7 @@ function renderDividaDetalhe(dividaId){
       <div class="divida-hero">
         <div class="divida-hero-top">
           <div>
-            <div class="divida-hero-label">${d.nome}</div>
+            <div class="divida-hero-label">${escHtml(d.nome)}</div>
             <div class="divida-hero-val" style="color:var(--danger)">R$ ${saldoAtual.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
             <div style="font-size:.65rem;color:var(--text3);margin-top:2px">saldo devedor</div>
           </div>
@@ -6907,7 +6920,7 @@ function renderCartoes(){
     return`<div class="cartao-card${saldo<=0?' zerado':''}" onclick="abrirCartaoDetalhe(${ct.id})">
       <div class="divida-card-top">
         <div style="min-width:0;flex:1">
-          <div class="divida-hero-label" style="margin-bottom:3px">💳 ${ct.nome}</div>
+          <div class="divida-hero-label" style="margin-bottom:3px">💳 ${escHtml(ct.nome)}</div>
           <div class="divida-hero-val" style="color:${saldo<=0?'var(--teal)':'var(--purple)'};font-size:1.1rem">R$ ${saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
           <div style="font-size:.62rem;color:var(--text3);margin-top:2px">em aberto · fecha dia ${ct.diaFechamento} · vence dia ${ct.diaVencimento}</div>
         </div>
@@ -6947,7 +6960,7 @@ function renderCartaoDetalhe(cartaoId){
     <div class="cartao-hero">
       <div class="divida-hero-top">
         <div>
-          <div class="divida-hero-label">${c.nome}</div>
+          <div class="divida-hero-label">${escHtml(c.nome)}</div>
           <div class="divida-hero-val" style="color:${saldo<=0?'var(--teal)':'var(--purple)'}">R$ ${saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
           <div style="font-size:.65rem;color:var(--text3);margin-top:2px">total em aberto no cartão</div>
         </div>
@@ -6986,7 +6999,7 @@ function renderCartaoDetalhe(cartaoId){
         return`<div class="bmv">
           <div class="bmv-ico saida">💳</div>
           <div class="bmv-info">
-            <div class="bmv-desc">${descBase}${marca?` <span style="color:var(--text3);font-weight:600">${marca}</span>`:''}</div>
+            <div class="bmv-desc">${escHtml(descBase)}${marca?` <span style="color:var(--text3);font-weight:600">${marca}</span>`:''}</div>
             <div class="bmv-data">${d.data||'—'}</div>
           </div>
           <div class="bmv-val s-val" style="color:var(--purple)"><span class="val-txt">R$ ${(Number(d.valorAbs)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
@@ -7601,7 +7614,7 @@ function verificarNotificacoesPlan(){
     lista.innerHTML=itens.map(p=>`
       <div class="notif-banner-item">
         <span>📅</span>
-        <span><strong>${p.descricao}</strong> — R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})} · ${p.categoria}</span>
+        <span><strong>${escHtml(p.descricao)}</strong> — R$ ${p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2})} · ${p.categoria}</span>
       </div>`).join('');
     banner.classList.add('show');
   }
