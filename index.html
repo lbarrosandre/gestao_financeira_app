@@ -905,7 +905,11 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .sh-edit{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+28px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:303;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh-edit.show{transform:none}
 .sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-/* ─── ONBOARDING (tour de boas-vindas) ── */
+/* ─── ONBOARDING (tour de boas-vindas) ──
+   Reaproveita o MESMO padrão do dialog universal (.ov/.dlg) — cartão
+   flutuante centralizado, não uma folha grudada na borda. .onb-dlg só
+   alarga um pouco o .dlg padrão (300px) pra caber texto mais explicativo. */
+.onb-dlg{max-width:340px;text-align:left}
 .onb-dot{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:.2s}
 .onb-dot.on{background:var(--purple);width:16px;border-radius:3px}
 /* ─── DIALOG ─────────────────────────── */
@@ -2866,26 +2870,28 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 </div>
 
 <!-- ONBOARDING (tour de boas-vindas) — carrossel de 7 passos, um por aba.
-     Abre UMA única vez na vida da conta, via salvarCompletarPerfil().
-     O overlay NÃO tem onclick de fechar (diferente dos outros sheets): é
-     proposital, a saída é só pelo "Pular" ou terminando o tour, pra ninguém
-     fechar sem querer no primeiro contato com o app. -->
-<div class="sh-edit-ov" id="onb-ov"></div>
-<div class="sh-edit" id="onb-sheet">
-  <div class="sh-h"></div>
-  <div id="onb-content"></div>
-  <div style="display:flex;justify-content:center;gap:6px;margin:16px 0 4px">
-    <span class="onb-dot" id="onb-dot-0"></span>
-    <span class="onb-dot" id="onb-dot-1"></span>
-    <span class="onb-dot" id="onb-dot-2"></span>
-    <span class="onb-dot" id="onb-dot-3"></span>
-    <span class="onb-dot" id="onb-dot-4"></span>
-    <span class="onb-dot" id="onb-dot-5"></span>
-    <span class="onb-dot" id="onb-dot-6"></span>
-  </div>
-  <div class="sh-btns">
-    <button class="sh-cancel" onclick="onbPular()">Pular</button>
-    <button class="sh-ok" id="onb-btn-next" onclick="onbAvancar()">Próximo</button>
+     Abre UMA única vez na vida da conta, via salvarCompletarPerfil() (e a
+     qualquer momento pelo menu "❓ Como usar o app"). Mesmo padrão do dialog
+     universal (.ov/.dlg): cartão flutuante centralizado, NÃO uma folha
+     grudada na borda. O overlay não tem onclick de fechar — proposital, a
+     saída é só pelo "Pular" ou terminando o tour, pra ninguém fechar sem
+     querer no primeiro contato com o app. -->
+<div class="ov" id="onb-ov">
+  <div class="dlg onb-dlg">
+    <div id="onb-content"></div>
+    <div style="display:flex;justify-content:center;gap:6px;margin:16px 0 4px">
+      <span class="onb-dot" id="onb-dot-0"></span>
+      <span class="onb-dot" id="onb-dot-1"></span>
+      <span class="onb-dot" id="onb-dot-2"></span>
+      <span class="onb-dot" id="onb-dot-3"></span>
+      <span class="onb-dot" id="onb-dot-4"></span>
+      <span class="onb-dot" id="onb-dot-5"></span>
+      <span class="onb-dot" id="onb-dot-6"></span>
+    </div>
+    <div class="dlg-btns">
+      <button class="btn-cx" onclick="onbPular()">Pular</button>
+      <button class="btn-cf" id="onb-btn-next" onclick="onbAvancar()" style="background:var(--purple)">Próximo</button>
+    </div>
   </div>
 </div>
 
@@ -4055,30 +4061,29 @@ async function salvarCompletarPerfil(){
    que roda uma única vez por conta — por isso não precisa de flag no
    localStorage nem coluna nova no banco. */
 const ONB_PASSOS=[
-  {ico:'👜',tab:'Carteira',txt:'Controle sua conta corrente e crie "bolsos" de poupança com metas — tudo em um só lugar.'},
-  {ico:'📅',tab:'Planejar',txt:'Agende pagamentos e recebimentos futuros, e defina um orçamento mensal por categoria pra gastos variáveis.'},
-  {ico:'💳',tab:'Passivos',txt:'Acompanhe suas dívidas e o cartão de crédito, com fatura e parcelamento — disponível nos planos Plus e Premium.'},
-  {ico:'➕',tab:'Lançar',txt:'Registre receitas e despesas rapidamente, no dia a dia — é o coração do app.'},
-  {ico:'📋',tab:'Registros',txt:'Veja todo o seu histórico de lançamentos, organizado por mês.'},
-  {ico:'📊',tab:'Dashboard',txt:'Gráficos e insights automáticos sobre sua vida financeira — disponível no plano Premium.'},
-  {ico:'🌐',tab:'Info',txt:'Cotações ao vivo: dólar, euro, bitcoin e ações — disponível no plano Premium.'}
+  {ico:'👜',tab:'Carteira',txt:'Veja seu patrimônio total (conta corrente + bolsos) e crie "bolsos" — um cofrinho com nome e meta próprios, tipo "Viagem" ou "Reserva de emergência". Role até <strong>Novo bolso</strong>, preencha o nome (a meta é opcional) e toque em <strong>+ Criar bolso</strong>. Depois, toque num bolso já criado pra depositar, retirar ou acompanhar o progresso da meta.'},
+  {ico:'📅',tab:'Planejar',txt:'Agende pagamentos e recebimentos futuros preenchendo data, valor e categoria. Quando for pago, toque no <strong>▶</strong> do card do item pra confirmar — isso já cria o lançamento em Registros. Mais abaixo, em <strong>🎯 Orçamento por categoria</strong>, defina um teto mensal pra gastos variáveis (Alimentação, Lazer...) — o app soma sozinho o que você lançar naquela categoria e compara com a meta.'},
+  {ico:'💳',tab:'Passivos',txt:'Controle dívidas e cartão de crédito. Toque em <strong>+ Nova dívida</strong> ou <strong>+ Novo cartão</strong> pra cadastrar. Compras no cartão não descontam sua conta na hora — só quando você toca em <strong>Pagar fatura</strong>. Disponível nos planos Plus e Premium.'},
+  {ico:'➕',tab:'Lançar',txt:'É aqui que você registra o dia a dia. Escolha <strong>Débito</strong> (saída) ou <strong>Crédito</strong> (entrada), preencha valor, descrição e categoria, e confirme. Se for uma compra no cartão, selecione o cartão nessa mesma tela — ela vira uma despesa que só desconta quando a fatura for paga.'},
+  {ico:'📋',tab:'Registros',txt:'Todo o seu histórico, organizado por mês — toque no mês pra abrir ou fechar. Use os filtros e a busca no topo pra achar um lançamento específico, e os ícones <strong>✏️</strong>/<strong>✕</strong> em cada item pra editar ou excluir.'},
+  {ico:'📊',tab:'Dashboard',txt:'Gráficos e insights automáticos sobre sua vida financeira: receitas x despesas, categorias que mais pesam, planejado x realizado, e sugestões geradas a partir dos seus próprios dados. Toque no filtro de mês pra escolher um ou vários meses de uma vez. Disponível no plano Premium.'},
+  {ico:'🌐',tab:'Info',txt:'Cotações ao vivo de dólar, euro, bitcoin e principais ações — só pra consulta, sem nada pra configurar. Disponível no plano Premium.'}
 ];
 let onbPasso=0;
 function onbAbrir(){
   onbPasso=0;
   onbRender();
   document.getElementById('onb-ov')?.classList.add('show');
-  setTimeout(()=>document.getElementById('onb-sheet')?.classList.add('show'),10);
 }
 function onbRender(){
   const p=ONB_PASSOS[onbPasso];
   const c=document.getElementById('onb-content');
   if(c) c.innerHTML=`
-    <div style="text-align:center;padding:14px 8px 4px">
-      <div style="font-size:2.6rem;margin-bottom:10px">${p.ico}</div>
-      <h3 style="font-size:1.05rem;margin-bottom:8px">${p.tab}</h3>
-      <p style="font-size:.85rem;color:var(--text2);line-height:1.5">${p.txt}</p>
-    </div>`;
+    <div style="text-align:center;margin-bottom:10px">
+      <div style="font-size:2.4rem;margin-bottom:8px">${p.ico}</div>
+      <h3>${p.tab}</h3>
+    </div>
+    <p style="font-size:.83rem;color:var(--text2);line-height:1.6">${p.txt}</p>`;
   ONB_PASSOS.forEach((_,i)=>document.getElementById('onb-dot-'+i)?.classList.toggle('on',i===onbPasso));
   const btn=document.getElementById('onb-btn-next');
   if(btn) btn.textContent = onbPasso===ONB_PASSOS.length-1 ? '🚀 Começar a usar' : 'Próximo →';
@@ -4089,7 +4094,6 @@ function onbAvancar(){
 }
 function onbPular(){ onbFechar(); }
 function onbFechar(){
-  document.getElementById('onb-sheet')?.classList.remove('show');
   document.getElementById('onb-ov')?.classList.remove('show');
 }
 
