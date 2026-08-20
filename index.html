@@ -852,7 +852,7 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .pf{display:flex;gap:7px;margin-bottom:10px}
 .pf select{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.78rem;padding:8px 10px;outline:none;-webkit-appearance:none}
 .filtros-plan{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px}
-.filtros-plan select{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.75rem;padding:8px 10px;outline:none;-webkit-appearance:none;width:100%}
+.filtros-plan select,.filtros-plan .btn-filtro-mes{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.75rem;padding:8px 10px;outline:none;-webkit-appearance:none;width:100%}
 .pmg{margin-bottom:16px}
 .pmh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .pmt{font-size:.75rem;font-weight:700;color:var(--purple)}
@@ -1424,12 +1424,16 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r);padding:10px 12px;margin-bottom:14px;
 }
-.dash-filters select{
+.dash-filters select,.dash-filters .btn-filtro-mes{
   flex:1;min-width:90px;
   background:var(--surface2);border:1px solid var(--border2);border-radius:9px;
   color:var(--text);font-family:var(--sans);font-size:.72rem;
   padding:7px 10px;outline:none;-webkit-appearance:none;
 }
+/* Botão que substituiu o <select> de mês (agora multi-seleção via sheet de chips):
+   herda a aparência do select vizinho e só ajusta alinhamento/corte do texto. */
+.btn-filtro-mes{cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:.15s}
+.btn-filtro-mes:active{border-color:var(--purple);color:var(--purple)}
 .btn-dash-reset{
   padding:7px 13px;border-radius:9px;border:1px solid var(--border2);
   background:transparent;color:var(--text3);font-family:var(--sans);
@@ -2157,7 +2161,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
     <div style="margin-top:12px">
       <div class="filtros-plan">
-        <select id="pf-mes" onchange="renderPlan()"><option value="">Todos os meses</option></select>
+        <button type="button" class="btn-filtro-mes" id="pf-mes-btn" onclick="abrirFiltroMeses('plan')">📅 Todos os meses</button>
         <select id="pf-mov" onchange="renderPlan()"><option value="">Tipo</option><option value="Credito">Crédito</option><option value="Debito">Débito</option></select>
         <select id="pf-tipo" onchange="renderPlan()"><option value="">Categoria</option><option value="Receita">Receita</option><option value="Despesas fixas">Fixas</option><option value="Despesas variaveis">Variáveis</option><option value="Despesas eventuais">Eventuais</option></select>
       </div>
@@ -2236,7 +2240,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
     <!-- Filtros -->
     <div class="dash-filters">
-      <select id="df-mes" onchange="renderDash()"><option value="">Todos os meses</option></select>
+      <button type="button" class="btn-filtro-mes" id="df-mes-btn" onclick="abrirFiltroMeses('dash')">📅 Todos os meses</button>
       <select id="df-tipo" onchange="renderDash()">
         <option value="">Todos os tipos</option>
         <option value="Receita">Receita</option>
@@ -2835,6 +2839,22 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
 </div>
 
+<!-- FILTRO DE MESES (sheet compartilhado Dashboard + Planejar) —
+     mesmo padrão de chips do "Replicar para vários meses", mas com estado próprio
+     (dashMesesSel/planMesesSel) para não colidir com o mesesSel do agendamento. -->
+<div class="sh-edit-ov" id="sh-filtro-meses-ov" onclick="fecharFiltroMeses()"></div>
+<div class="sh-edit" id="sh-filtro-meses">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">📅 Filtrar por mês</div>
+  <div class="rec-hint" style="margin-bottom:10px">Selecione um ou mais meses. Sem nenhum selecionado, o filtro mostra todos os meses.</div>
+  <div class="meses-grid" id="filtro-meses-grid"></div>
+  <div class="sh-btns" style="margin-top:14px">
+    <button class="sh-cancel" onclick="filtroMesesLimpar()">Limpar</button>
+    <button class="sh-cancel" onclick="filtroMesesTodos()">Todos</button>
+    <button class="sh-ok" onclick="aplicarFiltroMeses()">Aplicar</button>
+  </div>
+</div>
+
 <!-- ASSINATURA SHEET -->
 <div class="sh-edit-ov" id="sh-assinatura-ov" onclick="fecharAssinaturaSheet()"></div>
 <div class="sh-edit" id="sh-assinatura">
@@ -3143,6 +3163,12 @@ let dividaVisualizandoId=null,dividaEmEdicaoId=null,dividaCriandoNova=false;
 /* Mesmo esquema para os cartões de crédito (segunda seção da mesma aba). */
 let cartaoVisualizandoId=null,cartaoEmEdicaoId=null,cartaoCriandoNovo=false;
 let mesesSel=new Set();
+/* Filtro de MÚLTIPLOS meses (Dashboard e Planejar). Guardam ÍNDICES 0-11 de MESES.
+   Set vazio == "todos os meses" (mesmo significado que o <select> em branco tinha).
+   Propositalmente separados de mesesSel, que pertence ao "replicar agendamento". */
+let dashMesesSel=new Set();
+let planMesesSel=new Set();
+let _filtroMesesCtx=null; // 'dash' | 'plan' — qual filtro está aberto no sheet agora
 
 /* ═══ AUTH ══════════════════════════════ */
 const AUTH_KEY='bussola_auth';
@@ -3494,7 +3520,6 @@ async function revelarApp(user, revelarUI = true){
         renderInvestimentos(); renderDividas();
         atualizarVisibilidadeCheckboxDivida();
         atualizarVisibilidadeOrigemLanc();
-        if (typeof populateDashFilters === 'function') populateDashFilters();
         if (typeof carregarTema === 'function') carregarTema();
       }
     } catch(e){ console.error('init error:', e); }
@@ -4789,7 +4814,8 @@ function iniciarApp(){
 
 function init(){
   const hoje=new Date(),hISO=hoje.toISOString().split('T')[0];
-  ['inp-mes','plan-mes','pf-mes','f-mes-l','edit-mes'].forEach(id=>{
+  // 'pf-mes' saiu daqui: virou botão + sheet de múltiplos meses (planMesesSel).
+  ['inp-mes','plan-mes','f-mes-l','edit-mes'].forEach(id=>{
     const el=document.getElementById(id);
     // Limpa antes de popular para evitar duplicatas no segundo login
     while(el.options.length > (el.options[0]?.value==='' ? 1 : 0)) el.remove(el.options.length-1);
@@ -4807,8 +4833,11 @@ function init(){
   // Espelha em Registros os pagamentos de dívida antigos (idempotente).
   migrarPagamentosDividaParaRegistros();
   renderLista();renderPlan();renderOrcamentos();atualizarStats();atualizarStatsPlan();
-  renderInvestimentos();renderDividas();populateDashFilters();
-  document.getElementById('df-mes').value=MESES[hoje.getMonth()];
+  renderInvestimentos();renderDividas();
+  // Dashboard abre já filtrado no mês corrente (mesmo comportamento do select antigo).
+  dashMesesSel.add(hoje.getMonth());
+  atualizarBotaoFiltroMeses('dash');
+  atualizarBotaoFiltroMeses('plan');
   atualizarVisibilidadeCheckboxDivida();
   atualizarVisibilidadeCartaoLanc();
   atualizarVisibilidadeOrigemLanc();
@@ -4860,7 +4889,7 @@ function trocarTab(t){
   }
   if(t==='dash'){
     if(planoEfetivo()!=='premium') renderBloqueioPlano('pane-dash','📊','O Dashboard','premium');
-    else {populateDashFilters();renderDash();}
+    else {atualizarBotaoFiltroMeses('dash');renderDash();}
   }
   if(t==='info'){
     if(planoEfetivo()!=='premium') renderBloqueioPlano('pane-info','🌐','As cotações ao vivo','premium');
@@ -5099,7 +5128,7 @@ function renderOrcamentos(){
 
 function renderPlan(){
   const hoje=new Date();hoje.setHours(0,0,0,0);
-  const fM=document.getElementById('pf-mes').value;
+  const mesesF=mesesFiltroAtivo('plan'); // [] = todos os meses
   const fMov=document.getElementById('pf-mov')?.value||'';
   const fTipo=document.getElementById('pf-tipo')?.value||'';
   // Só persiste se ALGUM item realmente mudou de pendente→vencido.
@@ -5118,7 +5147,7 @@ function renderPlan(){
     }
   });
   if(mudouStatus)salvarPlan();
-  const lista=[...APP.plan].filter(p=>(!fM||p.mes===fM)&&(!fMov||p.movimento===fMov)&&(!fTipo||p.tipo===fTipo)).sort((a,b)=>{const o={vencido:0,pendente:1,executado:2};return o[a.status]!==o[b.status]?o[a.status]-o[b.status]:a.dataISO.localeCompare(b.dataISO);});
+  const lista=[...APP.plan].filter(p=>(!mesesF.length||mesesF.includes(p.mes))&&(!fMov||p.movimento===fMov)&&(!fTipo||p.tipo===fTipo)).sort((a,b)=>{const o={vencido:0,pendente:1,executado:2};return o[a.status]!==o[b.status]?o[a.status]-o[b.status]:a.dataISO.localeCompare(b.dataISO);});
   atualizarStatsPlan();
   const c=document.getElementById('plan-container');
   if(!lista.length){c.innerHTML='<div class="empty"><div class="empty-v">📅</div><h4>Nenhum planejamento</h4><p>Agende pagamentos acima.</p></div>';return;}
@@ -5155,12 +5184,12 @@ function planCard(p){
 
 function atualizarStatsPlan(){
   // Filtra pelos mesmos filtros da aba Planejar (mês, tipo de movimento e categoria)
-  const fM=document.getElementById('pf-mes').value;
+  const mesesF=mesesFiltroAtivo('plan'); // [] = todos os meses
   const fMov=document.getElementById('pf-mov')?.value||'';
   const fTipo=document.getElementById('pf-tipo')?.value||'';
   // Mesmo universo da lista renderizada (renderPlan agrupa por MESES): sem isso
   // os totais somavam meses de outros anos que a lista nem exibe.
-  const base=APP.plan.filter(p=>isMesDoGrafico(p.mes)&&(!fM||p.mes===fM)&&(!fMov||p.movimento===fMov)&&(!fTipo||p.tipo===fTipo));
+  const base=APP.plan.filter(p=>isMesDoGrafico(p.mes)&&(!mesesF.length||mesesF.includes(p.mes))&&(!fMov||p.movimento===fMov)&&(!fTipo||p.tipo===fTipo));
   const tot=base.reduce((s,p)=>s+p.valorPlanejado,0);
   const exec=base.filter(p=>p.status==='executado').reduce((s,p)=>s+p.valorReal,0);
   const pend=base.filter(p=>p.status!=='executado').reduce((s,p)=>s+p.valorPlanejado,0);
@@ -6957,17 +6986,62 @@ const CHART_BASE={
           y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#475569',font:{size:10,family:'Sora'},callback:v=>v>=1000?'R$'+Math.round(v/1000)+'k':'R$'+v}}}
 };
 
-function populateDashFilters(){
-  const sel=document.getElementById('df-mes');
-  if(!sel)return;
-  const cur=sel.value;
-  while(sel.options.length>1)sel.remove(1);
-  MESES.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;sel.appendChild(o);});
-  if(cur)sel.value=cur;
+/* ═══ FILTRO DE MÚLTIPLOS MESES (sheet compartilhado dash + plan) ═══
+   Substituiu os <select id="df-mes"> / <select id="pf-mes">, que só permitiam
+   um mês por vez. Estado: dashMesesSel / planMesesSel (índices 0-11 de MESES).
+   Set vazio = "todos os meses", igual ao select em branco de antes. */
+function _filtroMesesSetAtivo(){ return _filtroMesesCtx==='dash'?dashMesesSel:planMesesSel; }
+
+function abrirFiltroMeses(ctx){
+  _filtroMesesCtx=ctx;
+  const g=document.getElementById('filtro-meses-grid');
+  if(!g)return;
+  const sel=_filtroMesesSetAtivo();
+  g.innerHTML=MESES.map((m,i)=>`<div class="chip${sel.has(i)?' sel':''}" id="fm-chip-${i}" onclick="toggleFiltroMes(${i})">${m}</div>`).join('');
+  document.getElementById('sh-filtro-meses-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-filtro-meses').classList.add('show'),10);
+}
+function toggleFiltroMes(i){
+  const sel=_filtroMesesSetAtivo();
+  sel.has(i)?sel.delete(i):sel.add(i);
+  document.getElementById('fm-chip-'+i)?.classList.toggle('sel',sel.has(i));
+}
+function filtroMesesLimpar(){
+  _filtroMesesSetAtivo().clear();
+  MESES.forEach((_,i)=>document.getElementById('fm-chip-'+i)?.classList.remove('sel'));
+}
+function filtroMesesTodos(){
+  const sel=_filtroMesesSetAtivo();
+  MESES.forEach((_,i)=>{sel.add(i);document.getElementById('fm-chip-'+i)?.classList.add('sel');});
+}
+function fecharFiltroMeses(){
+  document.getElementById('sh-filtro-meses')?.classList.remove('show');
+  document.getElementById('sh-filtro-meses-ov')?.classList.remove('show');
+}
+function aplicarFiltroMeses(){
+  const ctx=_filtroMesesCtx;
+  fecharFiltroMeses();
+  atualizarBotaoFiltroMeses(ctx);
+  if(ctx==='dash')renderDash();else renderPlan();
+}
+function atualizarBotaoFiltroMeses(ctx){
+  const sel=ctx==='dash'?dashMesesSel:planMesesSel;
+  const btn=document.getElementById(ctx==='dash'?'df-mes-btn':'pf-mes-btn');
+  if(!btn)return;
+  if(sel.size===0)btn.textContent='📅 Todos os meses';
+  else if(sel.size<=3)btn.textContent='📅 '+[...sel].sort((a,b)=>a-b).map(i=>MESES[i]).join(', ');
+  else btn.textContent=`📅 ${sel.size} meses selecionados`;
+}
+/* Leitura do filtro por qualquer consumidor: array de RÓTULOS de mês
+   (ex: ['ago/26','out/26']) ou [] quando nenhum mês está selecionado (= todos). */
+function mesesFiltroAtivo(ctx){
+  const sel=ctx==='dash'?dashMesesSel:planMesesSel;
+  return [...sel].sort((a,b)=>a-b).map(i=>MESES[i]);
 }
 
 function resetDashFilters(){
-  document.getElementById('df-mes').value='';
+  dashMesesSel.clear();
+  atualizarBotaoFiltroMeses('dash');
   document.getElementById('df-tipo').value='';
   renderDash();
 }
@@ -6977,7 +7051,7 @@ function dashDestroyChart(id){
 }
 
 function dashFilterDados(){
-  const fM=document.getElementById('df-mes')?.value||'';
+  const mesesF=mesesFiltroAtivo('dash'); // [] = todos os meses
   const fT=document.getElementById('df-tipo')?.value||'';
   // Filtro de tipo simplificado (Receita / Despesas / todos): usa o movimento
   // binário (Credito/Debito) em vez do campo granular d.tipo, que continua
@@ -6988,7 +7062,7 @@ function dashFilterDados(){
   // ano corrente) — antes os KPIs somavam anos que as barras descartavam.
   // faturaPagamento fica de fora pelo mesmo motivo de lancEfetivos: a despesa
   // já foi contada na COMPRA do cartão, o pagamento não é um gasto novo.
-  return APP.dados.filter(d=>!d.deBolso&&!d.faturaPagamento&&isMesDoGrafico(d.mes)&&(!fM||d.mes===fM)&&passaTipo(d));
+  return APP.dados.filter(d=>!d.deBolso&&!d.faturaPagamento&&isMesDoGrafico(d.mes)&&(!mesesF.length||mesesF.includes(d.mes))&&passaTipo(d));
 }
 
 function renderDash(){
@@ -7269,13 +7343,14 @@ function dashPlanReal(){
   // Lê os MESMOS filtros do dashboard direto do DOM (igual dashFilterDados),
   // com o mesmo critério binário de tipo — antes este gráfico ignorava os
   // filtros e mostrava o ano inteiro mesmo com um mês/tipo selecionado.
-  const fM=document.getElementById('df-mes')?.value||'';
+  const mesesF=mesesFiltroAtivo('dash'); // [] = todos os meses
   const fT=document.getElementById('df-tipo')?.value||'';
   const passaTipo=p=>!fT||(fT==='Receita'?p.movimento==='Credito':p.movimento==='Debito');
+  const passaMes=m=>!mesesF.length||mesesF.includes(m);
   const byMes={};
   MESES.forEach(m=>{byMes[m]={plan:0,real:0};});
   APP.plan.forEach(p=>{
-    if(byMes[p.mes]&&passaTipo(p)&&(!fM||p.mes===fM)){
+    if(byMes[p.mes]&&passaTipo(p)&&passaMes(p.mes)){
       byMes[p.mes].plan+=p.valorPlanejado;
       if(p.status==='executado')byMes[p.mes].real+=p.valorReal;
     }
@@ -7286,7 +7361,7 @@ function dashPlanReal(){
   // tipo não é exclusivamente Receita — teto de categoria é sempre despesa.
   if(fT!=='Receita'){
     const catsOrc=[...(CATS['Despesas variaveis']||[]),...(CATS['Despesas eventuais']||[])];
-    const mesesAlvo=MESES.filter(m=>!fM||m===fM);
+    const mesesAlvo=MESES.filter(passaMes);
     catsOrc.forEach(cat=>{
       const meta=typeof getMetaCategoria==='function'?getMetaCategoria(cat):0;
       if(meta<=0)return; // sem meta = sem acompanhamento, fica fora dos dois lados
@@ -7302,7 +7377,7 @@ function dashPlanReal(){
       });
     });
   }
-  const mesesComDados=MESES.filter(m=>(!fM||m===fM)&&(byMes[m].plan>0||byMes[m].real>0));
+  const mesesComDados=MESES.filter(m=>passaMes(m)&&(byMes[m].plan>0||byMes[m].real>0));
   dashDestroyChart('chart-planreal');
   if(!mesesComDados.length){const ctx2=document.getElementById('chart-planreal').getContext('2d');ctx2.clearRect(0,0,999,999);return;}
   const ctx=document.getElementById('chart-planreal').getContext('2d');
@@ -7801,12 +7876,16 @@ function dashInsights(base){
   const grupos=[];
   const{taxa,rec,desp}=somaRecDesp(base);
 
-  // Mês de referência: o do filtro do dashboard ou, sem filtro, o mês corrente.
-  // O mês anterior é buscado FORA do filtro (base só tem o período filtrado).
-  const fM=document.getElementById('df-mes')?.value||'';
-  const mesAtualLabel=fM||MESES[new Date().getMonth()];
+  // Mês de referência: o do filtro do dashboard quando há EXATAMENTE 1 mês
+  // selecionado; com 0 (todos) ou 2+ meses, cai no mês corrente.
+  // O mês anterior é buscado FORA do filtro (base só tem o período filtrado) e
+  // a comparação mês-a-mês só é calculada no caso de mês único — comparar um
+  // conjunto de meses avulsos com "o mês anterior" não teria sentido.
+  const mesesF=mesesFiltroAtivo('dash');
+  const mesUnico=mesesF.length===1;
+  const mesAtualLabel=mesUnico?mesesF[0]:MESES[new Date().getMonth()];
   const idxAtual=MESES.indexOf(mesAtualLabel);
-  const mesAnteriorLabel=idxAtual>0?MESES[idxAtual-1]:null;
+  const mesAnteriorLabel=(mesUnico&&idxAtual>0)?MESES[idxAtual-1]:null;
   const baseAnterior=mesAnteriorLabel
     ?APP.dados.filter(d=>!d.deBolso&&!d.faturaPagamento&&d.mes===mesAnteriorLabel)
     :null;
@@ -7860,9 +7939,9 @@ function dashInsights(base){
   }));
   if(gastos.length)grupos.push({titulo:'💸 Principais gastos',linhas:gastos});
 
-  /* ── 3. Comparação com o mês anterior ── */
+  /* ── 3. Comparação com o mês anterior (só com 1 mês no filtro) ── */
   let maiorAumento=null;
-  if(baseAnterior&&baseAnterior.length){
+  if(mesUnico&&baseAnterior&&baseAnterior.length){
     const ant=somaRecDesp(baseAnterior);
     const comp=[];
     const difDesp=desp-ant.desp;
