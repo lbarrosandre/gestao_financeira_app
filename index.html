@@ -905,11 +905,20 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .sh-edit{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+28px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:303;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh-edit.show{transform:none}
 .sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-/* ─── ONBOARDING (tour de boas-vindas) ──
-   Reaproveita o MESMO padrão do dialog universal (.ov/.dlg) — cartão
-   flutuante centralizado, não uma folha grudada na borda. .onb-dlg só
-   alarga um pouco o .dlg padrão (300px) pra caber texto mais explicativo. */
-.onb-dlg{max-width:340px;text-align:left}
+/* ─── ONBOARDING (tour interativo com spotlight) ───
+   3 camadas, do fundo pra frente:
+   #onb-block → transparente, só BLOQUEIA clique no app enquanto o tour
+                está aberto (embaixo do spot/tip na pilha de z-index).
+   #onb-spot  → o "buraco" iluminado: box-shadow gigante escurece a tela
+                INTEIRA menos a própria caixa (technique padrão de spotlight).
+                pointer-events:none (clique nele atravessa pro #onb-block,
+                que bloqueia — ninguém consegue clicar o elemento real
+                durante o tour, só olhar).
+   #onb-tip   → o balão com o texto do passo, reposicionado ao lado do
+                alvo (embaixo, em cima, ou centralizado se não achar alvo). */
+#onb-block{display:none;position:fixed;inset:0;z-index:10000;background:transparent}
+#onb-spot{display:none;position:fixed;z-index:10001;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.72);border:2px solid var(--purple);pointer-events:none;transition:top .3s cubic-bezier(.4,0,.2,1),left .3s cubic-bezier(.4,0,.2,1),width .3s cubic-bezier(.4,0,.2,1),height .3s cubic-bezier(.4,0,.2,1)}
+#onb-tip{display:none;position:fixed;z-index:10002;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:16px;max-width:290px;width:88vw;box-shadow:0 24px 64px rgba(0,0,0,.55);transition:top .3s cubic-bezier(.4,0,.2,1),left .3s cubic-bezier(.4,0,.2,1)}
 .onb-dot{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:.2s}
 .onb-dot.on{background:var(--purple);width:16px;border-radius:3px}
 /* ─── DIALOG ─────────────────────────── */
@@ -2869,29 +2878,26 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
 </div>
 
-<!-- ONBOARDING (tour de boas-vindas) — carrossel de 7 passos, um por aba.
-     Abre UMA única vez na vida da conta, via salvarCompletarPerfil() (e a
-     qualquer momento pelo menu "❓ Como usar o app"). Mesmo padrão do dialog
-     universal (.ov/.dlg): cartão flutuante centralizado, NÃO uma folha
-     grudada na borda. O overlay não tem onclick de fechar — proposital, a
-     saída é só pelo "Pular" ou terminando o tour, pra ninguém fechar sem
-     querer no primeiro contato com o app. -->
-<div class="ov" id="onb-ov">
-  <div class="dlg onb-dlg">
-    <div id="onb-content"></div>
-    <div style="display:flex;justify-content:center;gap:6px;margin:16px 0 4px">
-      <span class="onb-dot" id="onb-dot-0"></span>
-      <span class="onb-dot" id="onb-dot-1"></span>
-      <span class="onb-dot" id="onb-dot-2"></span>
-      <span class="onb-dot" id="onb-dot-3"></span>
-      <span class="onb-dot" id="onb-dot-4"></span>
-      <span class="onb-dot" id="onb-dot-5"></span>
-      <span class="onb-dot" id="onb-dot-6"></span>
-    </div>
-    <div class="dlg-btns">
-      <button class="btn-cx" onclick="onbPular()">Pular</button>
-      <button class="btn-cf" id="onb-btn-next" onclick="onbAvancar()" style="background:var(--purple)">Próximo</button>
-    </div>
+<!-- ONBOARDING (tour interativo) — troca de aba + destaca (spotlight) o
+     elemento real de cada passo, com o fundo escurecido só ao redor.
+     #onb-block bloqueia clique no app enquanto está aberto (ninguém
+     consegue ativar o botão de verdade durante o tour, só ver o destaque). -->
+<div id="onb-block"></div>
+<div id="onb-spot"></div>
+<div id="onb-tip">
+  <div id="onb-tip-content"></div>
+  <div style="display:flex;justify-content:center;gap:6px;margin:14px 0 10px">
+    <span class="onb-dot" id="onb-dot-0"></span>
+    <span class="onb-dot" id="onb-dot-1"></span>
+    <span class="onb-dot" id="onb-dot-2"></span>
+    <span class="onb-dot" id="onb-dot-3"></span>
+    <span class="onb-dot" id="onb-dot-4"></span>
+    <span class="onb-dot" id="onb-dot-5"></span>
+    <span class="onb-dot" id="onb-dot-6"></span>
+  </div>
+  <div class="dlg-btns">
+    <button class="btn-cx" onclick="onbPular()">Pular</button>
+    <button class="btn-cf" id="onb-btn-next" onclick="onbAvancar()" style="background:var(--purple)">Próximo</button>
   </div>
 </div>
 
@@ -4056,46 +4062,108 @@ async function salvarCompletarPerfil(){
   }
 }
 
-/* ═══ ONBOARDING — TOUR DE BOAS-VINDAS ═══
-   Carrossel de 7 passos (um por aba). Disparado só por salvarCompletarPerfil(),
-   que roda uma única vez por conta — por isso não precisa de flag no
-   localStorage nem coluna nova no banco. */
+/* ═══ ONBOARDING — TOUR INTERATIVO (spotlight) ═══
+   Cada passo troca pra aba certa (trocarTab) e destaca o elemento real via
+   seletor CSS (sel). Se o elemento não existir no momento (ex: plano do
+   usuário bloqueia aquela aba e ela virou tela de upgrade, ou o seletor não
+   bate por algum motivo), cai graciosamente pra um balão centralizado sem
+   destaque — nunca quebra, só perde o efeito visual daquele passo. */
 const ONB_PASSOS=[
-  {ico:'👜',tab:'Carteira',txt:'Veja seu patrimônio total (conta corrente + bolsos) e crie "bolsos" — um cofrinho com nome e meta próprios, tipo "Viagem" ou "Reserva de emergência". Role até <strong>Novo bolso</strong>, preencha o nome (a meta é opcional) e toque em <strong>+ Criar bolso</strong>. Depois, toque num bolso já criado pra depositar, retirar ou acompanhar o progresso da meta.'},
-  {ico:'📅',tab:'Planejar',txt:'Agende pagamentos e recebimentos futuros preenchendo data, valor e categoria. Quando for pago, toque no <strong>▶</strong> do card do item pra confirmar — isso já cria o lançamento em Registros. Mais abaixo, em <strong>🎯 Orçamento por categoria</strong>, defina um teto mensal pra gastos variáveis (Alimentação, Lazer...) — o app soma sozinho o que você lançar naquela categoria e compara com a meta.'},
-  {ico:'💳',tab:'Passivos',txt:'Controle dívidas e cartão de crédito. Toque em <strong>+ Nova dívida</strong> ou <strong>+ Novo cartão</strong> pra cadastrar. Compras no cartão não descontam sua conta na hora — só quando você toca em <strong>Pagar fatura</strong>. Disponível nos planos Plus e Premium.'},
-  {ico:'➕',tab:'Lançar',txt:'É aqui que você registra o dia a dia. Escolha <strong>Débito</strong> (saída) ou <strong>Crédito</strong> (entrada), preencha valor, descrição e categoria, e confirme. Se for uma compra no cartão, selecione o cartão nessa mesma tela — ela vira uma despesa que só desconta quando a fatura for paga.'},
-  {ico:'📋',tab:'Registros',txt:'Todo o seu histórico, organizado por mês — toque no mês pra abrir ou fechar. Use os filtros e a busca no topo pra achar um lançamento específico, e os ícones <strong>✏️</strong>/<strong>✕</strong> em cada item pra editar ou excluir.'},
-  {ico:'📊',tab:'Dashboard',txt:'Gráficos e insights automáticos sobre sua vida financeira: receitas x despesas, categorias que mais pesam, planejado x realizado, e sugestões geradas a partir dos seus próprios dados. Toque no filtro de mês pra escolher um ou vários meses de uma vez. Disponível no plano Premium.'},
-  {ico:'🌐',tab:'Info',txt:'Cotações ao vivo de dólar, euro, bitcoin e principais ações — só pra consulta, sem nada pra configurar. Disponível no plano Premium.'}
+  {aba:'inv',  sel:'[onclick="criarBolso()"]',      ico:'👜',tab:'Carteira', txt:'Veja seu patrimônio total (conta corrente + bolsos) e crie "bolsos" — um cofrinho com nome e meta próprios, tipo "Viagem" ou "Reserva de emergência". Preencha o nome (a meta é opcional) e toque em <strong>+ Criar bolso</strong>, aqui embaixo.'},
+  {aba:'plan', sel:'[onclick="addPlanejamento()"]', ico:'📅',tab:'Planejar', txt:'Agende pagamentos e recebimentos futuros preenchendo data, valor e categoria, e toque em <strong>Agendar Pagamento</strong>. Depois, quando for pago, toque no ▶ do card pra confirmar. Mais abaixo, em "🎯 Orçamento por categoria", defina tetos mensais pra gastos variáveis.'},
+  {aba:'div',  sel:'[onclick="novaDivida()"]',      ico:'💳',tab:'Passivos', txt:'Controle dívidas e cartão de crédito. Toque em <strong>+ Nova dívida</strong> (ou "+ Novo cartão", ao lado) pra cadastrar. Compras no cartão só descontam quando você paga a fatura. Disponível nos planos Plus e Premium.'},
+  {aba:'form', sel:'[onclick="addLancamento()"]',   ico:'➕',tab:'Lançar',   txt:'É aqui que você registra o dia a dia. Escolha Débito ou Crédito, preencha valor, descrição e categoria, e toque em <strong>Adicionar Lançamento</strong>.'},
+  {aba:'lista',sel:'#busca',                        ico:'📋',tab:'Registros',txt:'Todo o seu histórico, organizado por mês (toque no mês pra abrir/fechar). Use esta <strong>busca</strong> pra encontrar um lançamento específico pela descrição.'},
+  {aba:'dash', sel:'#df-mes-btn',                   ico:'📊',tab:'Dashboard',txt:'Gráficos e insights automáticos sobre sua vida financeira. Toque no <strong>filtro de mês</strong> pra escolher um ou vários meses de uma vez. Disponível no plano Premium.'},
+  {aba:'info', sel:null,                            ico:'🌐',tab:'Info',    txt:'Cotações ao vivo de dólar, euro, bitcoin e ações — só pra consulta. Disponível no plano Premium.'}
 ];
 let onbPasso=0;
+
 function onbAbrir(){
   onbPasso=0;
-  onbRender();
-  document.getElementById('onb-ov')?.classList.add('show');
+  const block=document.getElementById('onb-block');
+  if(block) block.style.display='block';
+  onbMostrarPasso();
 }
-function onbRender(){
-  const p=ONB_PASSOS[onbPasso];
-  const c=document.getElementById('onb-content');
-  if(c) c.innerHTML=`
-    <div style="text-align:center;margin-bottom:10px">
-      <div style="font-size:2.4rem;margin-bottom:8px">${p.ico}</div>
-      <h3>${p.tab}</h3>
+function onbMostrarPasso(){
+  const passo=ONB_PASSOS[onbPasso];
+  if(typeof trocarTab==='function') trocarTab(passo.aba);
+  setTimeout(()=>{
+    const alvo=passo.sel?document.querySelector(passo.sel):null;
+    if(alvo&&typeof alvo.scrollIntoView==='function'){
+      alvo.scrollIntoView({block:'center',behavior:'auto'});
+    }
+    setTimeout(()=>onbRenderPasso(alvo),120);
+  },80);
+}
+function onbRenderPasso(alvo){
+  const passo=ONB_PASSOS[onbPasso];
+  const cont=document.getElementById('onb-tip-content');
+  if(cont) cont.innerHTML=`
+    <div style="text-align:center;margin-bottom:8px">
+      <div style="font-size:2rem;margin-bottom:6px">${passo.ico}</div>
+      <h3 style="font-size:.98rem">${passo.tab}</h3>
     </div>
-    <p style="font-size:.83rem;color:var(--text2);line-height:1.6">${p.txt}</p>`;
+    <p style="font-size:.8rem;color:var(--text2);line-height:1.55;text-align:left">${passo.txt}</p>`;
   ONB_PASSOS.forEach((_,i)=>document.getElementById('onb-dot-'+i)?.classList.toggle('on',i===onbPasso));
   const btn=document.getElementById('onb-btn-next');
-  if(btn) btn.textContent = onbPasso===ONB_PASSOS.length-1 ? '🚀 Começar a usar' : 'Próximo →';
+  if(btn) btn.textContent=onbPasso===ONB_PASSOS.length-1?'🚀 Começar a usar':'Próximo →';
+
+  const spot=document.getElementById('onb-spot');
+  const tip=document.getElementById('onb-tip');
+  if(!spot||!tip)return;
+  tip.style.display='block';
+
+  if(alvo){
+    const r=alvo.getBoundingClientRect();
+    const pad=8;
+    spot.style.display='block';
+    spot.style.left=(r.left-pad)+'px';
+    spot.style.top=(r.top-pad)+'px';
+    spot.style.width=(r.width+pad*2)+'px';
+    spot.style.height=(r.height+pad*2)+'px';
+
+    const tipRect=tip.getBoundingClientRect();
+    const margem=14;
+    const espacoAbaixo=window.innerHeight-r.bottom;
+    const espacoAcima=r.top;
+    let top;
+    if(espacoAbaixo>=tipRect.height+margem*2) top=r.bottom+margem;
+    else if(espacoAcima>=tipRect.height+margem*2) top=r.top-tipRect.height-margem;
+    else top=Math.max(margem,(window.innerHeight-tipRect.height)/2);
+    let left=r.left+r.width/2-tipRect.width/2;
+    left=Math.max(margem,Math.min(left,window.innerWidth-tipRect.width-margem));
+    tip.style.transform='none';
+    tip.style.top=top+'px';
+    tip.style.left=left+'px';
+  } else {
+    spot.style.display='none';
+    tip.style.transform='translate(-50%,-50%)';
+    tip.style.top='50%';
+    tip.style.left='50%';
+  }
 }
 function onbAvancar(){
-  if(onbPasso<ONB_PASSOS.length-1){ onbPasso++; onbRender(); }
+  if(onbPasso<ONB_PASSOS.length-1){ onbPasso++; onbMostrarPasso(); }
   else onbFechar();
 }
 function onbPular(){ onbFechar(); }
 function onbFechar(){
-  document.getElementById('onb-ov')?.classList.remove('show');
+  const block=document.getElementById('onb-block');
+  const spot=document.getElementById('onb-spot');
+  const tip=document.getElementById('onb-tip');
+  if(block) block.style.display='none';
+  if(spot) spot.style.display='none';
+  if(tip) tip.style.display='none';
 }
+window.addEventListener('resize',()=>{
+  const block=document.getElementById('onb-block');
+  if(block&&block.style.display==='block'){
+    const passo=ONB_PASSOS[onbPasso];
+    const alvo=passo.sel?document.querySelector(passo.sel):null;
+    onbRenderPasso(alvo);
+  }
+});
 
 /* ═══ SHEET DE EDIÇÃO DE PERFIL (dentro do app) ═══ */
 async function abrirPerfilEdicao(){
