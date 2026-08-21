@@ -123,29 +123,38 @@ exports.handler = async (event) => {
   console.log('[excluir-conta] início — uid:', uid);
 
   /* ── 3. Confirma que o uid é um usuário real ANTES de apagar qualquer
-         coisa. Mesmo padrão comprovado de `criar-assinatura.js`/
-         `cancelar-assinatura.js`: consulta `profiles` via PostgREST.
+         coisa. Consulta direto a AUTENTICAÇÃO (GoTrue admin), não mais
+         `profiles` — porque uma conta pode existir de verdade (fez cadastro,
+         tem login) e nunca ter completado o perfil obrigatório (ex: fechou
+         o app no meio do "Complete seu perfil"), o que a deixa SEM linha em
+         `profiles`. Antes isso barrava a exclusão dessa conta pelo Painel
+         Admin com um falso "Usuário não autorizado" — justamente o tipo de
+         conta incompleta que o admin mais precisa poder limpar.
          Falhou aqui → 403 e NADA é apagado (passo 5 do spec). ── */
   try {
     const rUser = await fetch(
-      `${supaBase}/rest/v1/profiles?uid=eq.${encodeURIComponent(uid)}&select=uid`,
-      { method: 'GET', headers: supaHeaders(SUPABASE_SERVICE_ROLE_KEY) }
+      `${supaBase}/auth/v1/admin/users/${encodeURIComponent(uid)}`,
+      {
+        method: 'GET',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        }
+      }
     );
 
+    if (rUser.status === 404) {
+      console.warn('[excluir-conta] uid não existe na autenticação — uid:', uid, '(nada foi apagado)');
+      return json(403, { erro: 'Usuário não autorizado.' });
+    }
     if (!rUser.ok) {
       const txt = await rUser.text().catch(() => '');
-      console.error('[excluir-conta] falha ao consultar profiles — uid:', uid,
+      console.error('[excluir-conta] falha ao consultar auth admin — uid:', uid,
                     'status:', rUser.status, 'resp:', txt);
       /* Não dá pra validar → não apaga. Erro de infra, não de autorização. */
       return json(502, { erro: 'Não foi possível validar sua conta agora. Tente novamente.' });
     }
-
-    const linhas = await rUser.json().catch(() => []);
-    if (!Array.isArray(linhas) || linhas.length === 0) {
-      console.warn('[excluir-conta] uid sem perfil correspondente — uid:', uid, '(nada foi apagado)');
-      return json(403, { erro: 'Usuário não autorizado.' });
-    }
-    console.log('[excluir-conta] usuário validado (profiles) — uid:', uid);
+    console.log('[excluir-conta] usuário validado (auth) — uid:', uid);
   } catch (e) {
     console.error('[excluir-conta] erro ao validar usuário no Supabase — uid:', uid, e);
     return json(502, { erro: 'Não foi possível validar sua conta agora. Tente novamente.' });
