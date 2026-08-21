@@ -188,19 +188,30 @@ exports.handler = async (event) => {
          mexe em `status`, nunca em `plano` — e não precisa mesmo, porque o
          valor da preapproval já saiu daqui com o preço certo do plano.
          Assim, quando o pagamento confirmar, a linha já sabe o que foi
-         contratado. ── */
+         contratado.
+
+         UPSERT, não PATCH: um PATCH com `?uid=eq.` só grava se JÁ existir uma
+         linha pra esse uid — se por qualquer motivo ela não existir (ex: o
+         trigger que cria a linha de trial falhou silenciosamente pra essa
+         conta), a gravação passava em branco sem erro nenhum. Upsert garante
+         a gravação nos dois casos (cria se não existir, atualiza se existir). ── */
   try {
-    const rPatch = await fetch(
-      `${supaBase}/rest/v1/assinaturas?uid=eq.${encodeURIComponent(uid)}`,
+    const rUpsert = await fetch(
+      /* on_conflict=uid explícito: garante que o PostgREST sabe usar `uid`
+         como alvo do upsert mesmo que ele não seja literalmente a chave
+         primária da tabela (só precisa ter uma constraint UNIQUE nela, que
+         já é premissa de todo o resto do app — uma linha por uid). */
+      `${supaBase}/rest/v1/assinaturas?on_conflict=uid`,
       {
-        method: 'PATCH',
+        method: 'POST',
         headers: {
           apikey: SUPABASE_SERVICE_ROLE_KEY,
           Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           'Content-Type': 'application/json',
-          Prefer: 'return=minimal'
+          Prefer: 'resolution=merge-duplicates,return=minimal'
         },
         body: JSON.stringify({
+          uid: uid,
           mp_subscription_id: mpSubscriptionId,
           mp_payer_email: email,
           plano: plano,
@@ -209,13 +220,13 @@ exports.handler = async (event) => {
       }
     );
 
-    if (!rPatch.ok) {
-      const txt = await rPatch.text().catch(() => '');
+    if (!rUpsert.ok) {
+      const txt = await rUpsert.text().catch(() => '');
       /* Não aborta: a preapproval já existe no MP e o usuário deve conseguir
          pagar. O webhook ainda consegue linkar pelo external_reference (uid).
          Mas isso PRECISA aparecer no log pra investigação. */
       console.error('[criar-assinatura] FALHA ao gravar mp_subscription_id no Supabase — uid:', uid,
-                    'status:', rPatch.status, 'resp:', txt);
+                    'status:', rUpsert.status, 'resp:', txt);
     } else {
       console.log('[criar-assinatura] mp_subscription_id gravado no Supabase — uid:', uid);
     }
