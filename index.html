@@ -633,12 +633,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .splash-ver{position:absolute;bottom:calc(var(--safe-bot)+22px);font-size:.65rem;color:var(--text3);animation:sFadeUp .5s ease both .9s}
 
 /* ─── UPDATE BANNER ─────────────────── */
-.update-banner{display:none;background:var(--purple);color:#fff;font-size:.78rem;font-weight:600;padding:9px 16px;text-align:center;cursor:pointer;flex-shrink:0;animation:slideDown .3s ease}
+/* padding-top próprio (não tinha nenhuma folga de área segura antes) — esse
+   banner pode aparecer ANTES até do topbar, então se não tratar aqui também,
+   ficaria colado no topo em qualquer aparelho com recorte de câmera. */
+.update-banner{display:none;background:var(--purple);color:#fff;font-size:.78rem;font-weight:600;padding:9px 16px;padding-top:max(var(--safe-top),9px);text-align:center;cursor:pointer;flex-shrink:0;animation:slideDown .3s ease}
 .update-banner.show{display:block}
 @keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:none;opacity:1}}
 
 /* ─── TOPBAR ─────────────────────────── */
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:calc(var(--safe-top)+56px) 18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10;gap:12px}
+/* max() em vez de só calc(): em alguns iPhones, quando o app está instalado
+   (modo standalone, não Safari), o iOS às vezes reporta env(safe-area-inset-top)
+   como 0 mesmo havendo recorte de câmera/Ilha Dinâmica de verdade — bug/
+   inconsistência conhecida do sistema, não do nosso CSS. O max(...,100px)
+   garante uma folga mínima segura mesmo quando isso acontece, sem mudar nada
+   nos aparelhos onde env() já funciona certo (ali o cálculo normal já é maior
+   que 100px, então o max() não altera o resultado). */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:max(calc(var(--safe-top)+56px),100px) 18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10;gap:12px}
 .topbar-brand{display:flex;align-items:center;gap:10px;min-width:0}
 .topbar-logo{width:50px;height:50px;border-radius:14px;overflow:hidden;flex-shrink:0}
 .topbar-logo img{width:100%;height:100%;object-fit:cover}
@@ -905,6 +915,33 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .sh-edit{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+28px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:303;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh-edit.show{transform:none}
 .sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* ─── PAINEL ADMIN (sheet #sh-admin) ───────────────
+   Só o dono do app vê esta tela. Visualmente reaproveita a linguagem já
+   existente: os KPIs do resumo usam .dash-kpi/.dash-kpi-row do Dashboard
+   sem nenhum estilo novo, e o card de usuário abaixo é o .divida-card
+   adaptado (mesma anatomia: faixa de 2px no topo, borda, raio, padding),
+   só que sem cursor de clique — o card inteiro não é clicável, apenas o
+   botão de excluir dentro dele. */
+.adm-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px;position:relative;overflow:hidden;animation:fadeUp .2s ease}
+.adm-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0;background:var(--border2)}
+/* Candidato a exclusão (Básico + 30+ dias sem acessar): fundo e faixa em
+   vermelho suave. É só destaque — nada é apagado sem o admin confirmar. */
+.adm-card.alerta{border-color:rgba(239,68,68,.42);background:rgba(239,68,68,.05)}
+.adm-card.alerta::before{background:var(--danger)}
+.adm-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.adm-nome{font-size:.84rem;font-weight:700;color:var(--text);word-break:break-word}
+.adm-email{font-size:.66rem;color:var(--text3);margin-top:2px;word-break:break-all}
+.adm-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.adm-tag{font-size:.6rem;font-weight:600;padding:3px 7px;border-radius:6px;background:var(--surface2);color:var(--text2);border:1px solid var(--border2)}
+.adm-tag.plano-plus{background:rgba(59,130,246,.14);color:var(--accent);border-color:transparent}
+.adm-tag.plano-premium{background:rgba(139,92,246,.16);color:#A78BFA;border-color:transparent}
+.adm-tag.perigo{background:rgba(239,68,68,.14);color:var(--danger);border-color:transparent}
+.adm-tag.aviso{background:rgba(245,158,11,.14);color:var(--gold);border-color:transparent}
+.adm-selo{display:inline-block;margin-top:8px;font-size:.6rem;font-weight:700;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,.14);color:var(--danger)}
+.adm-del{flex-shrink:0;background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.28);border-radius:9px;padding:7px 10px;font-family:var(--sans);font-size:.68rem;font-weight:700;cursor:pointer}
+.adm-del:active{transform:scale(.96)}
+.adm-vazio{text-align:center;padding:30px 10px;color:var(--text3);font-size:.78rem}
 /* ─── ONBOARDING (tour interativo com spotlight) ───
    3 camadas, do fundo pra frente:
    #onb-block → transparente, só BLOQUEIA clique no app enquanto o tour
@@ -1014,7 +1051,8 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 /* Landing hero */
 .auth-hero{
   display:flex;flex-direction:column;align-items:center;
-  padding:calc(var(--safe-top)+40px) 24px 0;
+  /* max() por segurança — mesmo motivo do .topbar, ver comentário lá. */
+  padding:max(calc(var(--safe-top)+40px),90px) 24px 0;
   text-align:center;position:relative;z-index:1;
 }
 .auth-logo-wrap{position:relative;margin-bottom:20px;animation:sDrop .6s cubic-bezier(.22,1,.36,1) both}
@@ -2713,6 +2751,18 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="menu-item-sub">Rever o tour de boas-vindas</div>
       </div>
     </button>
+    <!-- Painel Admin: nasce escondido e só é revelado por abrirMenu() quando
+         window._souAdmin === true. A visibilidade aqui é conveniência de UI;
+         quem autoriza de verdade é o portão is_admin da function
+         admin-relatorio (servidor), não este display:none. -->
+    <button class="menu-item" id="menu-item-admin" style="display:none" onclick="abrirPainelAdmin()">
+      <div class="menu-item-ico" style="background:rgba(239,68,68,.12)">🛠️</div>
+      <div class="menu-item-body">
+        <div class="menu-item-label">Painel Admin</div>
+        <div class="menu-item-sub">Usuários, planos e acessos</div>
+      </div>
+    </button>
+
     <button class="menu-item" onclick="abrirAssinaturaSheet()">
       <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">💎</div>
       <div class="menu-item-body">
@@ -2859,6 +2909,23 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharPerfilEdicao()">Cancelar</button>
     <button class="sh-ok" onclick="salvarPerfilEdicao()">💾 Salvar</button>
+  </div>
+</div>
+
+<!-- PAINEL ADMIN (só o dono do app) — relatório de usuários, planos e acessos.
+     Todo o conteúdo é renderizado por abrirPainelAdmin() a partir da resposta
+     da function /.netlify/functions/admin-relatorio; o HTML aqui é só a casca.
+     Nenhum dado de outro usuário existe no client antes dessa chamada — e ela
+     só responde se o servidor confirmar is_admin. -->
+<div class="sh-edit-ov" id="sh-admin-ov" onclick="fecharPainelAdmin()"></div>
+<div class="sh-edit" id="sh-admin">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">🛠️ Painel Admin</div>
+  <div id="admin-resumo"></div>
+  <div id="admin-lista"></div>
+  <div class="sh-btns">
+    <button class="sh-cancel" onclick="fecharPainelAdmin()">Fechar</button>
+    <button class="sh-ok" onclick="adminCarregarRelatorio()">↻ Atualizar</button>
   </div>
 </div>
 
@@ -3458,6 +3525,9 @@ function authRecoveryPendente(){
 function authMostrarLogin(){
   window._sbReady = false;
   window._sbUID   = null;
+  /* Limpa o cache de admin no logout: sem isso, o item "Painel Admin"
+     continuaria visível pro próximo login feito na mesma aba. */
+  window._souAdmin = false;
   authEmCompletarPerfil = false;
   _perfilUserPendente   = null;
   authEmAssinaturaObrigatoria = false;
@@ -3512,6 +3582,12 @@ async function authLiberarApp(user, revelarUI){
     // Cache global: os insights do Dashboard leem o objetivo daqui sem
     // precisar re-consultar o Supabase (fica undefined se a leitura falhar).
     window._perfilAtual = perfil;
+    /* Admin: aproveita a MESMA leitura de perfil (não faz segunda consulta).
+       Só serve pra mostrar/esconder o item de menu — a autorização de
+       verdade é o portão de `is_admin` dentro da function admin-relatorio,
+       que roda no servidor. Forjar isto no console não dá acesso a nada.
+       Se a leitura do perfil falhar, fica `false`: o menu some, o app segue. */
+    window._souAdmin = perfil?.is_admin === true;
   } catch(e){ console.error('authLiberarApp perfil select error:', e); }
 
   if (perfil?.nome && nameEl) nameEl.textContent = perfil.nome;
@@ -4219,6 +4295,215 @@ async function salvarPerfilEdicao(){
   }catch(e){
     console.error('salvarPerfilEdicao error:', e);
     toast('⚠️ Erro de conexão ao salvar o perfil.', true);
+  }
+}
+
+/* ═══ PAINEL ADMIN (sheet #sh-admin) ══════
+   Relatório de todos os usuários: cadastro, último acesso, plano e quem
+   está no Básico há mais de 30 dias sem acessar.
+
+   ── Onde mora a autorização ──
+   NÃO é aqui. `window._souAdmin` só controla se o item do menu aparece;
+   quem decide é o portão `is_admin` dentro de admin-relatorio.js, no
+   servidor. Alguém que force `window._souAdmin = true` no console abre
+   este sheet e recebe 403 — nenhum dado de outro usuário chega ao client.
+
+   ── Exclusão ──
+   O relatório é SÓ LEITURA. `elegivelExclusao` é destaque visual, nunca
+   ação: cada exclusão passa pelo diálogo confirmar() e é disparada uma a
+   uma pelo admin, chamando a function excluir-conta já existente. Não
+   existe (e não deve existir) exclusão em lote ou automática.
+════════════════════════════════════════ */
+
+/* Cache da última resposta do relatório: o botão de excluir só manda o
+   uid, e o texto do diálogo de confirmação (nome/e-mail) sai daqui. */
+window._adminUsuarios = [];
+
+function adminFmtBRL(v){
+  return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+/* Rótulo do plano pra exibição (o valor cru é 'basico'/'plus'/'premium'). */
+function adminRotuloPlano(p){
+  return p==='premium' ? 'Premium' : p==='plus' ? 'Plus' : 'Básico';
+}
+
+async function abrirPainelAdmin(){
+  if(typeof fecharMenu === 'function') fecharMenu();
+  if(!window._sbUID) return toast('⚠️ Faça login para abrir o painel.', true);
+  document.getElementById('sh-admin-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-admin').classList.add('show'),10);
+  await adminCarregarRelatorio();
+}
+
+function fecharPainelAdmin(){
+  document.getElementById('sh-admin').classList.remove('show');
+  document.getElementById('sh-admin-ov').classList.remove('show');
+}
+
+/* Busca + renderiza. Separada de abrirPainelAdmin() de propósito: depois de
+   excluir alguém dá pra recarregar a lista sem fechar e reabrir o sheet. */
+async function adminCarregarRelatorio(){
+  const elResumo = document.getElementById('admin-resumo');
+  const elLista  = document.getElementById('admin-lista');
+  if(!elResumo || !elLista) return;
+
+  elResumo.innerHTML = '';
+  elLista.innerHTML  = '<div class="adm-vazio">⏳ Carregando relatório...</div>';
+
+  let resp, data = null;
+  try{
+    resp = await fetch('/.netlify/functions/admin-relatorio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: window._sbUID })
+    });
+    try{ data = await resp.json(); }catch(e){ data = null; }
+  }catch(e){
+    console.error('adminCarregarRelatorio erro de rede:', e);
+    fecharPainelAdmin();
+    return toast('⚠️ Erro de conexão ao carregar o relatório.', true);
+  }
+
+  /* 403 (não é admin) ou qualquer outro erro: some com a tela. Não faz
+     sentido deixar um sheet vazio aberto pra quem não pode vê-lo. */
+  if(!resp.ok || !data?.ok){
+    console.error('adminCarregarRelatorio falhou:', resp.status, data);
+    fecharPainelAdmin();
+    return toast('⚠️ '+(data?.erro || 'Não foi possível carregar o relatório.'), true);
+  }
+
+  window._adminUsuarios = Array.isArray(data.usuarios) ? data.usuarios : [];
+  adminRenderResumo(data.resumo || {});
+  adminRenderLista(window._adminUsuarios);
+}
+
+/* Resumo em KPIs — reaproveita .dash-kpi-row/.dash-kpi do Dashboard. */
+function adminRenderResumo(r){
+  const porPlano = r.porPlano || {};
+  document.getElementById('admin-resumo').innerHTML = `
+    <div class="dash-kpi-row">
+      <div class="dash-kpi" style="--kpi-color:var(--accent)">
+        <div class="dash-kpi-label">Usuários</div>
+        <div class="dash-kpi-val">${r.totalUsuarios ?? 0}</div>
+        <div class="dash-kpi-sub">${porPlano.basico||0} básico · ${porPlano.plus||0} plus · ${porPlano.premium||0} premium</div>
+        <div class="dash-kpi-icon">👥</div>
+      </div>
+      <div class="dash-kpi" style="--kpi-color:var(--teal)">
+        <div class="dash-kpi-label">MRR</div>
+        <div class="dash-kpi-val">${adminFmtBRL(r.mrr)}</div>
+        <div class="dash-kpi-sub">Só assinaturas ativas</div>
+        <div class="dash-kpi-icon">💰</div>
+      </div>
+      <div class="dash-kpi" style="--kpi-color:var(--gold)">
+        <div class="dash-kpi-label">Novos</div>
+        <div class="dash-kpi-val">${r.novos7dias ?? 0} / ${r.novos30dias ?? 0}</div>
+        <div class="dash-kpi-sub">7 dias / 30 dias</div>
+        <div class="dash-kpi-icon">✨</div>
+      </div>
+      <div class="dash-kpi" style="--kpi-color:var(--danger)">
+        <div class="dash-kpi-label">Atenção</div>
+        <div class="dash-kpi-val">${r.atrasados ?? 0} / ${r.elegiveisExclusao ?? 0}</div>
+        <div class="dash-kpi-sub">Atrasados / inativos 30d+</div>
+        <div class="dash-kpi-icon">⚠️</div>
+      </div>
+    </div>`;
+}
+
+function adminRenderLista(usuarios){
+  const el = document.getElementById('admin-lista');
+  if(!usuarios.length){
+    el.innerHTML = '<div class="adm-vazio">Nenhum usuário encontrado.</div>';
+    return;
+  }
+
+  el.innerHTML = usuarios.map(u => {
+    const titulo = escHtml(u.nome || u.email || u.uid);
+    const sub    = u.nome ? escHtml(u.email || '') : '';
+    const dias   = u.diasSemAcesso == null ? '—' : u.diasSemAcesso;
+    const classePlano = u.planoEfetivo==='premium' ? 'plano-premium'
+                      : u.planoEfetivo==='plus'    ? 'plano-plus' : '';
+    const tags = [
+      `<span class="adm-tag ${classePlano}">${adminRotuloPlano(u.planoEfetivo)}</span>`,
+      `<span class="adm-tag${u.elegivelExclusao?' perigo':''}">${dias} dia${dias===1?'':'s'} sem acesso</span>`,
+      `<span class="adm-tag">Cadastro ${assinaturaFmtData(u.dataCadastro) || '—'}</span>`,
+      u.nuncaAcessou ? '<span class="adm-tag aviso">Nunca acessou</span>' : '',
+      u.statusAssinatura==='atrasado' ? '<span class="adm-tag perigo">Pagamento atrasado</span>' : '',
+      u.isAdmin ? '<span class="adm-tag">🛠️ Admin</span>' : ''
+    ].join('');
+
+    return `
+      <div class="adm-card${u.elegivelExclusao?' alerta':''}">
+        <div class="adm-card-top">
+          <div style="min-width:0">
+            <div class="adm-nome">${titulo}</div>
+            ${sub ? `<div class="adm-email">${sub}</div>` : ''}
+          </div>
+          <button class="adm-del" onclick="adminConfirmarExclusao('${escHtml(u.uid)}')">🗑 Excluir conta</button>
+        </div>
+        <div class="adm-tags">${tags}</div>
+        ${u.elegivelExclusao ? '<div class="adm-selo">⚠️ 30+ dias sem acesso · Básico</div>' : ''}
+      </div>`;
+  }).join('');
+}
+
+/* Confirmação em UM passo, mas explícita: o diálogo diz o nome/e-mail da
+   conta e que a exclusão é permanente. O botão existe pra QUALQUER usuário
+   da lista (o admin pode ter motivo pra excluir quem não está destacado);
+   o destaque vermelho só ajuda a achar os candidatos mais rápido. */
+function adminConfirmarExclusao(uid){
+  const u = (window._adminUsuarios || []).find(x => x.uid === uid);
+  if(!u) return toast('⚠️ Usuário não encontrado na lista. Atualize o relatório.', true);
+
+  const identificacao = u.nome ? `${u.nome} (${u.email || u.uid})` : (u.email || u.uid);
+
+  confirmar({
+    icone:'❌',
+    titulo:'Excluir esta conta?',
+    /* Uma frase só: #dlg-msg é um <p> preenchido via textContent, sem
+       white-space:pre-line — quebras de linha aqui virariam espaço. */
+    msg:`Você está prestes a excluir a conta de ${identificacao}. Esta ação é PERMANENTE e IRREVERSÍVEL: o cadastro, a assinatura e TODOS os dados financeiros deste usuário serão apagados e não poderão ser recuperados.`,
+    btnTxt:'Sim, excluir esta conta',
+    cor:'var(--danger)',
+    fn: () => adminExcluirUsuario(uid, identificacao)
+  });
+}
+
+/* Chama a MESMA function usada pelo usuário comum pra excluir a própria
+   conta (excluir-conta.js): corpo { uid }, e o uid aqui é o do usuário
+   ALVO — nunca o do admin. Ela devolve 200 mesmo com `tabelasComErro` ou
+   `avisoAuthNaoRemovido` (os dados já foram apagados nesses casos); os
+   detalhes vão pro console, como no fluxo de autoexclusão. */
+async function adminExcluirUsuario(uid, identificacao){
+  try{
+    const resp = await fetch('/.netlify/functions/excluir-conta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid })
+    });
+
+    let data = null;
+    try{ data = await resp.json(); }catch(e){ data = null; }
+
+    if(!resp.ok || !data?.ok){
+      console.error('adminExcluirUsuario falhou:', resp.status, data);
+      return toast(data?.erro || '⚠️ Não foi possível excluir esta conta agora.', true);
+    }
+
+    if(Array.isArray(data.tabelasComErro) && data.tabelasComErro.length){
+      console.error('adminExcluirUsuario: tabelas que falharam no servidor:', data.tabelasComErro);
+    }
+    if(data.avisoAuthNaoRemovido){
+      console.error('adminExcluirUsuario: dados apagados, mas o usuário NÃO foi removido do auth — ver logs da function.');
+    }
+
+    toast('✅ Conta excluída: '+identificacao);
+    /* Recarrega só o conteúdo — o sheet continua aberto pro admin seguir
+       revisando a lista sem ter que reabrir o painel. */
+    await adminCarregarRelatorio();
+  }catch(e){
+    console.error('adminExcluirUsuario erro de rede:', e);
+    toast('⚠️ Erro de conexão ao excluir a conta.', true);
   }
 }
 
@@ -7571,6 +7856,11 @@ function abrirMenu(){
   document.getElementById('menu-ov').classList.add('show');
   setTimeout(()=>document.getElementById('menu-drawer').classList.add('show'),10);
   if(window._sbReady) authAtualizarBotaoVincular();
+  /* O menu é HTML estático, então o item de admin é revelado aqui, a cada
+     abertura — cobre o caso de o menu existir antes de authLiberarApp()
+     terminar de ler o perfil. `flex` é o display nativo de .menu-item. */
+  const admEl = document.getElementById('menu-item-admin');
+  if(admEl) admEl.style.display = window._souAdmin ? 'flex' : 'none';
 }
 function fecharMenu(){
   document.getElementById('menu-drawer').classList.remove('show');
