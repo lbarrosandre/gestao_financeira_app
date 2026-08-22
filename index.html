@@ -2280,6 +2280,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
           <button class="btn-at" onclick="selProx(12)">Próx. 12</button>
           <button class="btn-at" onclick="limparMeses()">Limpar</button>
         </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px">
+          <button type="button" onclick="recMesGridAno(-1)" style="background:none;border:1px solid var(--border2);border-radius:8px;width:30px;height:30px;color:var(--text2);font-size:1rem;cursor:pointer">‹</button>
+          <span id="rec-grid-ano-label" style="font-size:.85rem;font-weight:700;min-width:48px;text-align:center"></span>
+          <button type="button" onclick="recMesGridAno(1)" style="background:none;border:1px solid var(--border2);border-radius:8px;width:30px;height:30px;color:var(--text2);font-size:1rem;cursor:pointer">›</button>
+        </div>
         <div class="meses-grid" id="meses-grid"></div>
         <div class="rec-preview" id="rec-preview">Selecione os meses acima para ver o resumo.</div>
       </div>
@@ -2937,6 +2942,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="sh-h"></div>
   <div class="sh-edit-title">📅 Filtrar por mês</div>
   <div class="rec-hint" style="margin-bottom:10px">Selecione um ou mais meses. Sem nenhum selecionado, o filtro mostra todos os meses.</div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px">
+    <button type="button" onclick="filtroMesGridAno(-1)" style="background:none;border:1px solid var(--border2);border-radius:8px;width:30px;height:30px;color:var(--text2);font-size:1rem;cursor:pointer">‹</button>
+    <span id="filtro-grid-ano-label" style="font-size:.85rem;font-weight:700;min-width:48px;text-align:center"></span>
+    <button type="button" onclick="filtroMesGridAno(1)" style="background:none;border:1px solid var(--border2);border-radius:8px;width:30px;height:30px;color:var(--text2);font-size:1rem;cursor:pointer">›</button>
+  </div>
   <div class="meses-grid" id="filtro-meses-grid"></div>
   <div class="sh-btns" style="margin-top:14px">
     <button class="sh-cancel" onclick="filtroMesesLimpar()">Limpar</button>
@@ -3122,9 +3132,11 @@ const CATS={'Receita':['Renda do Trabalho','Trabalho Autônomo / Freelance','Ren
 const _ANO=new Date().getFullYear();
 const _MESES_BASE=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const MESES=_MESES_BASE.map(m=>m+'/'+String(_ANO).slice(2));
-// MESES_ALL: anos 2024-2029 para suportar dados históricos importados
+// MESES_ALL: janela deslizante de 8 anos relativa a HOJE (2 anos atrás → 5 à frente).
+// Suporta dados históricos importados E planejamento para anos futuros, sem
+// nunca ficar desatualizado como a faixa fixa 2024-2029 de antes.
 const MESES_ALL=[];
-for(let y=2024;y<=2029;y++){_MESES_BASE.forEach(m=>MESES_ALL.push(m+'/'+String(y).slice(2)));}
+for(let y=_ANO-2;y<=_ANO+5;y++){_MESES_BASE.forEach(m=>MESES_ALL.push(m+'/'+String(y).slice(2)));}
 function isMesValido(m){return MESES_ALL.includes(m)||MESES.includes(m);}
 
 /* Meta de economia (%) escolhida pelo usuário — carregada de profiles.meta_economia
@@ -3155,9 +3167,11 @@ function mesRefDeISO(iso){
   const i=parseInt(p[1],10)-1;
   return _MESES_BASE[i]?_MESES_BASE[i]+'/'+String(p[0]).slice(2):'';
 }
-/* Universo de meses que os gráficos conseguem plotar (MESES = ano corrente).
+/* Universo de meses que os gráficos conseguem plotar (MESES_ALL = toda a janela
+   suportada, não só o ano corrente) — necessário para conseguir FILTRAR o
+   Dashboard por um ano diferente e realmente ver os dados dele.
    KPIs e gráficos precisam usar EXATAMENTE o mesmo filtro. */
-function isMesDoGrafico(m){return MESES.includes(m);}
+function isMesDoGrafico(m){return MESES_ALL.includes(m);}
 
 /* Lançamentos "reais": exclui transferências internas CC↔bolso (deBolso),
    que não são receita nem despesa de verdade, e o pagamento de fatura de
@@ -3281,13 +3295,19 @@ let mov='Debito',planMov='Debito',invMov='deposito',execId=null;
 let dividaVisualizandoId=null,dividaEmEdicaoId=null,dividaCriandoNova=false;
 /* Mesmo esquema para os cartões de crédito (segunda seção da mesma aba). */
 let cartaoVisualizandoId=null,cartaoEmEdicaoId=null,cartaoCriandoNovo=false;
+/* Meses escolhidos no "replicar agendamento". Guarda RÓTULOS COMPLETOS
+   (ex: 'jan/27') e não índices, para permitir selecionar meses de anos
+   diferentes ao mesmo tempo sem perder a seleção ao navegar de ano. */
 let mesesSel=new Set();
-/* Filtro de MÚLTIPLOS meses (Dashboard e Planejar). Guardam ÍNDICES 0-11 de MESES.
+let _recMesesAno=_ANO;    // ano que a grade de recorrência está exibindo agora
+/* Filtro de MÚLTIPLOS meses (Dashboard e Planejar). Guardam RÓTULOS COMPLETOS
+   (ex: 'jan/27'), mesmo modelo de mesesSel.
    Set vazio == "todos os meses" (mesmo significado que o <select> em branco tinha).
    Propositalmente separados de mesesSel, que pertence ao "replicar agendamento". */
 let dashMesesSel=new Set();
 let planMesesSel=new Set();
 let _filtroMesesCtx=null; // 'dash' | 'plan' — qual filtro está aberto no sheet agora
+let _filtroMesesAno=_ANO; // ano exibido no sheet compartilhado agora
 
 /* ═══ AUTH ══════════════════════════════ */
 const AUTH_KEY='bussola_auth';
@@ -5268,7 +5288,20 @@ function init(){
     // Limpa antes de popular para evitar duplicatas no segundo login
     while(el.options.length > (el.options[0]?.value==='' ? 1 : 0)) el.remove(el.options.length-1);
     if(el.options.length===0){const def=document.createElement('option');def.value='';def.textContent='Mês';el.appendChild(def);}
-    MESES.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;el.appendChild(o);});
+    // Todos os anos suportados (MESES_ALL), agrupados por ano em <optgroup>.
+    // MESES_ALL já vem em ordem cronológica, então os grupos saem em ordem.
+    let anoAtualOpt=null, grupoAtual=null;
+    MESES_ALL.forEach(m=>{
+      const anoLabel=m.split('/')[1];
+      if(anoLabel!==anoAtualOpt){
+        anoAtualOpt=anoLabel;
+        grupoAtual=document.createElement('optgroup');
+        grupoAtual.label='20'+anoLabel;
+        el.appendChild(grupoAtual);
+      }
+      const o=document.createElement('option');o.value=m;o.textContent=m;
+      grupoAtual.appendChild(o);
+    });
   });
   document.getElementById('inp-data').value=hISO;
   document.getElementById('plan-data').value=hISO;
@@ -5283,7 +5316,7 @@ function init(){
   renderLista();renderPlan();renderOrcamentos();atualizarStats();atualizarStatsPlan();
   renderInvestimentos();renderDividas();
   // Dashboard abre já filtrado no mês corrente (mesmo comportamento do select antigo).
-  dashMesesSel.add(hoje.getMonth());
+  dashMesesSel.add(MESES[hoje.getMonth()]);
   atualizarBotaoFiltroMeses('dash');
   atualizarBotaoFiltroMeses('plan');
   atualizarVisibilidadeCheckboxDivida();
@@ -5380,35 +5413,61 @@ function atualizarCats(tId,cId,ctx){
 /* ═══ RECORRÊNCIA ═══════════════════════ */
 function buildMesesGrid(){
   const g=document.getElementById('meses-grid');
-  g.innerHTML=MESES.map((m,i)=>`<div class="chip" id="chip-${i}" onclick="toggleMes(${i})">${m}</div>`).join('');
+  const lbl=document.getElementById('rec-grid-ano-label');
+  if(lbl) lbl.textContent=_recMesesAno;
+  g.innerHTML=_MESES_BASE.map((m)=>{
+    const rotulo=m+'/'+String(_recMesesAno).slice(2);
+    const idSeguro='chip-'+rotulo.replace('/','-');
+    return `<div class="chip${mesesSel.has(rotulo)?' sel':''}" id="${idSeguro}" onclick="toggleMes('${rotulo}')">${rotulo}</div>`;
+  }).join('');
+}
+function recMesGridAno(delta){
+  _recMesesAno+=delta;
+  buildMesesGrid();
 }
 function toggleRec(e){
   const sw=document.getElementById('sw-rec');
   const cfg=document.getElementById('rec-cfg');
   if(e.target!==sw)sw.checked=!sw.checked;
   cfg.classList.toggle('show',sw.checked);
-  if(!sw.checked){mesesSel.clear();buildMesesGrid();}
+  if(!sw.checked){mesesSel.clear();_recMesesAno=_ANO;buildMesesGrid();}
   atualizarBtnPlan();
 }
-function toggleMes(i){
-  mesesSel.has(i)?mesesSel.delete(i):mesesSel.add(i);
+function toggleMes(rotulo){
+  mesesSel.has(rotulo)?mesesSel.delete(rotulo):mesesSel.add(rotulo);
   atualizarChips();atualizarBtnPlan();
 }
-function selTodos(){MESES.forEach((_,i)=>mesesSel.add(i));atualizarChips();atualizarBtnPlan();}
-function selProx(n){
-  const ini=MESES.indexOf(document.getElementById('plan-mes').value);
-  const s=ini>=0?ini:0;
-  mesesSel.clear();
-  for(let k=0;k<n&&(s+k)<MESES.length;k++)mesesSel.add(s+k);
+function selTodos(){
+  _MESES_BASE.forEach(m=>mesesSel.add(m+'/'+String(_recMesesAno).slice(2)));
   atualizarChips();atualizarBtnPlan();
+}
+function selProx(n){
+  // Início: o mês/ano escolhido no campo "Mês inicial" (plan-mes), agora um
+  // rótulo com ano podendo ser diferente do corrente. Busca a posição dele
+  // dentro de MESES_ALL (que cobre vários anos em sequência) e pega os
+  // próximos N rótulos a partir dali — atravessando virada de ano igual.
+  const valorInicial=document.getElementById('plan-mes').value;
+  let ini=MESES_ALL.indexOf(valorInicial);
+  if(ini<0) ini=MESES_ALL.indexOf(MESES[new Date().getMonth()]); // fallback: mês corrente
+  mesesSel.clear();
+  for(let k=0;k<n && (ini+k)<MESES_ALL.length;k++) mesesSel.add(MESES_ALL[ini+k]);
+  // Mostra na grade o ano do ÚLTIMO mês selecionado, pra pessoa ver o resultado.
+  const ultimo=MESES_ALL[Math.min(ini+n-1,MESES_ALL.length-1)];
+  if(ultimo) _recMesesAno=parseInt('20'+ultimo.split('/')[1],10);
+  buildMesesGrid();atualizarChips();atualizarBtnPlan();
 }
 function limparMeses(){mesesSel.clear();atualizarChips();atualizarBtnPlan();}
 function atualizarChips(){
-  MESES.forEach((_,i)=>{const c=document.getElementById('chip-'+i);if(c)c.classList.toggle('sel',mesesSel.has(i));});
+  _MESES_BASE.forEach(m=>{
+    const rotulo=m+'/'+String(_recMesesAno).slice(2);
+    const idSeguro='chip-'+rotulo.replace('/','-');
+    const c=document.getElementById(idSeguro);
+    if(c)c.classList.toggle('sel',mesesSel.has(rotulo));
+  });
   const vr=parseCurrency(document.getElementById('plan-valor-plan').value);
   const prev=document.getElementById('rec-preview');
   if(mesesSel.size===0){prev.innerHTML='Selecione os meses acima para ver o resumo.';return;}
-  const nomes=[...mesesSel].sort((a,b)=>a-b).map(i=>MESES[i]).join(', ');
+  const nomes=[...mesesSel].sort((a,b)=>MESES_ALL.indexOf(a)-MESES_ALL.indexOf(b)).join(', ');
   const total=vr*mesesSel.size;
   prev.innerHTML=`<strong>${mesesSel.size} agendamento${mesesSel.size>1?'s':''}</strong> para: ${nomes}<br>Total acumulado: <strong>R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong>`;
 }
@@ -5441,7 +5500,7 @@ function addPlanejamento(){
     dividaPlanId=parseInt(document.getElementById('plan-divida-sel')?.value||'0')||null;
     if(!dividaPlanId||!getDivida(dividaPlanId))return toast('⚠️ Selecione a dívida',true);
   }
-  const listaMeses=swRec?[...mesesSel].sort((a,b)=>a-b).map(i=>MESES[i]):[mes];
+  const listaMeses=swRec?[...mesesSel].sort((a,b)=>MESES_ALL.indexOf(a)-MESES_ALL.indexOf(b)):[mes];
   const[,, d]=data.split('-');
   const grupoRec=swRec?`rec_${Date.now()}`:null;
   const comentarioPlan=(document.getElementById('plan-comment')?.value||'').trim();
@@ -5466,7 +5525,7 @@ function addPlanejamento(){
   const chkDivPlan=document.getElementById('plan-divida-chk');
   if(chkDivPlan)chkDivPlan.checked=false;
   togglePlanDivida();
-  mesesSel.clear();buildMesesGrid();atualizarBtnPlan();
+  mesesSel.clear();_recMesesAno=_ANO;buildMesesGrid();atualizarBtnPlan();
   if(listaMeses.length>1)toast(`🔁 ${listaMeses.length} meses agendados!`,false,true);
   else toast('📅 Pagamento agendado!',false,true);
 }
@@ -7436,31 +7495,48 @@ const CHART_BASE={
 
 /* ═══ FILTRO DE MÚLTIPLOS MESES (sheet compartilhado dash + plan) ═══
    Substituiu os <select id="df-mes"> / <select id="pf-mes">, que só permitiam
-   um mês por vez. Estado: dashMesesSel / planMesesSel (índices 0-11 de MESES).
+   um mês por vez. Estado: dashMesesSel / planMesesSel (RÓTULOS de MESES_ALL,
+   ex: 'jan/27' — permitem filtrar anos diferentes do corrente).
    Set vazio = "todos os meses", igual ao select em branco de antes. */
 function _filtroMesesSetAtivo(){ return _filtroMesesCtx==='dash'?dashMesesSel:planMesesSel; }
 
 function abrirFiltroMeses(ctx){
   _filtroMesesCtx=ctx;
-  const g=document.getElementById('filtro-meses-grid');
-  if(!g)return;
-  const sel=_filtroMesesSetAtivo();
-  g.innerHTML=MESES.map((m,i)=>`<div class="chip${sel.has(i)?' sel':''}" id="fm-chip-${i}" onclick="toggleFiltroMes(${i})">${m}</div>`).join('');
+  _filtroMesesAno=_ANO;  // sempre abre mostrando o ano corrente, ainda que já tenha seleção em outro ano
+  filtroRenderGrid();
   document.getElementById('sh-filtro-meses-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh-filtro-meses').classList.add('show'),10);
 }
-function toggleFiltroMes(i){
+function filtroRenderGrid(){
+  const g=document.getElementById('filtro-meses-grid');
+  const lbl=document.getElementById('filtro-grid-ano-label');
+  if(lbl) lbl.textContent=_filtroMesesAno;
+  if(!g)return;
   const sel=_filtroMesesSetAtivo();
-  sel.has(i)?sel.delete(i):sel.add(i);
-  document.getElementById('fm-chip-'+i)?.classList.toggle('sel',sel.has(i));
+  g.innerHTML=_MESES_BASE.map((m)=>{
+    const rotulo=m+'/'+String(_filtroMesesAno).slice(2);
+    const idSeguro='fm-chip-'+rotulo.replace('/','-');
+    return `<div class="chip${sel.has(rotulo)?' sel':''}" id="${idSeguro}" onclick="toggleFiltroMes('${rotulo}')">${rotulo}</div>`;
+  }).join('');
+}
+function filtroMesGridAno(delta){
+  _filtroMesesAno+=delta;
+  filtroRenderGrid();
+}
+function toggleFiltroMes(rotulo){
+  const sel=_filtroMesesSetAtivo();
+  sel.has(rotulo)?sel.delete(rotulo):sel.add(rotulo);
+  const idSeguro='fm-chip-'+rotulo.replace('/','-');
+  document.getElementById(idSeguro)?.classList.toggle('sel',sel.has(rotulo));
 }
 function filtroMesesLimpar(){
   _filtroMesesSetAtivo().clear();
-  MESES.forEach((_,i)=>document.getElementById('fm-chip-'+i)?.classList.remove('sel'));
+  filtroRenderGrid();
 }
 function filtroMesesTodos(){
   const sel=_filtroMesesSetAtivo();
-  MESES.forEach((_,i)=>{sel.add(i);document.getElementById('fm-chip-'+i)?.classList.add('sel');});
+  _MESES_BASE.forEach(m=>sel.add(m+'/'+String(_filtroMesesAno).slice(2)));
+  filtroRenderGrid();
 }
 function fecharFiltroMeses(){
   document.getElementById('sh-filtro-meses')?.classList.remove('show');
@@ -7476,15 +7552,16 @@ function atualizarBotaoFiltroMeses(ctx){
   const sel=ctx==='dash'?dashMesesSel:planMesesSel;
   const btn=document.getElementById(ctx==='dash'?'df-mes-btn':'pf-mes-btn');
   if(!btn)return;
-  if(sel.size===0)btn.textContent='📅 Todos os meses';
-  else if(sel.size<=3)btn.textContent='📅 '+[...sel].sort((a,b)=>a-b).map(i=>MESES[i]).join(', ');
-  else btn.textContent=`📅 ${sel.size} meses selecionados`;
+  const ordenados=[...sel].sort((a,b)=>MESES_ALL.indexOf(a)-MESES_ALL.indexOf(b));
+  if(ordenados.length===0)btn.textContent='📅 Todos os meses';
+  else if(ordenados.length<=3)btn.textContent='📅 '+ordenados.join(', ');
+  else btn.textContent=`📅 ${ordenados.length} meses selecionados`;
 }
 /* Leitura do filtro por qualquer consumidor: array de RÓTULOS de mês
    (ex: ['ago/26','out/26']) ou [] quando nenhum mês está selecionado (= todos). */
 function mesesFiltroAtivo(ctx){
   const sel=ctx==='dash'?dashMesesSel:planMesesSel;
-  return [...sel].sort((a,b)=>a-b).map(i=>MESES[i]);
+  return [...sel].sort((a,b)=>MESES_ALL.indexOf(a)-MESES_ALL.indexOf(b));
 }
 
 function resetDashFilters(){
