@@ -267,6 +267,8 @@ function sbLancToApp(r) {
     // direto da Poupança (ambos agora enviados/lidos do banco normalmente).
     deBolso: r.de_bolso||false, bolsoId: r.bolso_id||null,
     pagoDoBolso: r.pago_do_bolso||false,
+    // Receita que entrou direto num bolso (espelho do pagoDoBolso).
+    recebidoNoBolso: r.recebido_no_bolso||false,
     pagamentoDivida: r.pagamento_divida||false,
     // Cartão de crédito: compra (cartaoId + faturaRef) ou pagamento de fatura
     // (faturaPagamento). Compras não tocam a CC até a fatura ser paga.
@@ -354,6 +356,7 @@ window._sbSync = async function(patch) {
         recorrente: d.recorrente||false,
         de_bolso: d.deBolso||false, bolso_id: d.bolsoId||null,
         pago_do_bolso: d.pagoDoBolso||false,
+        recebido_no_bolso: d.recebidoNoBolso||false,
         pagamento_divida: d.pagamentoDivida||false,
         cartao_id: d.cartaoId||null,
         fatura_ref: d.faturaRef||null,
@@ -1783,19 +1786,23 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="auth-logo-ring"></div>
     </div>
     <div class="auth-hero-title">Bús<em>sola</em></div>
-    <div class="auth-hero-sub">Gestão financeira pessoal · Seus dados sincronizados em qualquer dispositivo</div>
+    <div class="auth-hero-sub">Dinheiro não é sobre números. É sobre dormir tranquilo sabendo que está tudo sob controle.</div>
     <div class="auth-features">
       <div class="auth-feat">
-        <div class="auth-feat-ico" style="background:rgba(16,185,129,.12)">📊</div>
-        <div class="auth-feat-txt">Dashboard completo com gráficos e insights</div>
+        <div class="auth-feat-ico" style="background:rgba(16,185,129,.12)">💡</div>
+        <div class="auth-feat-txt">A maioria das pessoas não sabe pra onde vai 20-30% do que ganha — o Bússola mostra na hora</div>
       </div>
       <div class="auth-feat">
-        <div class="auth-feat-ico" style="background:rgba(59,130,246,.12)">☁️</div>
-        <div class="auth-feat-txt">Dados salvos na nuvem — acesse de qualquer lugar</div>
+        <div class="auth-feat-ico" style="background:rgba(59,130,246,.12)">🎯</div>
+        <div class="auth-feat-txt">Você define a meta, o app avisa quando está saindo dela</div>
       </div>
       <div class="auth-feat">
-        <div class="auth-feat-ico" style="background:rgba(139,92,246,.12)">📅</div>
-        <div class="auth-feat-txt">Planejamento financeiro com alertas de vencimento</div>
+        <div class="auth-feat-ico" style="background:rgba(139,92,246,.12)">💳</div>
+        <div class="auth-feat-txt">Fatura do cartão sem susto: parcelamento e vencimento sob controle</div>
+      </div>
+      <div class="auth-feat">
+        <div class="auth-feat-ico" style="background:rgba(16,185,129,.12)">🆓</div>
+        <div class="auth-feat-txt">Comece de graça, pra sempre — sem pedir cartão</div>
       </div>
     </div>
   </div>
@@ -2146,6 +2153,17 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div id="lanc-divida-bolso-wrap" style="display:none;margin-top:10px">
         <div class="fi" style="margin-bottom:0"><label>Bolso origem</label><div class="sw"><select id="lanc-divida-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
       </div>
+    </div>
+    <!-- DESTINO DO RECEBIMENTO (só em Crédito) -->
+    <div class="rec-box" id="lanc-destino-box" style="display:none">
+      <div class="fi" style="margin-bottom:0"><label>🏦 Onde esse valor entra?</label><div class="sw"><select id="lanc-destino-sel" onchange="toggleLancDestinoBolso()">
+        <option value="cc">🏦 Conta Corrente</option>
+        <option value="bolso">🐷 Direto num bolso (poupança, investimento...)</option>
+      </select></div></div>
+      <div id="lanc-destino-bolso-wrap" style="display:none;margin-top:10px">
+        <div class="fi" style="margin-bottom:0"><label>Qual bolso?</label><div class="sw"><select id="lanc-destino-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
+      </div>
+      <div class="rec-hint" style="margin-top:8px">Use isto pra rendimento de poupança/investimento, ou qualquer receita que já nasce dentro de um bolso — o valor entra como receita normal em Registros, mas credita o bolso escolhido em vez da Conta Corrente.</div>
     </div>
     <!-- COMPRA NO CARTÃO DE CRÉDITO (só aparece em Débito e com cartão cadastrado) -->
     <div class="rec-box" id="lanc-cartao-box" style="display:none">
@@ -3540,6 +3558,24 @@ function authRecoveryPendente(){
     if(new URLSearchParams(window.location.search).get('reset')==='1') return true;
     return window.location.hash.includes('type=recovery');
   }catch(e){ return false; }
+}
+
+/* Link de recuperação que falhou: o Supabase redireciona de volta para a URL
+   configurada com error/error_code/error_description — na query string OU na
+   hash, depende do fluxo. Sem tratar isso a pessoa cai na tela de login sem
+   nenhuma explicação (o token é de uso único, e clientes de e-mail no celular
+   costumam "visitar" o link numa varredura de segurança antes do clique real,
+   consumindo-o). */
+function authErroRecuperacaoPendente(){
+  try{
+    const qs = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/,''));
+    const erro = qs.get('error') || hash.get('error');
+    const codigo = qs.get('error_code') || hash.get('error_code');
+    const desc = qs.get('error_description') || hash.get('error_description');
+    if(!erro) return null;
+    return { erro, codigo, desc: desc ? decodeURIComponent(desc.replace(/\+/g,' ')) : '' };
+  }catch(e){ return null; }
 }
 
 function authMostrarLogin(){
@@ -5191,8 +5227,21 @@ function syncMesFromData(dataId,mesId){
 
 window.addEventListener('load',()=>{
 
-  // Link de recuperação de senha: prepara a UI antes do evento PASSWORD_RECOVERY chegar
-  if (authRecoveryPendente()) authMostrarNovaSenha();
+  // Link de recuperação de senha que voltou com ERRO (expirado ou já consumido):
+  // mostra a tela de login com uma mensagem clara em vez de falhar em silêncio.
+  const erroRecuperacao = authErroRecuperacaoPendente();
+  if (erroRecuperacao) {
+    // Limpa a URL pra um F5 não repetir o erro (mesmo padrão do ?reset=1/assinatura=retorno).
+    try{ history.replaceState(null,'',authUrlBase()); }catch(e){}
+    authMostrarTab('login');
+    const msg = erroRecuperacao.codigo === 'otp_expired'
+      ? 'Esse link de redefinição de senha expirou ou já foi usado. Peça um novo — se abrir o e-mail pelo celular, tente copiar e colar o link direto no navegador em vez de tocar nele pelo app de e-mail.'
+      : 'Não foi possível confirmar o link de redefinição de senha. Peça um novo.';
+    setTimeout(()=>authErro(msg), 300); // pequeno delay pra tela de login já estar visível
+  } else if (authRecoveryPendente()) {
+    // Link de recuperação válido: prepara a UI antes do evento PASSWORD_RECOVERY chegar
+    authMostrarNovaSenha();
+  }
 
   /* Volta do checkout do Mercado Pago (back_url = .../?assinatura=retorno).
      O login NÃO é mais barrado por isso: a pessoa entra direto no app (no
@@ -5557,6 +5606,10 @@ function renderLista(){
     // é — por isso o id no ledger vale como fallback após o sync.
     const ehDiv=!!(d.pagamentoDivida||idsPagDivida.has(d.id));
     const origemBadge=(d.dePlan||ehDiv||d.faturaPagamento)?(d.pagoDoBolso?'<span class="tag" title="Baixa dada na Poupança">🐷 Poupança</span>':'<span class="tag" title="Baixa dada na Conta Corrente">🏦 CC</span>'):'';
+    // Receita que entrou direto num bolso (não passou pela Conta Corrente).
+    const destinoBadge=d.recebidoNoBolso
+      ?`<span class="tag" title="Recebimento creditado direto no bolso — não passou pela Conta Corrente" style="background:rgba(16,185,129,.15);color:var(--teal)">🐷 ${escHtml(APP.bolsos.find(b=>b.id===d.bolsoId)?.nome||'Bolso')}</span>`
+      :'';
     // Nome da dívida no badge quando o pagamento está vinculado a uma delas.
     const nomeDiv=ehDiv?(getDivida(pagPorId.get(d.id)?.dividaId)?.nome||''):'';
     const dividaBadge=ehDiv?`<span class="tag" title="Pagamento de dívida" style="background:rgba(139,92,246,.15);color:var(--purple)">💳 ${escHtml(nomeDiv||'Dívida')}</span>`:'';
@@ -5567,7 +5620,7 @@ function renderLista(){
         ?`<span class="tag" title="Pagamento de fatura de cartão (não conta como despesa nova)" style="background:rgba(139,92,246,.15);color:var(--purple)">💳 Pagamento fatura</span>`
         :`<span class="tag" title="Compra no cartão de crédito — não debita a conta até a fatura ser paga" style="background:rgba(59,130,246,.15);color:var(--accent)">💳 ${escHtml(getCartao(d.cartaoId)?.nome||'Cartão')}${d.faturaRef?' · '+faturaRefLabel(d.faturaRef):''}</span>`)
       :'';
-    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(d.descricao)}">${escHtml(d.descricao)}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${dividaBadge}${cartaoBadge}${origemBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
+    return`<div class="lc"><div class="ci ${d.movimento.toLowerCase()}">${ICONS[d.tipo]||'💸'}</div><div class="cb"><div class="cd" style="display:flex;align-items:center;gap:5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(d.descricao)}">${escHtml(d.descricao)}</span>${commentBadge}</div><div class="cm"><span>${d.data}</span><span class="tag">${d.mes}</span>${d.dePlan?'<span class="tag tag-p">📅 Plan</span>':''}${dividaBadge}${cartaoBadge}${origemBadge}${destinoBadge}${d.recorrente?'<span class="tag tag-r">🔁</span>':''}<span>${d.categoria}</span></div></div><div class="cr"><div class="cv" style="color:${cor}">${s} R$ ${d.valorAbs.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button><button class="btn-del" onclick="remover(${d.id})">✕</button></div></div>`;
   };
   // Fechamento dos meses: agrupa os MESMOS cards por d.mes. Como fil já vem
   // ordenado por dataISO decrescente, a ordem de aparição dos meses já sai
@@ -5884,6 +5937,31 @@ function remover(id){
           }
         }
         APP.pagamentos=APP.pagamentos.filter(p=>p.id!==id);
+      }
+      // Débito comum (não fatura, não dívida) pago direto de um bolso: mesmo
+      // estorno dos dois casos acima. Sem isso, excluir um lançamento assim
+      // deixava o saldo do bolso permanentemente errado (baixo demais).
+      if(!ehPagFatura&&!ehDiv&&d.pagoDoBolso){
+        bOrig=APP.bolsos.find(b=>b.id===d.bolsoId&&(b.movimentos||[]).some(m=>m.id===id))
+            ||APP.bolsos.find(b=>(b.movimentos||[]).some(m=>m.id===id));
+        if(bOrig){
+          const mv=(bOrig.movimentos||[]).find(m=>m.id===id);
+          bOrig.saldo+=Math.abs(mv?Number(mv.valor)||0:Number(d.valorAbs)||0);
+          bOrig.movimentos=(bOrig.movimentos||[]).filter(m=>m.id!==id);
+        }
+      }
+      // Receita que tinha entrado direto num bolso (recebidoNoBolso): excluir
+      // o lançamento precisa TIRAR o valor do bolso de volta — é o espelho
+      // exato do pagoDoBolso acima, só que subtraindo em vez de somar.
+      if(d.recebidoNoBolso){
+        const bRec=APP.bolsos.find(b=>b.id===d.bolsoId&&(b.movimentos||[]).some(m=>m.id===id))
+            ||APP.bolsos.find(b=>(b.movimentos||[]).some(m=>m.id===id));
+        if(bRec){
+          const mv=(bRec.movimentos||[]).find(m=>m.id===id);
+          bRec.saldo-=Math.abs(mv?Number(mv.valor)||0:Number(d.valorAbs)||0);
+          bRec.movimentos=(bRec.movimentos||[]).filter(m=>m.id!==id);
+          bOrig=bRec;
+        }
       }
       APP.dados=APP.dados.filter(x=>x.id!==id);
       if(bOrig){salvarBolsos();renderInvestimentos();}
@@ -6264,7 +6342,9 @@ function calcSaldoCC(){
   // Compras no cartão de crédito ainda NÃO pagas também ficam de fora: o
   // dinheiro só sai da conta quando a fatura é paga (aí o lançamento de
   // pagamento, que tem faturaPagamento=true, entra normalmente na conta).
-  return somaRecDesp(APP.dados.filter(d=>!d.pagoDoBolso&&!(d.cartaoId&&!d.faturaPagamento)),true).saldo;
+  // Simétrico do lado da receita: recebimento que entrou direto num bolso
+  // (recebidoNoBolso) também fica de fora — o dinheiro nunca passou pela CC.
+  return somaRecDesp(APP.dados.filter(d=>!d.pagoDoBolso&&!d.recebidoNoBolso&&!(d.cartaoId&&!d.faturaPagamento)),true).saldo;
 }
 
 function setInvMov(m){
@@ -6596,6 +6676,20 @@ function addLancamento(){
       if(Math.abs(vr)>divBolso.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${divBolso.nome}"`,true);
     }
   }
+  // ── Destino do recebimento (só em Crédito) ──
+  // Espelho da origem do débito: a receita pode entrar direto num bolso
+  // (rendimento de poupança, por exemplo) em vez da Conta Corrente. Continua
+  // sendo receita de verdade em Registros/Dashboard — só o saldo da CC ignora.
+  let destOrigem='cc',destBolso=null;
+  if(mov==='Credito'){
+    destOrigem=document.getElementById('lanc-destino-sel')?.value||'cc';
+    if(destOrigem==='bolso'){
+      const dbid=parseInt(document.getElementById('lanc-destino-bolso-sel')?.value||'0');
+      if(!dbid)return toast('⚠️ Selecione o bolso de destino',true);
+      destBolso=APP.bolsos.find(x=>x.id===dbid);
+      if(!destBolso)return toast('⚠️ Bolso não encontrado',true);
+    }
+  }
   // ── Pagamento de dívida (opcional): qual dívida recebe a baixa ──
   // Compra no cartão nunca é pagamento de dívida (o seletor fica escondido).
   const ehDivida=!!(!cartaoSel&&APP.dividas.length&&document.getElementById('lanc-divida-chk')?.checked);
@@ -6651,6 +6745,9 @@ function addLancamento(){
     // Baixa na Poupança: entra em Registros como despesa real, mas fica fora do
     // saldo da CC (o dinheiro nunca passou pela conta) — igual ao confirmarExec.
     if(divOrigem==='bolso'){lanc.pagoDoBolso=true;lanc.bolsoId=divBolso.id;}
+    // Receita que entra direto num bolso: espelho do pagoDoBolso. Conta como
+    // receita em Registros/Dashboard, mas fica fora do saldo da CC.
+    if(destOrigem==='bolso'){lanc.recebidoNoBolso=true;lanc.bolsoId=destBolso.id;}
     APP.dados.push(lanc);
     salvar();atualizarStats();
   }
@@ -6664,6 +6761,14 @@ function addLancamento(){
     salvarBolsos();renderInvestimentos();
   }
 
+  // Receita com destino = bolso credita o bolso (o dinheiro não passa pela CC).
+  if(destOrigem==='bolso'){
+    destBolso.saldo+=Math.abs(vr);
+    if(!destBolso.movimentos)destBolso.movimentos=[];
+    destBolso.movimentos.unshift({id:lancId,tipo:'deposito',valor:Math.abs(vr),desc:lanc.descricao,data,delta:Math.abs(vr),origemCC:false});
+    salvarBolsos();renderInvestimentos();
+  }
+
   if(ehDivida){
     // Mesmo id do lançamento: é o que permite o estorno em remover().
     APP.pagamentos.unshift({id:lancId,valor:Math.abs(vr),data,dataISO:data,obs:'',isExtra:Math.abs(vr)>3000,origem:divOrigem,bolsoId:divBolso?divBolso.id:null,lancId,descricao:lanc.descricao,dividaId:dividaSelId});
@@ -6673,28 +6778,17 @@ function addLancamento(){
     if(document.getElementById('pane-div')?.classList.contains('ativo'))renderDividasUI();
   }
 
-  // Verifica bolso destino
-  const selDest=document.getElementById('inp-bolso-dest');
-  const destBid=selDest?parseInt(selDest.value):0;
   if(cartaoSel){
-    // Compra no cartão: nenhum dinheiro se moveu agora, então o bolso destino
-    // também não se aplica.
+    // Compra no cartão: nenhum dinheiro se moveu agora.
     if(parcelas>1)toast(`✅ Compra parcelada em ${parcelas}x! 1ª fatura: ${faturaRefLabel(primeiraFaturaRef)}`,false,true);
     else toast(`✅ Lançado no cartão ${cartaoSel.nome}! Fatura ${faturaRefLabel(lanc.faturaRef)}`,false,true);
   } else if(ehDivida){
     toast(`✅ Pagamento de dívida registrado! [${divOrigem==='bolso'?'🐷 Poupança':'🏦 CC'}]`,false,true);
   } else if(divOrigem==='bolso'){
-    // Origem Poupança: o destino-bolso não se aplica (o dinheiro já saiu de um bolso).
     toast(`✅ Lançamento adicionado! [🐷 ${divBolso.nome}]`,false,true);
-  } else if(destBid&&mov==='Debito'){
-    const b=APP.bolsos.find(x=>x.id===destBid);
-    if(b){
-      b.saldo+=Math.abs(vr);
-      if(!b.movimentos)b.movimentos=[];
-      b.movimentos.unshift({id:lancId,tipo:'deposito',valor:Math.abs(vr),desc:'🔗 '+desc.toUpperCase(),data,delta:Math.abs(vr)});
-      salvarBolsos();
-      toast(`✅ Lançado + R$ ${vr.toLocaleString('pt-BR',{minimumFractionDigits:2})} → ${b.ico} ${b.nome}`);
-    }
+  } else if(destOrigem==='bolso'){
+    // Receita que entrou direto no bolso escolhido.
+    toast(`✅ Lançamento adicionado! [🐷 ${destBolso.nome}]`,false,true);
   } else {
     toast('✅ Lançamento adicionado!');
   }
@@ -6899,6 +6993,31 @@ function atualizarVisibilidadeOrigemLanc(){
   } else {
     toggleLancBolso();
   }
+  // Espelho do lado Crédito: destino do recebimento (CC ou direto num bolso).
+  const dBox=document.getElementById('lanc-destino-box');
+  if(dBox){
+    const ehCred=mov==='Credito';
+    dBox.style.display=ehCred?'block':'none';
+    if(!ehCred){
+      const ds=document.getElementById('lanc-destino-sel');if(ds)ds.value='cc';
+      const dw=document.getElementById('lanc-destino-bolso-wrap');if(dw)dw.style.display='none';
+    } else {
+      toggleLancDestinoBolso();
+    }
+  }
+}
+function toggleLancDestinoBolso(){
+  const v=document.getElementById('lanc-destino-sel')?.value||'cc';
+  const wrap=document.getElementById('lanc-destino-bolso-wrap');
+  if(wrap)wrap.style.display=v==='bolso'?'block':'none';
+  if(v==='bolso'){
+    const sel=document.getElementById('lanc-destino-bolso-sel');
+    if(!sel)return;
+    const prev=sel.value;
+    sel.innerHTML='<option value="">Selecione o bolso</option>';
+    APP.bolsos.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=`${b.ico} ${b.nome} — R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;sel.appendChild(o);});
+    if(prev&&APP.bolsos.some(b=>String(b.id)===String(prev)))sel.value=prev;
+  }
 }
 function toggleLancDivida(){
   const on=!!document.getElementById('lanc-divida-chk')?.checked;
@@ -6931,6 +7050,8 @@ function resetLancDivida(){
   const ct=document.getElementById('lanc-cartao-sel');if(ct)ct.value='';
   const pS=document.getElementById('lanc-parcelas-sel');if(pS)pS.value='1';
   const pW=document.getElementById('lanc-parcelas-wrap');if(pW)pW.style.display='none';
+  const dS=document.getElementById('lanc-destino-sel');if(dS)dS.value='cc';
+  const dW=document.getElementById('lanc-destino-bolso-wrap');if(dW)dW.style.display='none';
   atualizarVisibilidadeOrigemLanc();
 }
 
