@@ -18,6 +18,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- ═══ SUPABASE SDK ═══════════════════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- ═══ MERCADO PAGO SDK ═══════════════════════════════════════════════
+     Usado só no formulário de cartão (#sh-cartao-mp): é ele que monta os
+     campos sensíveis em iframe e devolve o token. A instância
+     `new MercadoPago(...)` só nasce quando alguém abre esse formulário. -->
+<script src="https://sdk.mercadopago.com/js/v2"></script>
 <script>
 /* ─────────────────────────────────────────────────────
    SUPABASE CONFIG
@@ -26,6 +31,17 @@
 ───────────────────────────────────────────────────── */
 const SUPA_URL  = 'https://iocpvtruwheumbwolxtd.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvY3B2dHJ1d2hldW1id29seHRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwOTg5MTIsImV4cCI6MjA5NDY3NDkxMn0.vs_kVkbzFLlT0NUhIEgENH_Zxvz8muG-OFNYHfR1ZCA';
+
+/* ─────────────────────────────────────────────────────
+   MERCADO PAGO — CHAVE PÚBLICA
+   ⚠️ COLE AQUI a public key da conta (Mercado Pago →
+   Suas integrações → Credenciais de produção → Public Key).
+   Só ela: o access token é secreto e vive exclusivamente
+   nas Netlify Functions, nunca neste arquivo.
+   Esta é a ÚNICA definição da chave no client — o
+   formulário de cartão lê daqui.
+───────────────────────────────────────────────────── */
+const MP_PUBLIC_KEY = 'APP_USR-13f13439-5e13-44c9-9522-17335e4919d3';
 
 // Fix: Supabase OAuth retorna ##access_token — normaliza para #access_token
 if (window.location.href.includes('##access_token')) {
@@ -753,8 +769,8 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 
 /* 3) Rodapé em cápsula: botão de assinar OU selo neutro.
    O círculo do ícone é ::before + attr(data-ico) de propósito —
-   assinaturaIniciarCheckout() troca o textContent do botão pelo estado
-   de loading, e um elemento filho seria apagado junto. */
+   assinaturaRenderAcoesPlanos() reescreve o textContent do botão, e um
+   elemento filho seria apagado junto. */
 .plano-pill-btn,.plano-pill-selo{position:relative;width:100%;min-height:52px;display:flex;align-items:center;justify-content:center;padding:14px 48px;border-radius:999px;font-family:var(--sans);font-size:.82rem;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;text-align:center;line-height:1.2}
 .plano-pill-btn::before,.plano-pill-selo::before{content:attr(data-ico);position:absolute;left:9px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;letter-spacing:0}
 .plano-pill-btn{border:none;background:var(--pp-cor);color:var(--pp-ink);cursor:pointer;transition:transform .16s,box-shadow .16s,opacity .16s;box-shadow:0 5px 18px rgba(0,0,0,.28)}
@@ -918,6 +934,20 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .sh-edit{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+28px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:303;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh-edit.show{transform:none}
 .sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* ─── FORMULÁRIO DE CARTÃO (#sh-cartao-mp) ─────────
+   Número, validade e CVV são iframes servidos pelo Mercado Pago — não dá
+   pra estilizar o que está dentro deles, então o container só reproduz a
+   moldura de `.fi input` pra caixa não destoar do resto do app. */
+.mp-secure{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);height:38px;padding:0 12px;display:flex;align-items:center}
+.mp-secure iframe{width:100%;height:100%;border:0;display:block}
+/* Emissor e parcelas: o cardForm exige os dois no DOM, mas nenhum faz
+   sentido numa recorrência de valor fixo — ficam fora da vista. */
+.mp-oculto{display:none}
+/* A tela de planos é uma #auth-screen (z-index 10000) e este sheet abre por
+   cima dela — os 302/303 padrão de .sh-edit ficariam por baixo. */
+#sh-cartao-mp-ov{z-index:10004}
+#sh-cartao-mp{z-index:10005}
 
 /* ─── PAINEL ADMIN (sheet #sh-admin) ───────────────
    Só o dono do app vê esta tela. Visualmente reaproveita a linguagem já
@@ -1975,7 +2005,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
               <div class="plano-pill-preco">R$ 9,90<small>/mês</small></div>
             </div>
             <div id="plano-acao-plus">
-              <button class="plano-pill-btn" data-ico="💳" onclick="assinaturaSelecionarPlano('plus');assinaturaIniciarCheckout(this)">Assinar</button>
+              <button class="plano-pill-btn" data-ico="💳" onclick="abrirCartaoSheet('plus')">Assinar</button>
             </div>
           </div>
 
@@ -1997,7 +2027,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
               <div class="plano-pill-preco">R$ 14,99<small>/mês</small></div>
             </div>
             <div id="plano-acao-premium">
-              <button class="plano-pill-btn" data-ico="💳" onclick="assinaturaSelecionarPlano('premium');assinaturaIniciarCheckout(this)">Assinar</button>
+              <button class="plano-pill-btn" data-ico="💳" onclick="abrirCartaoSheet('premium')">Assinar</button>
             </div>
           </div>
 
@@ -2005,7 +2035,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
         <div style="font-size:.75rem;color:var(--text2);line-height:1.6;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px">
           • Plus e Premium são <strong>cobrados na hora da assinatura</strong>, com acesso liberado imediatamente.<br>
-          • O pagamento é processado pelo <strong>Mercado Pago</strong> (seus dados de cartão não passam por aqui).<br>
+          • O pagamento é processado pelo <strong>Mercado Pago</strong> — os dados do cartão vão criptografados direto pra eles e não ficam guardados aqui.<br>
           • Você pode <strong>cancelar quando quiser</strong>, direto no app, e voltar pro plano Básico sem perder seus dados.
         </div>
       </div>
@@ -3118,6 +3148,39 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
          (#form-assinatura), que é quem sabe qual plano mandar pro MP. -->
     <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaAbrirPlanos()">💳 Assinar agora</button>
   </div>
+</div>
+
+<!-- CARTÃO SHEET (tokenização do cartão dentro do nosso próprio domínio)
+     Número, validade e CVV são iframes montados pelo SDK do Mercado Pago:
+     esses três campos nunca existem no nosso DOM. O resto são inputs
+     normais. O <form id="form-checkout"> e os ids "form-checkout__*" são
+     exigidos pelo cardForm — não renomear. -->
+<div class="sh-edit-ov" id="sh-cartao-mp-ov" onclick="fecharCartaoSheet()"></div>
+<div class="sh-edit" id="sh-cartao-mp">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">💳 Dados do cartão</div>
+  <div class="rec-hint" id="cartao-mp-resumo" style="margin-bottom:12px"></div>
+  <div class="auth-err" id="cartao-mp-err"></div>
+  <form id="form-checkout">
+    <div class="fi"><label>Número do cartão</label><div class="mp-secure" id="form-checkout__cardNumber"></div></div>
+    <div class="r2">
+      <div class="fi"><label>Validade</label><div class="mp-secure" id="form-checkout__expirationDate"></div></div>
+      <div class="fi"><label>CVV</label><div class="mp-secure" id="form-checkout__securityCode"></div></div>
+    </div>
+    <div class="fi"><label>Nome impresso no cartão</label><input type="text" id="form-checkout__cardholderName" placeholder="Como está no cartão" autocomplete="cc-name" autocapitalize="characters"></div>
+    <div class="r2">
+      <div class="fi"><label>Documento</label><div class="sw"><select id="form-checkout__identificationType"></select></div></div>
+      <!-- Só dígitos: o Mercado Pago não aceita o CPF pontuado. -->
+      <div class="fi"><label>Número do documento</label><input type="text" id="form-checkout__identificationNumber" placeholder="Somente números" inputmode="numeric" maxlength="14" autocomplete="off" oninput="cartaoMpSoDigitos(this)"></div>
+    </div>
+    <div class="fi"><label>E-mail</label><input type="email" id="form-checkout__cardholderEmail" placeholder="voce@email.com" autocomplete="email"></div>
+    <div class="mp-oculto"><select id="form-checkout__issuer"></select></div>
+    <div class="mp-oculto"><select id="form-checkout__installments"></select></div>
+    <div class="sh-btns">
+      <button type="button" class="sh-cancel" onclick="fecharCartaoSheet()">Cancelar</button>
+      <button type="submit" class="sh-ok" id="cartao-mp-btn">🔒 Assinar agora</button>
+    </div>
+  </form>
 </div>
 
 <!-- SHEET -->
@@ -5442,16 +5505,11 @@ function fecharAssinaturaSheet(){
 }
 
 /* ── Escolha de plano na tela #form-assinatura ──
-   Cada cartão tem o seu próprio botão e seta o plano no clique, logo antes
-   de abrir o checkout — não existe mais seleção prévia nem botão único.
-   O PREÇO de cada plano é decidido no servidor (VALORES_PLANO em
-   criar-assinatura.js) — aqui só viaja o NOME do plano. */
+   Cada cartão tem o seu próprio botão e seta o plano no clique, ao abrir o
+   formulário de cartão — não existe seleção prévia nem botão único.
+   O PREÇO de cada plano está congelado no preapproval_plan lá no Mercado
+   Pago — aqui só viaja o NOME do plano. */
 let planoEscolhido = 'premium';
-
-function assinaturaSelecionarPlano(plano){
-  if(plano !== 'plus' && plano !== 'premium') return;
-  planoEscolhido = plano;
-}
 
 /* Área de ação de cada um dos 3 cartões, conforme o plano atual da pessoa.
    O Básico nunca tem botão: "voltar" pra ele é cancelamento, fluxo que já
@@ -5470,53 +5528,214 @@ function assinaturaRenderAcoesPlanos(){
   const plus = document.getElementById('plano-acao-plus');
   if(plus) plus.innerHTML = (atual === 'plus')
     ? selo
-    : '<button class="plano-pill-btn" data-ico="💳" onclick="assinaturaSelecionarPlano(\'plus\');assinaturaIniciarCheckout(this)">Assinar</button>';
+    : '<button class="plano-pill-btn" data-ico="💳" onclick="abrirCartaoSheet(\'plus\')">Assinar</button>';
 
   const prem = document.getElementById('plano-acao-premium');
   if(prem) prem.innerHTML = (atual === 'premium')
     ? selo
-    : '<button class="plano-pill-btn" data-ico="💳" onclick="assinaturaSelecionarPlano(\'premium\');assinaturaIniciarCheckout(this)">Assinar</button>';
+    : '<button class="plano-pill-btn" data-ico="💳" onclick="abrirCartaoSheet(\'premium\')">Assinar</button>';
 }
 
-/* Cria a assinatura no Mercado Pago (via Netlify Function) e redireciona
-   o usuário pro checkout hospedado.
-   `botaoEl` é o botão que disparou a ação — recebe o estado de loading.
-   Sem argumento, cai no botão do sheet por compatibilidade. */
-async function assinaturaIniciarCheckout(botaoEl){
-  const uid = window._sbUID;
-  if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+/* ═══ FORMULÁRIO DE CARTÃO (#sh-cartao-mp) ═══════════════════════════
+   O cartão é tokenizado AQUI, no nosso próprio domínio: os campos
+   sensíveis são iframes servidos pelo Mercado Pago (o número nunca toca
+   no nosso DOM) e o que sai daqui pra Netlify Function é só um token de
+   uso único. Ninguém é redirecionado pra lugar nenhum.
 
-  const btn = botaoEl || document.getElementById('assin-btn-assinar');
-  const txtOriginal = btn ? btn.textContent : '';
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ Abrindo checkout...'; }
+   Isso substituiu o checkout hospedado do Mercado Pago, cuja página tinha
+   o botão "Confirmar" permanentemente travado por uma violação de CSP DO
+   LADO DELES — reproduzido em várias contas, cartões e navegadores. Sem
+   sair do nosso site, o bug deixa de existir.
+════════════════════════════════════════════════════════════════════ */
+
+/* Serve SÓ pro SDK calcular bin/parcelas do formulário — não é o valor
+   cobrado: quem cobra é o preapproval_plan lá no Mercado Pago. São os
+   mesmos preços exibidos nos cartões de plano. */
+const MP_VALOR_PLANO = { plus: '9.90', premium: '14.99' };
+
+let _mpCheckout = null;  /* instância MercadoPago — criada na 1ª abertura */
+let _mpCardForm = null;  /* cardForm montado no momento; some ao fechar */
+
+function cartaoMpErro(msg){
+  const el = document.getElementById('cartao-mp-err');
+  if(!el) return;
+  el.textContent = msg || '';
+  el.classList.toggle('show', !!msg);
+}
+
+function cartaoMpBotao(carregando){
+  const b = document.getElementById('cartao-mp-btn');
+  if(!b) return;
+  b.disabled  = !!carregando;
+  b.textContent = carregando ? '⏳ Processando...' : '🔒 Assinar agora';
+}
+
+function cartaoMpSoDigitos(el){ el.value = el.value.replace(/\D/g,''); }
+
+/* O iframe do Mercado Pago não enxerga as CSS vars do app, então a cor do
+   texto digitado precisa ir explícita — sem isso o padrão é preto, ilegível
+   no tema escuro. */
+function cartaoMpEstiloCampo(){
+  const cs = getComputedStyle(document.body);
+  return {
+    color:            (cs.getPropertyValue('--text')  || '').trim() || '#E2E8F0',
+    placeholderColor: (cs.getPropertyValue('--text3') || '').trim() || '#64748B',
+    fontSize:         '14px'
+  };
+}
+
+/* Abre o formulário já com plano, e-mail da conta e CPF do perfil
+   preenchidos. Chamado pelos botões "Assinar" dos 3 cartões de plano. */
+async function abrirCartaoSheet(plano){
+  if(plano !== 'plus' && plano !== 'premium') return;
+  if(!window._sbUID) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+  if(typeof MercadoPago !== 'function')
+    return toast('⚠️ Não foi possível carregar o pagamento. Recarregue a página e tente de novo.', true);
+
+  const email = await assinaturaEmailUsuario();
+  if(!email) return toast('⚠️ Não encontramos seu e-mail. Complete seu perfil e tente de novo.', true);
+
+  planoEscolhido = plano;
+  cartaoMpErro('');
+  cartaoMpBotao(false);
+
+  const resumo = document.getElementById('cartao-mp-resumo');
+  if(resumo) resumo.textContent =
+    (plano === 'premium' ? 'Plano Premium' : 'Plano Plus')
+    + ' — R$ ' + MP_VALOR_PLANO[plano].replace('.', ',')
+    + '/mês, cobrado agora e renovado todo mês. Cancele quando quiser.';
+
+  const inpEmail = document.getElementById('form-checkout__cardholderEmail');
+  if(inpEmail) inpEmail.value = email;
+
+  /* CPF do perfil entra só com os dígitos (o app guarda pontuado) e segue
+     editável — o titular do cartão pode ser outra pessoa. */
+  const inpDoc = document.getElementById('form-checkout__identificationNumber');
+  if(inpDoc) inpDoc.value = String(window._perfilAtual?.cpf || '').replace(/\D/g,'');
+
+  document.getElementById('sh-cartao-mp-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-cartao-mp').classList.add('show'),10);
+
+  cartaoMpMontarForm(plano);
+}
+
+function cartaoMpDesmontarForm(){
+  if(!_mpCardForm) return;
+  try{ _mpCardForm.unmount(); }catch(e){ console.error('cardForm unmount:', e); }
+  _mpCardForm = null;
+}
+
+function fecharCartaoSheet(){
+  document.getElementById('sh-cartao-mp').classList.remove('show');
+  document.getElementById('sh-cartao-mp-ov').classList.remove('show');
+  cartaoMpDesmontarForm();
+}
+
+function cartaoMpMontarForm(plano){
+  if(!_mpCheckout) _mpCheckout = new MercadoPago(MP_PUBLIC_KEY);
+
+  /* Remonta do zero a cada abertura: o `amount` muda conforme o plano e o
+     token de um envio anterior é de uso único — reaproveitar o form montado
+     arriscaria mandar token queimado. */
+  cartaoMpDesmontarForm();
+
+  const estilo = cartaoMpEstiloCampo();
+
+  _mpCardForm = _mpCheckout.cardForm({
+    amount: MP_VALOR_PLANO[plano],
+    iframe: true,
+    form: {
+      id: 'form-checkout',
+      cardNumber:           { id: 'form-checkout__cardNumber',     placeholder: '0000 0000 0000 0000', style: estilo },
+      expirationDate:       { id: 'form-checkout__expirationDate', placeholder: 'MM/AA',               style: estilo },
+      securityCode:         { id: 'form-checkout__securityCode',   placeholder: 'CVV',                 style: estilo },
+      cardholderName:       { id: 'form-checkout__cardholderName' },
+      issuer:               { id: 'form-checkout__issuer' },
+      installments:         { id: 'form-checkout__installments' },
+      identificationType:   { id: 'form-checkout__identificationType' },
+      identificationNumber: { id: 'form-checkout__identificationNumber' },
+      cardholderEmail:      { id: 'form-checkout__cardholderEmail' }
+    },
+    callbacks: {
+      onFormMounted: erro => { if(erro) console.error('cardForm onFormMounted:', erro); },
+
+      onIdentificationTypesReceived: (erro, tipos) => {
+        if(erro) return console.error('cardForm identificationTypes:', erro);
+        /* Pessoa física no Brasil: CPF é o caso de praticamente todo mundo —
+           deixa pré-selecionado, mas o select continua editável. */
+        const sel = document.getElementById('form-checkout__identificationType');
+        if(sel && Array.isArray(tipos) && tipos.some(t => t.id === 'CPF')) sel.value = 'CPF';
+      },
+
+      onError: erros => {
+        console.error('cardForm onError:', erros);
+        cartaoMpBotao(false);
+        cartaoMpErro('Confira os dados do cartão — algum campo está incompleto ou inválido.');
+      },
+
+      onSubmit: event => {
+        event.preventDefault();
+        /* O token nasce aqui, novo a cada envio: vale uma única vez, expira
+           em 7 dias e nunca é guardado em lugar nenhum. */
+        const dados = _mpCardForm ? _mpCardForm.getCardFormData() : null;
+        cartaoMpEnviar(dados?.token || '');
+      }
+    }
+  });
+}
+
+/* Manda o token pra function, que cria a assinatura já autorizada no
+   Mercado Pago. Em caso de falha o sheet fica ABERTO de propósito: o token
+   já queimou, e reenviar o formulário gera outro automaticamente — a pessoa
+   corrige ou troca de cartão sem recomeçar o fluxo. */
+async function cartaoMpEnviar(token){
+  if(!token){
+    cartaoMpBotao(false);
+    return cartaoMpErro('Não conseguimos validar seu cartão. Confira os dados e tente de novo.');
+  }
+
+  const uid = window._sbUID;
+  if(!uid){
+    cartaoMpBotao(false);
+    return cartaoMpErro('Sessão expirada. Faça login novamente.');
+  }
+
+  cartaoMpErro('');
+  cartaoMpBotao(true);
 
   try{
+    /* E-mail da CONTA, não o digitado no formulário: é ele que amarra a
+       assinatura ao usuário certo (mesma fonte do resto do app). */
     const email = await assinaturaEmailUsuario();
-    if(!email){
-      if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
-      return toast('⚠️ Não encontramos seu e-mail. Complete seu perfil e tente de novo.', true);
-    }
 
     const resp = await fetch('/.netlify/functions/criar-assinatura', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, email, plano: planoEscolhido })
+      body: JSON.stringify({ uid, email, plano: planoEscolhido, cardTokenId: token })
     });
 
     let data = null;
     try{ data = await resp.json(); }catch(e){ data = null; }
 
-    if(!resp.ok || !data?.checkoutUrl){
-      console.error('assinaturaIniciarCheckout falhou:', resp.status, data);
-      if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
-      return toast('⚠️ Não foi possível abrir o checkout agora. Tente novamente em instantes.', true);
+    if(!resp.ok || !data?.ok){
+      console.error('cartaoMpEnviar falhou:', resp.status, data);
+      cartaoMpBotao(false);
+      return cartaoMpErro(data?.erro || 'Não foi possível ativar sua assinatura agora. Tente novamente em instantes.');
     }
 
-    window.location.href = data.checkoutUrl;
+    fecharCartaoSheet();
+    toast('✅ Assinatura ativada!');
+
+    /* Daqui pra frente é o caminho que já existia: a assinatura está
+       autorizada no Mercado Pago, mas quem grava `assinaturas.status =
+       'ativo'` é o webhook. A tela de "confirmando pagamento" + a
+       verificação liberam o app assim que isso chega. */
+    assinaturaGateMostrarRetorno();
+    assinaturaGateVerificarNovamente();
   }catch(e){
-    console.error('assinaturaIniciarCheckout error:', e);
-    if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
-    toast('⚠️ Erro de conexão ao abrir o checkout.', true);
+    console.error('cartaoMpEnviar error:', e);
+    cartaoMpBotao(false);
+    cartaoMpErro('Erro de conexão ao ativar a assinatura. Tente novamente.');
   }
 }
 
@@ -5714,9 +5933,8 @@ function assinaturaGateMostrarOferta(){
   const r = document.getElementById('assin-gate-retorno');
   if(o) o.style.display = '';
   if(r) r.style.display = 'none';
-  /* Redesenha os botões dos 3 cartões: isso também zera qualquer estado de
-     loading ("⏳ Abrindo checkout...") que tenha ficado de uma tentativa
-     anterior, já que o HTML da área de ação é recriado do zero. */
+  /* Redesenha os botões dos 3 cartões, marcando o plano atual da pessoa —
+     o HTML da área de ação é recriado do zero toda vez. */
   assinaturaRenderAcoesPlanos();
 }
 
@@ -5743,6 +5961,9 @@ async function assinaturaGateVerificarNovamente(botaoEl){
     const row = await assinaturaBuscar();
     const st  = row?.status || null;
     if(st && st !== 'trial'){
+      /* Atualiza o cache que planoEfetivo() lê: sem isso os limites/paywall
+         continuariam tratando a pessoa como Básico até um F5. */
+      window._assinaturaAtual     = row;
       authEmAssinaturaObrigatoria = false;
       _assinaturaUserPendente     = null;
       _assinaturaRetornoCheckout  = false;
