@@ -945,6 +945,16 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .adm-del{flex-shrink:0;background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.28);border-radius:9px;padding:7px 10px;font-family:var(--sans);font-size:.68rem;font-weight:700;cursor:pointer}
 .adm-del:active{transform:scale(.96)}
 .adm-vazio{text-align:center;padding:30px 10px;color:var(--text3);font-size:.78rem}
+/* Barra de envio em massa: fica ACIMA da lista (e não fixa no rodapé) pra
+   não competir com os botões Fechar/Atualizar do sheet, que já ocupam
+   aquele espaço. O checkbox de cada card é discreto de propósito — o card
+   continua sendo sobre ler o usuário, não sobre marcá-lo. */
+.adm-bulk{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.adm-bulk-sel{flex-shrink:0;background:var(--surface2);color:var(--text2);border:1px solid var(--border2);border-radius:9px;padding:9px 11px;font-family:var(--sans);font-size:.68rem;font-weight:700;cursor:pointer}
+.adm-bulk-send{flex:1;min-width:190px;background:rgba(59,130,246,.12);color:var(--accent);border:1px solid rgba(59,130,246,.3);border-radius:9px;padding:9px 11px;font-family:var(--sans);font-size:.68rem;font-weight:700;cursor:pointer}
+.adm-bulk-send:disabled{opacity:.42;cursor:default}
+.adm-bulk-sel:active,.adm-bulk-send:not(:disabled):active{transform:scale(.97)}
+.adm-chk{flex-shrink:0;width:17px;height:17px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer}
 /* ─── ONBOARDING (tour interativo com spotlight) ───
    3 camadas, do fundo pra frente:
    #onb-block → transparente, só BLOQUEIA clique no app enquanto o tour
@@ -3027,6 +3037,13 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="sh-h"></div>
   <div class="sh-edit-title">🛠️ Painel Admin</div>
   <div id="admin-resumo"></div>
+  <!-- Envio de reengajamento: os botões existem sempre, mas o de enviar só
+       sai de disabled quando há seleção — e mesmo aí ainda passa pelo
+       diálogo confirmar(). Nada é enviado com um clique só. -->
+  <div class="adm-bulk">
+    <button type="button" class="adm-bulk-sel" onclick="adminSelecionarInativos()">☑️ Selecionar inativos</button>
+    <button type="button" class="adm-bulk-send" id="admin-btn-reeng" disabled onclick="adminConfirmarReengajamento()">✉️ Enviar e-mail de reengajamento (0 selecionados)</button>
+  </div>
   <div id="admin-lista"></div>
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharPainelAdmin()">Fechar</button>
@@ -4827,11 +4844,40 @@ async function salvarAppLock(){
    ação: cada exclusão passa pelo diálogo confirmar() e é disparada uma a
    uma pelo admin, chamando a function excluir-conta já existente. Não
    existe (e não deve existir) exclusão em lote ou automática.
+
+   ── Reengajamento ──
+   A ÚNICA ação em lote deste painel é o e-mail de reengajamento, e ela é
+   em lote justamente porque é reversível na prática (um e-mail a mais não
+   apaga nada). Ainda assim: a lista é montada à mão pelo admin, o número
+   de e-mails aparece no diálogo confirmar() antes do disparo, e quem
+   decide se aquele uid pode mandar e-mail é o servidor.
 ════════════════════════════════════════ */
 
 /* Cache da última resposta do relatório: o botão de excluir só manda o
    uid, e o texto do diálogo de confirmação (nome/e-mail) sai daqui. */
 window._adminUsuarios = [];
+
+/* uids marcados pro envio de reengajamento. Set porque a pergunta que se
+   faz aqui é só "está marcado?" — ordem e duplicata não importam.
+   Zerado a cada render (adminRenderLista): a lista pode ter mudado
+   embaixo da seleção, e manter marcações penduradas em uids que talvez
+   nem estejam mais na tela é pedir pra mandar e-mail pra quem o admin
+   não está vendo. */
+window._adminSelecionados = new Set();
+
+/* Espelha DIAS_INATIVO_LIMITE de admin-relatorio.js. Aqui serve só pro
+   atalho "Selecionar inativos" — o campo `diasSemAcesso` que ele compara
+   vem pronto do servidor, nada é recalculado no client. */
+const ADMIN_DIAS_INATIVO = 30;
+
+/* Mesmo teto de MAX_DESTINATARIOS em enviar-reengajamento.js. Checar aqui
+   também é só cortesia (avisa antes de gastar a viagem); o limite que
+   vale é o do servidor. */
+const ADMIN_MAX_REENGAJAMENTO = 500;
+
+/* Peneira mínima, igual à do servidor: evita mandar linha vazia ou
+   obviamente quebrada e receber de volta uma falha por item. */
+const ADMIN_RE_EMAIL = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
 
 function adminFmtBRL(v){
   return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -4926,6 +4972,11 @@ function adminRenderResumo(r){
 
 function adminRenderLista(usuarios){
   const el = document.getElementById('admin-lista');
+
+  /* Render novo, seleção zerada — ver comentário de _adminSelecionados. */
+  window._adminSelecionados.clear();
+  adminAtualizarBotaoEnvio();
+
   if(!usuarios.length){
     el.innerHTML = '<div class="adm-vazio">Nenhum usuário encontrado.</div>';
     return;
@@ -4949,7 +5000,10 @@ function adminRenderLista(usuarios){
     return `
       <div class="adm-card${u.elegivelExclusao?' alerta':''}">
         <div class="adm-card-top">
-          <div style="min-width:0">
+          <input type="checkbox" class="adm-chk" data-uid="${escHtml(u.uid)}"
+                 onchange="adminToggleSelecao(this)"
+                 title="Selecionar para o e-mail de reengajamento">
+          <div style="min-width:0;flex:1">
             <div class="adm-nome">${titulo}</div>
             ${sub ? `<div class="adm-email">${sub}</div>` : ''}
           </div>
@@ -5018,6 +5072,143 @@ async function adminExcluirUsuario(uid, identificacao){
   }catch(e){
     console.error('adminExcluirUsuario erro de rede:', e);
     toast('⚠️ Erro de conexão ao excluir a conta.', true);
+  }
+}
+
+/* ── E-mail de reengajamento (única ação em lote do painel) ── */
+
+function adminToggleSelecao(el){
+  const uid = el && el.dataset ? el.dataset.uid : '';
+  if(!uid) return;
+  if(el.checked) window._adminSelecionados.add(uid);
+  else           window._adminSelecionados.delete(uid);
+  adminAtualizarBotaoEnvio();
+}
+
+/* Atalho: marca todo mundo que está há mais de 30 dias sem acessar.
+
+   Usa `diasSemAcesso` (do servidor) e NÃO `elegivelExclusao` de propósito,
+   mesmo os dois falando de inatividade: `elegivelExclusao` também exige
+   plano Básico, então deixaria de fora justamente o assinante que sumiu —
+   quem mais vale reengajar. Quem não tem e-mail utilizável fica de fora
+   porque marcá-lo só inflaria a contagem sem gerar envio nenhum. */
+function adminSelecionarInativos(){
+  const alvo = new Set(
+    (window._adminUsuarios || [])
+      .filter(u => u.diasSemAcesso != null
+                && u.diasSemAcesso > ADMIN_DIAS_INATIVO
+                && ADMIN_RE_EMAIL.test((u.email || '').trim()))
+      .map(u => u.uid)
+  );
+
+  if(!alvo.size) return toast('Nenhum usuário inativo com e-mail na lista.');
+
+  /* Soma à seleção atual em vez de substituí-la: o admin pode ter marcado
+     alguém à mão antes de clicar no atalho, e apagar isso seria surpresa. */
+  document.querySelectorAll('#admin-lista .adm-chk').forEach(chk => {
+    if(alvo.has(chk.dataset.uid)){
+      chk.checked = true;
+      window._adminSelecionados.add(chk.dataset.uid);
+    }
+  });
+
+  adminAtualizarBotaoEnvio();
+  toast(`☑️ ${alvo.size} inativo${alvo.size===1?'':'s'} selecionado${alvo.size===1?'':'s'}`);
+}
+
+/* Destinatários REAIS da seleção atual: marcados E com e-mail utilizável.
+   O botão conta isto, e não os checkboxes marcados, pra que o número
+   prometido no diálogo seja exatamente o número de e-mails que sai. */
+function adminDestinatariosSelecionados(){
+  return (window._adminUsuarios || [])
+    .filter(u => window._adminSelecionados.has(u.uid)
+              && ADMIN_RE_EMAIL.test((u.email || '').trim()))
+    .map(u => ({ uid: u.uid, email: (u.email || '').trim(), nome: (u.nome || '').trim() }));
+}
+
+function adminAtualizarBotaoEnvio(){
+  const btn = document.getElementById('admin-btn-reeng');
+  if(!btn || btn.dataset.enviando === '1') return;
+  const n = adminDestinatariosSelecionados().length;
+  btn.disabled = n === 0;
+  btn.textContent = `✉️ Enviar e-mail de reengajamento (${n} selecionado${n===1?'':'s'})`;
+}
+
+/* Confirmação obrigatória: isto manda e-mail de verdade pra caixa de
+   entrada de gente de verdade, e não existe desfazer. O diálogo diz o
+   número exato antes de qualquer requisição sair. */
+function adminConfirmarReengajamento(){
+  const lista = adminDestinatariosSelecionados();
+
+  if(!lista.length) return toast('⚠️ Selecione ao menos um usuário com e-mail válido.', true);
+  if(lista.length > ADMIN_MAX_REENGAJAMENTO){
+    return toast(`⚠️ Máximo de ${ADMIN_MAX_REENGAJAMENTO} e-mails por envio. Reduza a seleção.`, true);
+  }
+
+  const plural = lista.length === 1 ? '' : 's';
+
+  confirmar({
+    icone:'✉️',
+    titulo:'Enviar e-mail de reengajamento?',
+    /* Uma frase só: #dlg-msg é um <p> preenchido via textContent, sem
+       white-space:pre-line — quebras de linha aqui virariam espaço. */
+    msg:`${lista.length} pessoa${plural} ${lista.length===1?'vai':'vão'} receber agora um e-mail convidando a voltar a usar o app. O envio é imediato e não pode ser cancelado depois de começar.`,
+    btnTxt:`Sim, enviar ${lista.length} e-mail${plural}`,
+    cor:'var(--accent)',
+    fn: () => adminEnviarReengajamento(lista)
+  });
+}
+
+/* O servidor refaz a checagem de admin e o limite de tamanho — o que é
+   validado aqui é conveniência, não segurança. Responde sempre 200 mesmo
+   com falhas parciais (`falharam`), porque parte dos e-mails já saiu e
+   tratar isso como erro convidaria a um reenvio duplicado. */
+async function adminEnviarReengajamento(lista){
+  const btn = document.getElementById('admin-btn-reeng');
+  if(btn){
+    btn.dataset.enviando = '1';
+    btn.disabled = true;
+    btn.textContent = `⏳ Enviando ${lista.length} e-mail${lista.length===1?'':'s'}...`;
+  }
+
+  try{
+    const resp = await fetch('/.netlify/functions/enviar-reengajamento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uidAdmin: window._sbUID, destinatarios: lista })
+    });
+
+    let data = null;
+    try{ data = await resp.json(); }catch(e){ data = null; }
+
+    if(!resp.ok || !data?.ok){
+      console.error('adminEnviarReengajamento falhou:', resp.status, data);
+      return toast('⚠️ '+(data?.erro || 'Não foi possível enviar os e-mails agora.'), true);
+    }
+
+    const enviados = data.enviados || 0;
+    const falharam = Array.isArray(data.falharam) ? data.falharam : [];
+
+    if(falharam.length){
+      console.error('adminEnviarReengajamento: destinatários que falharam:', falharam);
+      toast(`⚠️ ${enviados} e-mail${enviados===1?'':'s'} enviado${enviados===1?'':'s'}, ${falharam.length} falhou/falharam (ver console).`, true);
+    }else{
+      toast(`✅ ${enviados} e-mail${enviados===1?'':'s'} enviado${enviados===1?'':'s'}`);
+    }
+
+    /* Limpa a seleção só no sucesso da chamada: se a requisição tivesse
+       falhado inteira, o admin ia querer tentar de novo sem remarcar
+       tudo na mão. */
+    window._adminSelecionados.clear();
+    document.querySelectorAll('#admin-lista .adm-chk').forEach(chk => { chk.checked = false; });
+  }catch(e){
+    console.error('adminEnviarReengajamento erro de rede:', e);
+    toast('⚠️ Erro de conexão ao enviar os e-mails.', true);
+  }finally{
+    if(btn){
+      delete btn.dataset.enviando;
+      adminAtualizarBotaoEnvio();
+    }
   }
 }
 

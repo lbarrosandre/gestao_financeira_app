@@ -31,14 +31,22 @@
      • tudo certo ......................... 200 { ok:true, tabelasComErro:[], avisoAuthNaoRemovido:false }
      • alguma tabela falhou ............... 200 { ok:true, tabelasComErro:['x'], ... }
      • só o passo de auth falhou .......... 200 { ok:true, avisoAuthNaoRemovido:true }
+     • só o e-mail de despedida falhou .... 200 { ok:true, ... } (idêntico ao sucesso)
    O passo de auth NUNCA vira erro fatal — ver comentário longo no passo 5.
+   O passo de e-mail também não — ver comentário do passo 6.
 
    CommonJS puro, sem dependências npm: usa o `fetch` nativo do
    runtime Node 18+ da Netlify e chama o Supabase via REST.
 
-   Variáveis de ambiente exigidas (já configuradas — nenhuma nova):
+   Variáveis de ambiente exigidas (já configuradas):
      - SUPABASE_URL
      - SUPABASE_SERVICE_ROLE_KEY
+
+   Variável OPCIONAL:
+     - RESEND_API_KEY ... só o e-mail de despedida (passo 6). Ausente,
+       o passo é pulado com um aviso no log e a exclusão segue normal.
+       Ela é opcional DE PROPÓSITO: exclusão de conta é obrigação legal,
+       e-mail de cortesia não pode ser pré-requisito pra ela funcionar.
 
    NENHUM desses valores pode ser exposto no client — eles só existem aqui.
    ═══════════════════════════════════════════════════════════════════ */
@@ -62,12 +70,33 @@ const TABELAS = [
   'profiles'
 ];
 
+/* Remetente verificado no Resend. `naoresponda@` porque esta caixa não é
+   monitorada — a pessoa acabou de excluir a conta e não tem pra onde
+   responder dentro do app. */
+const EMAIL_REMETENTE = 'Bússola Finance <naoresponda@bussolafinance.com.br>';
+
 function json(statusCode, body) {
   return {
     statusCode,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   };
+}
+
+/* HTML self-contained: nada de <img> externo, nada de CSS remoto. Cliente
+   de e-mail bloqueia imagem por padrão e um layout que dependa dela chega
+   quebrado — aqui o texto sozinho já é a mensagem inteira. */
+function htmlDespedida() {
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:#0F1115;padding:28px 16px">
+  <div style="max-width:520px;margin:0 auto;background:#171A21;border:1px solid #262B36;border-radius:16px;padding:28px 24px">
+    <div style="font-size:22px;font-weight:700;color:#F3F5F9;letter-spacing:-.5px;margin-bottom:18px">Bús<span style="color:#14B8A6">sola</span> Finance</div>
+    <div style="font-size:16px;font-weight:700;color:#F3F5F9;margin-bottom:14px">Sua conta foi excluída.</div>
+    <p style="font-size:14px;line-height:1.7;color:#AEB6C4;margin:0 0 14px">Confirmando: recebemos seu pedido e ele foi concluído. Seu cadastro, sua assinatura e todos os seus dados financeiros — lançamentos, planejamentos, bolsos e dívidas — foram apagados permanentemente dos nossos servidores.</p>
+    <p style="font-size:14px;line-height:1.7;color:#AEB6C4;margin:0 0 14px">Não guardamos cópia. Não vamos mais te enviar e-mails.</p>
+    <p style="font-size:14px;line-height:1.7;color:#AEB6C4;margin:0 0 14px">Obrigado pelo tempo que você passou por aqui. Se um dia quiser voltar, é só criar uma conta nova — as portas ficam abertas.</p>
+    <div style="border-top:1px solid #262B36;margin-top:22px;padding-top:16px;font-size:12px;line-height:1.6;color:#6B7383">Este é o último e-mail que você recebe do Bússola Finance. Não é preciso responder — esta caixa não é monitorada.</div>
+  </div>
+</div>`;
 }
 
 /* ── Helpers Supabase REST (service role key — ignora RLS) ── */
@@ -130,7 +159,14 @@ exports.handler = async (event) => {
          `profiles`. Antes isso barrava a exclusão dessa conta pelo Painel
          Admin com um falso "Usuário não autorizado" — justamente o tipo de
          conta incompleta que o admin mais precisa poder limpar.
-         Falhou aqui → 403 e NADA é apagado (passo 5 do spec). ── */
+         Falhou aqui → 403 e NADA é apagado (passo 5 do spec).
+
+         Este é também o ÚNICO momento em que o e-mail da pessoa ainda
+         existe pra ser lido: depois do passo 4 não há mais linha em
+         `profiles`, e depois do passo 5 não há mais usuário no GoTrue.
+         Por isso guardamos aqui o endereço que o passo 6 vai usar. ── */
+  let emailDespedida = '';
+
   try {
     const rUser = await fetch(
       `${supaBase}/auth/v1/admin/users/${encodeURIComponent(uid)}`,
@@ -154,7 +190,20 @@ exports.handler = async (event) => {
       /* Não dá pra validar → não apaga. Erro de infra, não de autorização. */
       return json(502, { erro: 'Não foi possível validar sua conta agora. Tente novamente.' });
     }
-    console.log('[excluir-conta] usuário validado (auth) — uid:', uid);
+
+    /* Falha ao ler o corpo NÃO derruba a validação: o que autoriza a
+       exclusão é o status 200 acima, não o e-mail. Sem endereço, só o
+       passo 6 é pulado. */
+    try {
+      const dadosUser = await rUser.json();
+      emailDespedida = typeof dadosUser?.email === 'string' ? dadosUser.email.trim() : '';
+    } catch (e) {
+      console.warn('[excluir-conta] não deu pra ler o e-mail do usuário — uid:', uid,
+                   '(a exclusão segue; só o e-mail de despedida será pulado)', e.message);
+    }
+
+    console.log('[excluir-conta] usuário validado (auth) — uid:', uid,
+                'e-mail capturado para despedida:', emailDespedida ? 'sim' : 'não');
   } catch (e) {
     console.error('[excluir-conta] erro ao validar usuário no Supabase — uid:', uid, e);
     return json(502, { erro: 'Não foi possível validar sua conta agora. Tente novamente.' });
@@ -282,7 +331,55 @@ exports.handler = async (event) => {
     }
   }
 
-  /* ── 6. Resposta final: sempre 200 se chegou até aqui (dados apagados) ── */
+  /* ── 6. E-mail de despedida (best-effort, exatamente como o passo 5) ──
+
+         Depois da remoção do auth de propósito: só mandamos "sua conta foi
+         excluída" quando a exclusão realmente aconteceu de ponta a ponta.
+         Mesmo com `tabelasComErro` ou `avisoAuthNaoRemovido` o e-mail vai:
+         do ponto de vista da pessoa o pedido FOI atendido, e o que sobrou
+         é problema nosso de limpeza manual, não dela.
+
+         ⚠️ Nada aqui pode virar erro pro usuário nem atrasar a resposta.
+         Os dados já foram apagados — que é o que importa. Resend fora do
+         ar, chave ausente, endereço inválido: tudo vira log e segue.
+         Por isso o await está dentro de um try que engole qualquer coisa. */
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+  if (!RESEND_API_KEY) {
+    console.warn('[excluir-conta] RESEND_API_KEY ausente — e-mail de despedida pulado. uid:', uid);
+  } else if (!emailDespedida) {
+    console.warn('[excluir-conta] sem e-mail conhecido — e-mail de despedida pulado. uid:', uid);
+  } else {
+    try {
+      const rMail = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: EMAIL_REMETENTE,
+          to: emailDespedida,
+          subject: 'Sua conta no Bússola Finance foi excluída',
+          html: htmlDespedida()
+        })
+      });
+
+      if (!rMail.ok) {
+        const txtMail = await rMail.text().catch(() => '');
+        console.error('[excluir-conta] FALHA ao enviar e-mail de despedida — uid:', uid,
+                      'status:', rMail.status, 'resp:', txtMail,
+                      '| A exclusão foi concluída mesmo assim.');
+      } else {
+        console.log('[excluir-conta] e-mail de despedida enviado — uid:', uid);
+      }
+    } catch (e) {
+      console.error('[excluir-conta] erro de rede ao enviar e-mail de despedida — uid:', uid, e,
+                    '| A exclusão foi concluída mesmo assim.');
+    }
+  }
+
+  /* ── 7. Resposta final: sempre 200 se chegou até aqui (dados apagados) ── */
   console.log('[excluir-conta] concluído — uid:', uid,
               'tabelasComErro:', tabelasComErro.length ? tabelasComErro.join(', ') : '(nenhuma)',
               'avisoAuthNaoRemovido:', avisoAuthNaoRemovido);
