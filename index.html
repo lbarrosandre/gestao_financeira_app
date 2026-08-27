@@ -1031,13 +1031,17 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .empty p{font-size:.8rem;line-height:1.7}
 
 /* ─── AUTH SCREEN ────────────────────── */
-#auth-screen{
+/* #applock-screen entra junto porque é a MESMA superfície: uma tela cheia
+   que cobre o app inteiro e usa o mesmo .auth-card por dentro. O display
+   dele começa em `none` inline e é ligado pelo JS. */
+#auth-screen,#applock-screen{
   position:fixed;inset:0;z-index:10000;
   background:var(--bg);
   display:flex;flex-direction:column;align-items:center;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   transition:opacity .45s ease,transform .45s ease;
 }
+#applock-screen{justify-content:center}
 #auth-screen.hide{
   opacity:0;transform:scale(.96);
   pointer-events:none;
@@ -2017,6 +2021,35 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
 </div>
 
+<!-- BLOQUEIO DO APP (PIN + biometria)
+     NÃO é login: quando esta tela aparece a sessão do Supabase já está
+     válida e o perfil já foi carregado. É só uma trava local de acesso,
+     entre authLiberarApp() e revelarApp(). Por isso a saída de emergência
+     ("Esqueci meu PIN") é o logout: reautenticar pelo caminho normal é o
+     único jeito de destravar sem lembrar o PIN. -->
+<div id="applock-screen" style="display:none">
+  <div class="auth-bg-glow"></div>
+  <div class="auth-card">
+    <div class="auth-header">
+      <div style="font-size:2.2rem;margin-bottom:8px">🔒</div>
+      <div class="auth-title">App <em>bloqueado</em></div>
+      <div class="auth-sub">Digite seu PIN para continuar.</div>
+    </div>
+    <div class="auth-err" id="applock-err"></div>
+    <div class="fi">
+      <label>PIN</label>
+      <input type="password" id="applock-pin" inputmode="numeric" maxlength="6" autocomplete="off"
+             placeholder="••••" oninput="applockSoDigitos(this)"
+             onkeydown="if(event.key==='Enter')applockDesbloquear()">
+    </div>
+    <button class="btn-auth-next" id="applock-btn-ok" onclick="applockDesbloquear()">Desbloquear</button>
+    <button class="btn-google" id="applock-btn-bio" style="display:none;margin:12px 0 0" onclick="applockBiometria()">🫆 Usar biometria</button>
+    <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+      <button class="auth-link" onclick="applockEsqueciPin()">Esqueci meu PIN</button>
+    </div>
+  </div>
+</div>
+
 <!-- SPLASH -->
 <div id="splash">
   <div class="splash-glow"></div>
@@ -2832,6 +2865,17 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
   <div class="menu-divider"></div>
 
+  <!-- SEGURANÇA -->
+  <div class="menu-section">
+    <div class="menu-sec-label">Segurança</div>
+    <button class="menu-item" onclick="abrirAppLockSheet()">
+      <div class="menu-item-ico" style="background:rgba(139,92,246,.12)">🔒</div>
+      <div class="menu-item-body"><div class="menu-item-label">Bloqueio do app</div><div class="menu-item-sub" id="applock-status-label">PIN e biometria para abrir o app</div></div>
+    </button>
+  </div>
+
+  <div class="menu-divider"></div>
+
   <!-- INFORMAÇÕES DO APP -->
   <div class="menu-section">
     <div class="menu-sec-label">Informações do app</div>
@@ -2932,6 +2976,44 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharPerfilEdicao()">Cancelar</button>
     <button class="sh-ok" onclick="salvarPerfilEdicao()">💾 Salvar</button>
+  </div>
+</div>
+
+<!-- BLOQUEIO DO APP SHEET (liga/desliga + cadastro do PIN) -->
+<div class="sh-edit-ov" id="sh-applock-ov" onclick="fecharAppLockSheet()"></div>
+<div class="sh-edit" id="sh-applock">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">🔒 Bloqueio do app</div>
+  <div class="rec-hint" style="margin-bottom:12px">Com o bloqueio ligado, o app pede um PIN toda vez que abrir — mesmo já estando logado. Seus dados continuam salvos normalmente.</div>
+
+  <div class="rec-box">
+    <div class="rec-toggle" onclick="applockToggleClick(event)">
+      <div class="rec-lbl"><span>🔐</span> Exigir PIN ao abrir</div>
+      <label class="sw-tog" onclick="event.stopPropagation()">
+        <input type="checkbox" id="sw-applock" onchange="applockToggleClick(event)">
+        <span class="sw-track"></span>
+      </label>
+    </div>
+    <div class="rec-cfg" id="applock-cfg">
+      <div class="rec-hint" id="applock-cfg-hint"></div>
+      <div class="fi"><label>Novo PIN (4 a 6 dígitos)</label><input type="password" id="applock-novo" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••" oninput="applockSoDigitos(this)"></div>
+      <div class="fi"><label>Repita o PIN</label><input type="password" id="applock-novo2" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••" oninput="applockSoDigitos(this)"></div>
+      <div id="applock-bio-wrap" style="display:none">
+        <div class="rec-toggle" style="margin-top:4px" onclick="applockBioToggleClick(event)">
+          <div class="rec-lbl"><span>🫆</span> Permitir biometria neste aparelho</div>
+          <label class="sw-tog" onclick="event.stopPropagation()">
+            <input type="checkbox" id="sw-applock-bio" onchange="applockBioToggleClick(event)">
+            <span class="sw-track"></span>
+          </label>
+        </div>
+        <span style="display:block;margin-top:6px;font-size:.68rem;opacity:.6">A biometria vale só neste aparelho. O PIN continua funcionando sempre.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sh-btns">
+    <button class="sh-cancel" onclick="fecharAppLockSheet()">Cancelar</button>
+    <button class="sh-ok" id="applock-btn-salvar" onclick="salvarAppLock()">💾 Salvar</button>
   </div>
 </div>
 
@@ -3676,6 +3758,17 @@ async function authLiberarApp(user, revelarUI){
       .then(() => { try{ mostrarBasicoAdBanner(); }catch(e){ console.error('mostrarBasicoAdBanner:', e); } });
   }
 
+  /* Bloqueio do app: segura o revelarApp() até o PIN/biometria passar.
+     Exige o hash junto do flag de propósito — bloqueio ligado sem hash não
+     teria PIN que abrisse, e trancaria a pessoa fora do próprio app. Se a
+     leitura do perfil falhou (perfil null), também não trava: erro de rede
+     não pode virar cadeado. */
+  if (perfil?.app_lock_enabled === true && perfil?.app_lock_pin_hash) {
+    applockAtualizarRotuloMenu();
+    await applockMostrarTrava(user, revelarUI);
+    return;
+  }
+
   await revelarApp(user, revelarUI);
 }
 
@@ -4216,12 +4309,42 @@ const ONB_PASSOS=[
   {aba:'info', sel:null,                            ico:'🌐',tab:'Info',    txt:'Cotações ao vivo de dólar, euro, bitcoin e ações — só pra consulta. Disponível no plano Premium.'}
 ];
 let onbPasso=0;
+/* "Passo 0": tela de boas-vindas antes do tour. Vive no MESMO #onb-tip dos
+   outros passos — só não tem alvo pra destacar, então o balão fica centrado. */
+let onbNaIntro=false;
 
 function onbAbrir(){
   onbPasso=0;
+  onbNaIntro=true;
   const block=document.getElementById('onb-block');
   if(block) block.style.display='block';
-  onbMostrarPasso();
+  onbRenderIntro();
+}
+function onbRenderIntro(){
+  const cont=document.getElementById('onb-tip-content');
+  if(cont) cont.innerHTML=`
+    <div style="text-align:center;margin-bottom:10px">
+      <div style="font-size:2.6rem;margin-bottom:8px;animation:sDrop .6s cubic-bezier(.22,1,.36,1) both">🧭</div>
+      <h3 style="font-size:1.08rem;animation:sFadeUp .5s ease both .12s">Bem-vindo ao Bús<em style="color:var(--teal);font-style:normal">sola</em>!</h3>
+    </div>
+    <p style="font-size:.84rem;color:var(--text2);line-height:1.6;text-align:center;animation:sFadeUp .5s ease both .22s">
+      Em <strong>menos de um minuto</strong> a gente passa por todas as telas do app — e você já sai sabendo onde fica cada coisa.
+    </p>
+    <p style="font-size:.78rem;color:var(--text3);line-height:1.6;text-align:center;margin-top:10px;animation:sFadeUp .5s ease both .32s">
+      Bolsos, contas do mês, cartão, gráficos: tudo no lugar certo pra você dormir tranquilo sabendo que está sob controle. 💚
+    </p>`;
+  ONB_PASSOS.forEach((_,i)=>document.getElementById('onb-dot-'+i)?.classList.remove('on'));
+  const btn=document.getElementById('onb-btn-next');
+  if(btn) btn.textContent='Bora! 🚀';
+  const spot=document.getElementById('onb-spot');
+  const tip=document.getElementById('onb-tip');
+  if(spot) spot.style.display='none';
+  if(tip){
+    tip.style.display='block';
+    tip.style.transform='translate(-50%,-50%)';
+    tip.style.top='50%';
+    tip.style.left='50%';
+  }
 }
 function onbMostrarPasso(){
   const passo=ONB_PASSOS[onbPasso];
@@ -4282,11 +4405,13 @@ function onbRenderPasso(alvo){
   }
 }
 function onbAvancar(){
+  if(onbNaIntro){ onbNaIntro=false; onbMostrarPasso(); return; }
   if(onbPasso<ONB_PASSOS.length-1){ onbPasso++; onbMostrarPasso(); }
   else onbFechar();
 }
 function onbPular(){ onbFechar(); }
 function onbFechar(){
+  onbNaIntro=false;
   const block=document.getElementById('onb-block');
   const spot=document.getElementById('onb-spot');
   const tip=document.getElementById('onb-tip');
@@ -4297,6 +4422,7 @@ function onbFechar(){
 window.addEventListener('resize',()=>{
   const block=document.getElementById('onb-block');
   if(block&&block.style.display==='block'){
+    if(onbNaIntro){ onbRenderIntro(); return; }
     const passo=ONB_PASSOS[onbPasso];
     const alvo=passo.sel?document.querySelector(passo.sel):null;
     onbRenderPasso(alvo);
@@ -4351,6 +4477,338 @@ async function salvarPerfilEdicao(){
   }catch(e){
     console.error('salvarPerfilEdicao error:', e);
     toast('⚠️ Erro de conexão ao salvar o perfil.', true);
+  }
+}
+
+/* ═══ BLOQUEIO DO APP (PIN + biometria) ═══
+   Trava LOCAL de acesso, NÃO é MFA de login: quando a tela de trava aparece
+   a sessão do Supabase já é válida e o perfil já foi lido. O que ela decide
+   é só se `revelarApp()` roda agora ou depois do PIN.
+
+   O PIN nunca sai daqui em texto puro — pro Supabase vai só o SHA-256
+   salgado com o uid. O salt por usuário garante que o mesmo PIN em duas
+   contas gere hashes diferentes, e que um hash copiado de uma conta não
+   sirva em outra.
+
+   A credencial de biometria (WebAuthn) mora só no localStorage: ela é
+   por-aparelho por natureza, então sincronizar pro Supabase faria o app
+   oferecer "Usar biometria" em aparelhos onde a credencial não existe. */
+const APPLOCK_BIO_KEY = 'bussola_applock_credid';
+
+/* Contexto do login segurado pela trava: quem chamou authLiberarApp()
+   precisa dos mesmos argumentos quando o PIN for aceito. */
+let _applockPendente = null;
+
+async function applockHashPin(pin, uid){
+  const bytes = new TextEncoder().encode(uid + ':' + pin);
+  const buf   = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function applockSoDigitos(input){ input.value = (input.value || '').replace(/\D/g,'').slice(0,6); }
+function applockPinValido(pin){ return /^\d{4,6}$/.test(pin); }
+
+function applockCredIdSalvo(){
+  try{ return localStorage.getItem(APPLOCK_BIO_KEY) || ''; }catch(e){ return ''; }
+}
+
+/* WebAuthn troca ArrayBuffer, localStorage guarda string — base64url nos dois
+   sentidos (base64url e não base64 porque '+' e '/' não sobrevivem bem a
+   idas e vindas por URL/JSON). */
+function applockBytesParaB64url(buf){
+  let s = '';
+  new Uint8Array(buf).forEach(b => { s += String.fromCharCode(b); });
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function applockB64urlParaBytes(s){
+  const b64 = s.replace(/-/g,'+').replace(/_/g,'/') + '==='.slice((s.length + 3) % 4);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function applockBiometriaDisponivel(){
+  try{
+    if(!window.isSecureContext || !window.PublicKeyCredential) return false;
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  }catch(e){ return false; }
+}
+
+async function applockRegistrarBiometria(uid){
+  const cred = await navigator.credentials.create({
+    publicKey:{
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rp:{ name:'Bússola Finance', id: location.hostname },
+      user:{ id: new TextEncoder().encode(uid), name: uid, displayName:'Bússola Finance' },
+      /* -7 (ES256) e -257 (RS256): o par que praticamente todo autenticador
+         de plataforma aceita. Sem os dois, iOS ou Windows fica de fora. */
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required' },
+      attestation:'none',
+      timeout: 60000
+    }
+  });
+  if(!cred?.rawId) return '';
+  const id = applockBytesParaB64url(cred.rawId);
+  try{ localStorage.setItem(APPLOCK_BIO_KEY, id); }catch(e){ return ''; }
+  return id;
+}
+
+/* Não há verificação criptográfica da assertion aqui, e não deveria haver:
+   não existe servidor nesta feature pra guardar a chave pública e conferir a
+   assinatura. O que garante a segurança é `userVerification:'required'` — o
+   navegador só devolve uma assertion depois que o próprio aparelho validou
+   digital/rosto/PIN do sistema. É exatamente a garantia que uma trava local
+   precisa, e é o mesmo nível do PIN daqui. */
+async function applockVerificarBiometria(){
+  const id = applockCredIdSalvo();
+  if(!id) return false;
+  const assertion = await navigator.credentials.get({
+    publicKey:{
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials:[{ type:'public-key', id: applockB64urlParaBytes(id) }],
+      userVerification:'required',
+      rpId: location.hostname,
+      timeout: 60000
+    }
+  });
+  return !!assertion;
+}
+
+function applockErro(msg){
+  const el = document.getElementById('applock-err');
+  if(!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+async function applockMostrarTrava(user, revelarUI){
+  _applockPendente = { user, revelarUI };
+
+  const pinEl = document.getElementById('applock-pin');
+  if(pinEl) pinEl.value = '';
+  document.getElementById('applock-err')?.classList.remove('show');
+
+  const btnBio = document.getElementById('applock-btn-bio');
+  if(btnBio){
+    const temBio = !!applockCredIdSalvo() && await applockBiometriaDisponivel();
+    btnBio.style.display = temBio ? 'flex' : 'none';
+  }
+
+  const tela = document.getElementById('applock-screen');
+  if(tela) tela.style.display = 'flex';
+
+  /* revelarApp() é quem normalmente apaga o "Aguarde..." da tela de login —
+     como ele não vai rodar agora, apagamos aqui, senão fica girando atrás. */
+  authSetLoading(false);
+  setTimeout(()=>{ try{ pinEl?.focus(); }catch(e){} }, 120);
+}
+
+async function applockLiberar(){
+  const ctx = _applockPendente;
+  _applockPendente = null;
+
+  const tela = document.getElementById('applock-screen');
+  if(tela) tela.style.display = 'none';
+  const pinEl = document.getElementById('applock-pin');
+  if(pinEl) pinEl.value = '';
+  document.getElementById('applock-err')?.classList.remove('show');
+
+  if(ctx) await revelarApp(ctx.user, ctx.revelarUI);
+}
+
+async function applockDesbloquear(){
+  const uid = window._sbUID;
+  const pinEl = document.getElementById('applock-pin');
+  const pin = (pinEl?.value || '').trim();
+  if(!applockPinValido(pin)) return applockErro('Digite seu PIN (4 a 6 dígitos).');
+
+  const btn = document.getElementById('applock-btn-ok');
+  const txtOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
+
+  try{
+    const hash = await applockHashPin(pin, uid);
+    if(hash !== (window._perfilAtual?.app_lock_pin_hash || '')){
+      if(pinEl) pinEl.value = '';
+      return applockErro('PIN incorreto. Tente de novo.');
+    }
+    document.getElementById('applock-err')?.classList.remove('show');
+    await applockLiberar();
+  }catch(e){
+    console.error('applockDesbloquear error:', e);
+    applockErro('Não foi possível validar o PIN agora. Tente novamente.');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+  }
+}
+
+async function applockBiometria(){
+  try{
+    if(await applockVerificarBiometria()) return await applockLiberar();
+    applockErro('Biometria não reconhecida. Use seu PIN.');
+  }catch(e){
+    console.error('applockBiometria error:', e);
+    applockErro('Biometria indisponível agora. Use seu PIN.');
+  }
+}
+
+function applockEsqueciPin(){
+  confirmar({
+    icone:'🚪',
+    titulo:'Esqueceu o PIN?',
+    msg:'Vamos desligar o bloqueio e desconectar sua conta. Para voltar, entre de novo com seu e-mail e senha (ou Google) — seus dados continuam salvos.',
+    btnTxt:'Sair e entrar de novo',
+    cor:'var(--purple)',
+    fn: applockResetarPorLogout
+  });
+}
+
+async function applockResetarPorLogout(){
+  const uid = window._sbUID;
+  try{
+    /* Desliga o bloqueio ANTES de sair. Sem isso o próximo login cairia na
+       mesma trava com o mesmo PIN esquecido — a "saída de emergência" não
+       sairia de lugar nenhum. Quem chega aqui já tem a sessão válida no
+       aparelho, e ainda vai precisar da senha da conta pra entrar de novo. */
+    if(uid) await _supa.from('profiles')
+      .update({ app_lock_enabled:false, app_lock_pin_hash:null })
+      .eq('uid', uid);
+  }catch(e){ console.error('applockResetarPorLogout error:', e); }
+  try{ localStorage.removeItem(APPLOCK_BIO_KEY); }catch(e){}
+  await authSairAgora();
+}
+
+/* ── Sheet de configuração (#sh-applock) ── */
+function applockAtualizarRotuloMenu(){
+  const el = document.getElementById('applock-status-label');
+  if(!el) return;
+  el.textContent = window._perfilAtual?.app_lock_enabled === true
+    ? 'Ativado — o app pede PIN ao abrir'
+    : 'PIN e biometria para abrir o app';
+}
+
+function applockAtualizarCfg(){
+  const marcado = !!document.getElementById('sw-applock')?.checked;
+  document.getElementById('applock-cfg')?.classList.toggle('show', marcado);
+  const hint = document.getElementById('applock-cfg-hint');
+  if(hint) hint.textContent = window._perfilAtual?.app_lock_enabled === true
+    ? 'Bloqueio já ativo. Deixe os campos em branco para manter o PIN atual, ou digite um novo para trocar.'
+    : 'Escolha um PIN de 4 a 6 dígitos. Ele será pedido toda vez que o app abrir.';
+}
+
+/* Mesmo contrato de toggleRec(): a função serve tanto ao clique na linha
+   quanto ao onchange do próprio checkbox — só inverte quando o evento NÃO
+   veio do input, senão o clique no switch alternaria duas vezes. */
+function applockToggleClick(e){
+  const sw = document.getElementById('sw-applock');
+  if(!sw) return;
+  if(e.target !== sw) sw.checked = !sw.checked;
+  applockAtualizarCfg();
+}
+
+async function applockBioToggleClick(e){
+  const sw = document.getElementById('sw-applock-bio');
+  if(!sw) return;
+  if(e.target !== sw) sw.checked = !sw.checked;
+
+  if(!sw.checked){
+    try{ localStorage.removeItem(APPLOCK_BIO_KEY); }catch(err){}
+    return;
+  }
+  if(applockCredIdSalvo()) return;
+
+  try{
+    const id = await applockRegistrarBiometria(window._sbUID);
+    if(!id){ sw.checked = false; return toast('⚠️ Não foi possível registrar a biometria.', true); }
+    toast('✅ Biometria registrada neste aparelho.');
+  }catch(err){
+    console.error('applockBioToggleClick error:', err);
+    sw.checked = false;
+    toast('⚠️ Biometria não registrada. Você ainda pode usar o PIN.', true);
+  }
+}
+
+async function abrirAppLockSheet(){
+  if(typeof fecharMenu === 'function') fecharMenu();
+  const uid = window._sbUID;
+  if(!uid) return toast('⚠️ Faça login para configurar o bloqueio.', true);
+
+  const sw = document.getElementById('sw-applock');
+  if(sw) sw.checked = window._perfilAtual?.app_lock_enabled === true;
+  ['applock-novo','applock-novo2'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+
+  const bioWrap = document.getElementById('applock-bio-wrap');
+  const swBio   = document.getElementById('sw-applock-bio');
+  if(swBio)   swBio.checked = !!applockCredIdSalvo();
+  if(bioWrap) bioWrap.style.display = (await applockBiometriaDisponivel()) ? 'block' : 'none';
+
+  applockAtualizarCfg();
+  document.getElementById('sh-applock-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-applock').classList.add('show'),10);
+}
+
+function fecharAppLockSheet(){
+  document.getElementById('sh-applock').classList.remove('show');
+  document.getElementById('sh-applock-ov').classList.remove('show');
+}
+
+async function salvarAppLock(){
+  const uid = window._sbUID;
+  if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
+
+  const ligar    = !!document.getElementById('sw-applock')?.checked;
+  const jaLigado = window._perfilAtual?.app_lock_enabled === true;
+  const pin  = (document.getElementById('applock-novo')?.value  || '').trim();
+  const pin2 = (document.getElementById('applock-novo2')?.value || '').trim();
+
+  /* undefined = não mexe no hash já gravado (caso "mantive o PIN atual") */
+  let hash;
+  if(ligar){
+    if(!jaLigado || pin || pin2){
+      if(!applockPinValido(pin)) return toast('⚠️ O PIN precisa ter de 4 a 6 dígitos.', true);
+      if(pin !== pin2)           return toast('⚠️ Os dois PINs não são iguais.', true);
+      try{
+        hash = await applockHashPin(pin, uid);
+      }catch(e){
+        console.error('salvarAppLock hash error:', e);
+        return toast('⚠️ Não foi possível preparar o PIN neste navegador.', true);
+      }
+    }
+  }else{
+    hash = null;
+  }
+
+  const patch = { app_lock_enabled: ligar };
+  if(hash !== undefined) patch.app_lock_pin_hash = hash;
+
+  const btn = document.getElementById('applock-btn-salvar');
+  const txtOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
+
+  try{
+    /* update e não upsert, pelo mesmo motivo de avatarEnviarBlob(): a linha
+       já existe com certeza aqui, e um upsert sem "nome" (NOT NULL) falharia. */
+    const { error } = await _supa.from('profiles').update(patch).eq('uid', uid);
+    if(error){
+      console.error('salvarAppLock update error:', error);
+      return toast('⚠️ Não foi possível salvar o bloqueio.', true);
+    }
+    /* Cache global em dia: a tela de trava lê o hash daqui, sem re-consultar. */
+    if(window._perfilAtual) Object.assign(window._perfilAtual, patch);
+    if(!ligar){ try{ localStorage.removeItem(APPLOCK_BIO_KEY); }catch(e){} }
+
+    applockAtualizarRotuloMenu();
+    fecharAppLockSheet();
+    toast(ligar ? '✅ Bloqueio do app ativado.' : '✅ Bloqueio do app desativado.');
+  }catch(e){
+    console.error('salvarAppLock error:', e);
+    toast('⚠️ Erro de conexão ao salvar o bloqueio.', true);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
   }
 }
 
@@ -6074,9 +6532,9 @@ function confirmarExcluirContaFinal(){
    usuário do auth.
    Comportamento esperado:
      • sem uid (sessão morta) ..... toast de erro, não chama a function
-     • HTTP != 200 ................ toast de erro; NADA foi apagado (a function
+     • HTTP != 2xx ................ toast de erro; NADA foi apagado (a function
                                     valida o uid antes de tocar em qualquer tabela)
-     • 200 { ok:true } ............ sucesso: os dados JÁ foram apagados no servidor.
+     • 2xx ........................ sucesso: os dados JÁ foram apagados no servidor.
                                     A function devolve 200 mesmo com
                                     `avisoAuthNaoRemovido:true` (só o usuário do
                                     auth sobrou, sem dado nenhum) ou com
@@ -6088,6 +6546,21 @@ async function excluirContaExecutar(){
   const uid = window._sbUID;
   if(!uid) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
 
+  /* confirmar() fecha o diálogo ANTES de chamar isto. Reabrimos no mesmo tick
+     (sem repaint entre o fechar e o abrir, então não pisca) só pra ter onde
+     mostrar o carregamento — mesmo padrão de assinaturaExecutarCancelamento(),
+     que é a outra ação demorada disparada por confirmar(). */
+  const ov  = document.getElementById('ov');
+  const btn = document.getElementById('dlg-confirm-btn');
+  const txtOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Excluindo...'; }
+  ov?.classList.add('show');
+
+  const encerrarLoading = ()=>{
+    if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+    ov?.classList.remove('show');
+  };
+
   try{
     const resp = await fetch('/.netlify/functions/excluir-conta', {
       method: 'POST',
@@ -6098,18 +6571,27 @@ async function excluirContaExecutar(){
     let data = null;
     try{ data = await resp.json(); }catch(e){ data = null; }
 
-    if(!resp.ok || !data?.ok){
+    /* Quem manda é o `resp.ok`: 2xx significa que o servidor JÁ apagou os
+       dados. Exigir `data.ok` além disso transformava um corpo ilegível
+       (proxy, resposta truncada) em toast de erro pra quem teve a conta
+       apagada com sucesso — e a pessoa ficava sem saber o que aconteceu. */
+    if(!resp.ok){
       console.error('excluirContaExecutar falhou:', resp.status, data);
+      encerrarLoading();
       return toast(data?.erro || '⚠️ Não foi possível excluir a conta agora. Tente novamente em instantes.', true);
     }
 
-    if(Array.isArray(data.tabelasComErro) && data.tabelasComErro.length){
+    if(!data?.ok){
+      console.warn('excluirContaExecutar: resposta 2xx sem { ok:true } legível — seguindo como sucesso.', resp.status, data);
+    }
+    if(Array.isArray(data?.tabelasComErro) && data.tabelasComErro.length){
       console.error('excluirContaExecutar: tabelas que falharam no servidor:', data.tabelasComErro);
     }
-    if(data.avisoAuthNaoRemovido){
+    if(data?.avisoAuthNaoRemovido){
       console.error('excluirContaExecutar: dados apagados, mas o usuário NÃO foi removido do auth — ver logs da function.');
     }
 
+    encerrarLoading();
     toast('✅ Conta excluída.');
     /* Derruba a sessão imediatamente: não dá pra deixar a pessoa "logada"
        numa conta que acabou de ser apagada. authSairAgora() faz signOut,
@@ -6118,6 +6600,7 @@ async function excluirContaExecutar(){
     setTimeout(()=>{ authSairAgora(); }, 1200);
   }catch(e){
     console.error('excluirContaExecutar error:', e);
+    encerrarLoading();
     toast('⚠️ Erro de conexão ao excluir a conta.', true);
   }
 }
@@ -8059,6 +8542,7 @@ function abrirMenu(){
      terminar de ler o perfil. `flex` é o display nativo de .menu-item. */
   const admEl = document.getElementById('menu-item-admin');
   if(admEl) admEl.style.display = window._souAdmin ? 'flex' : 'none';
+  applockAtualizarRotuloMenu();
 }
 function fecharMenu(){
   document.getElementById('menu-drawer').classList.remove('show');

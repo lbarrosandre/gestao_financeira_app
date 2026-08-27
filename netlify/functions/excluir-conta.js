@@ -217,40 +217,69 @@ exports.handler = async (event) => {
          achar que NADA foi apagado, quando na verdade tudo já foi. Então
          devolvemos 200 com `avisoAuthNaoRemovido:true`, e sobra no auth
          apenas um usuário órfão sem dado nenhum, removível na mão pelo
-         painel do Supabase. */
+         painel do Supabase.
+
+         ── Por que uma retentativa? ──
+         Um usuário órfão aqui não é inofensivo na prática: quem pediu
+         exclusão e depois entra com o mesmo login cai na tela de "complete
+         seu cadastro" já com o NOME ANTIGO (vem de user_metadata, que
+         sobrevive junto com o usuário) — parece que a exclusão não
+         aconteceu. Como a falha mais provável é transitória (rede, cold
+         start do GoTrue), uma segunda tentativa custa quase nada e reduz
+         bastante a chance de sobrar órfão. A arquitetura continua
+         fail-open: se as duas falharem, ainda devolvemos 200. */
   let avisoAuthNaoRemovido = false;
+  const AUTH_TENTATIVAS = 2;
 
-  try {
-    const rAuth = await fetch(
-      `${supaBase}/auth/v1/admin/users/${encodeURIComponent(uid)}`,
-      {
-        method: 'DELETE',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+  for (let tentativa = 1; tentativa <= AUTH_TENTATIVAS; tentativa++) {
+    avisoAuthNaoRemovido = false;
+
+    try {
+      const rAuth = await fetch(
+        `${supaBase}/auth/v1/admin/users/${encodeURIComponent(uid)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+          }
         }
+      );
+
+      const txtAuth = await rAuth.text().catch(() => '');
+
+      if (!rAuth.ok) {
+        avisoAuthNaoRemovido = true;
+        console.error('[excluir-conta] FALHA ao remover usuário do auth — uid:', uid,
+                      'tentativa:', tentativa + '/' + AUTH_TENTATIVAS,
+                      'status:', rAuth.status,
+                      'resp (corpo completo):', txtAuth,
+                      '| Os DADOS já foram apagados. Se o código for PGRST125,',
+                      'a requisição caiu no PostgREST em vez do GoTrue — conferir',
+                      'se SUPABASE_SERVICE_ROLE_KEY é mesmo a service_role (e não a anon).');
+      } else {
+        console.log('[excluir-conta] usuário removido do auth — uid:', uid,
+                    'tentativa:', tentativa + '/' + AUTH_TENTATIVAS,
+                    'status HTTP:', rAuth.status,
+                    'resp:', txtAuth || '(vazio)');
       }
-    );
-
-    const txtAuth = await rAuth.text().catch(() => '');
-
-    if (!rAuth.ok) {
+    } catch (e) {
       avisoAuthNaoRemovido = true;
-      console.error('[excluir-conta] FALHA ao remover usuário do auth — uid:', uid,
-                    'status:', rAuth.status,
-                    'resp (corpo completo):', txtAuth,
-                    '| Os DADOS já foram apagados. Se o código for PGRST125,',
-                    'a requisição caiu no PostgREST em vez do GoTrue — conferir',
-                    'se SUPABASE_SERVICE_ROLE_KEY é mesmo a service_role (e não a anon).');
-    } else {
-      console.log('[excluir-conta] usuário removido do auth — uid:', uid,
-                  'status HTTP:', rAuth.status,
-                  'resp:', txtAuth || '(vazio)');
+      console.error('[excluir-conta] erro de rede ao remover usuário do auth — uid:', uid,
+                    'tentativa:', tentativa + '/' + AUTH_TENTATIVAS, e,
+                    '| Os DADOS já foram apagados.');
     }
-  } catch (e) {
-    avisoAuthNaoRemovido = true;
-    console.error('[excluir-conta] erro de rede ao remover usuário do auth — uid:', uid, e,
-                  '| Os DADOS já foram apagados.');
+
+    if (!avisoAuthNaoRemovido) break;
+
+    if (tentativa < AUTH_TENTATIVAS) {
+      console.warn('[excluir-conta] retentando remoção do usuário no auth — uid:', uid);
+      await new Promise(r => setTimeout(r, 500));
+    } else {
+      console.error('[excluir-conta] usuário NÃO removido do auth depois de',
+                    AUTH_TENTATIVAS, 'tentativas — uid:', uid,
+                    '(órfão sem dados; remover manualmente pelo painel do Supabase)');
+    }
   }
 
   /* ── 6. Resposta final: sempre 200 se chegou até aqui (dados apagados) ── */
