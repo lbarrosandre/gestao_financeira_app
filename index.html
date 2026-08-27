@@ -3050,6 +3050,12 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <button type="button" class="adm-bulk-sel" onclick="adminSelecionarInativos()">☑️ Selecionar inativos</button>
     <button type="button" class="adm-bulk-send" id="admin-btn-reeng" disabled onclick="adminConfirmarReengajamento()">✉️ Enviar e-mail de reengajamento (0 selecionados)</button>
   </div>
+  <!-- ⚠️ TEMPORÁRIO: bootstrap dos planos do Mercado Pago, uso único.
+       Depois de rodar e anotar os dois IDs, apagar este bloco junto com a
+       function /.netlify/functions/criar-planos-mp. -->
+  <div class="adm-bulk">
+    <button type="button" class="adm-bulk-sel" onclick="adminConfirmarCriarPlanosMP()">🔧 Criar planos no Mercado Pago (uso único)</button>
+  </div>
   <div id="admin-lista"></div>
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharPainelAdmin()">Fechar</button>
@@ -5215,6 +5221,54 @@ async function adminEnviarReengajamento(lista){
       delete btn.dataset.enviando;
       adminAtualizarBotaoEnvio();
     }
+  }
+}
+
+/* ⚠️ TEMPORÁRIO — bootstrap dos planos do Mercado Pago, uso único.
+   Apagar estas duas funções, o botão no #sh-admin e a function
+   /.netlify/functions/criar-planos-mp depois de anotar os dois IDs.
+
+   Confirmação obrigatória: não é simulação nem sandbox — cria planos de
+   cobrança recorrente de verdade na conta de produção do Mercado Pago, e
+   rodar duas vezes cria duplicatas (a function não tem idempotência). */
+function adminConfirmarCriarPlanosMP(){
+  confirmar({
+    icone:'🔧',
+    titulo:'Criar planos no Mercado Pago?',
+    msg:'Isto cria DE VERDADE dois planos de cobrança recorrente (Plus e Premium) na conta de produção do Mercado Pago. É ferramenta de uso único: rodar de novo cria planos duplicados. Anote os IDs que aparecerem.',
+    btnTxt:'Sim, criar os planos',
+    cor:'var(--danger)',
+    fn: adminCriarPlanosMP
+  });
+}
+
+/* O servidor refaz a checagem de admin — o que existe aqui é conveniência,
+   não segurança. Os IDs voltam num alert() de propósito: é ferramenta de
+   bootstrap, e um alert fica na tela até a pessoa ler e copiar, enquanto um
+   toast some sozinho antes disso. */
+async function adminCriarPlanosMP(){
+  try{
+    const resp = await fetch('/.netlify/functions/criar-planos-mp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uidAdmin: window._sbUID })
+    });
+
+    let data = null;
+    try{ data = await resp.json(); }catch(e){ data = null; }
+
+    if(!resp.ok || !data?.ok || !data?.planos){
+      console.error('adminCriarPlanosMP falhou:', resp.status, data);
+      return toast('⚠️ '+(data?.erro || 'Não foi possível criar os planos agora.'), true);
+    }
+
+    const { plus, premium } = data.planos;
+    console.log('adminCriarPlanosMP — preapproval_plan_id PLUS:', plus, '| PREMIUM:', premium);
+    alert('Planos criados no Mercado Pago.\n\nPLUS:\n' + plus + '\n\nPREMIUM:\n' + premium + '\n\nAnote os dois IDs agora (também estão no console). Depois de colá-los em criar-assinatura.js, apague a function criar-planos-mp e este botão.');
+    toast('✅ Planos criados — IDs no console');
+  }catch(e){
+    console.error('adminCriarPlanosMP erro de rede:', e);
+    toast('⚠️ Erro de conexão ao criar os planos.', true);
   }
 }
 
