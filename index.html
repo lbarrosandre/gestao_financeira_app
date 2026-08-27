@@ -944,6 +944,17 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 /* Emissor e parcelas: o cardForm exige os dois no DOM, mas nenhum faz
    sentido numa recorrência de valor fixo — ficam fora da vista. */
 .mp-oculto{display:none}
+/* A bandeira detectada pelo BIN entra DENTRO da label do número, e não perto
+   da moldura, porque a moldura é iframe do Mercado Pago — nada nosso pode
+   ocupar espaço lá dentro. */
+#sh-cartao-mp label.lbl-num{display:flex;align-items:center;gap:6px}
+#cartao-mp-bandeira{display:none;align-items:center;gap:4px;color:var(--text2);text-transform:none;letter-spacing:0}
+#cartao-mp-bandeira.show{display:inline-flex}
+#cartao-mp-bandeira img{display:block;height:13px;width:auto;border-radius:2px}
+/* CPF com dígito verificador errado: só a borda, sem ícone nem texto — o
+   recado explicado fica no #cartao-mp-err. */
+#sh-cartao-mp .fi input.erro{border-color:var(--danger)}
+#sh-cartao-mp .fi input.erro:focus{border-color:var(--danger);box-shadow:0 0 0 3px rgba(239,68,68,.18)}
 /* A tela de planos é uma #auth-screen (z-index 10000) e este sheet abre por
    cima dela — os 302/303 padrão de .sh-edit ficariam por baixo. */
 #sh-cartao-mp-ov{z-index:10004}
@@ -3162,7 +3173,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="rec-hint" id="cartao-mp-resumo" style="margin-bottom:12px"></div>
   <div class="auth-err" id="cartao-mp-err"></div>
   <form id="form-checkout">
-    <div class="fi"><label>Número do cartão</label><div class="mp-secure" id="form-checkout__cardNumber"></div></div>
+    <div class="fi"><label class="lbl-num">Número do cartão<span id="cartao-mp-bandeira"></span></label><div class="mp-secure" id="form-checkout__cardNumber"></div></div>
     <div class="r2">
       <div class="fi"><label>Validade</label><div class="mp-secure" id="form-checkout__expirationDate"></div></div>
       <div class="fi"><label>CVV</label><div class="mp-secure" id="form-checkout__securityCode"></div></div>
@@ -3171,7 +3182,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="r2">
       <div class="fi"><label>Documento</label><div class="sw"><select id="form-checkout__identificationType"></select></div></div>
       <!-- Só dígitos: o Mercado Pago não aceita o CPF pontuado. -->
-      <div class="fi"><label>Número do documento</label><input type="text" id="form-checkout__identificationNumber" placeholder="Somente números" inputmode="numeric" maxlength="14" autocomplete="off" oninput="cartaoMpSoDigitos(this)"></div>
+      <div class="fi"><label>Número do documento</label><input type="text" id="form-checkout__identificationNumber" placeholder="Somente números" inputmode="numeric" maxlength="14" autocomplete="off" oninput="cartaoMpSoDigitos(this);cartaoMpCpfDigitando(this)" onblur="cartaoMpCpfOk(true)"></div>
     </div>
     <div class="fi"><label>E-mail</label><input type="email" id="form-checkout__cardholderEmail" placeholder="voce@email.com" autocomplete="email"></div>
     <div class="mp-oculto"><select id="form-checkout__issuer"></select></div>
@@ -5572,6 +5583,52 @@ function cartaoMpBotao(carregando){
 
 function cartaoMpSoDigitos(el){ el.value = el.value.replace(/\D/g,''); }
 
+/* `name` e `thumbnail` vêm da API do Mercado Pago, não de input do usuário —
+   por isso vão direto no innerHTML. `secure_thumbnail` primeiro: o `thumbnail`
+   às vezes vem em http e seria bloqueado como conteúdo misto. */
+function cartaoMpBandeira(metodo){
+  const el = document.getElementById('cartao-mp-bandeira');
+  if(!el) return;
+  if(!metodo){
+    el.innerHTML = '';
+    el.classList.remove('show');
+    return;
+  }
+  const img = metodo.secure_thumbnail || metodo.thumbnail;
+  el.innerHTML = (img ? '<img src="'+img+'" alt="">' : '') + (metodo.name || '');
+  el.classList.add('show');
+}
+
+/* CNPJ tem outro algoritmo e não passaria por validarCPF() — sem tipo
+   escolhido ainda, assume CPF, que é o caso de quase todo mundo. */
+function cartaoMpDocEhCpf(){
+  const sel = document.getElementById('form-checkout__identificationType');
+  return !sel || !sel.value || sel.value === 'CPF';
+}
+
+/* Sinal visual enquanto digita: só a partir de 11 dígitos, senão marcaria em
+   vermelho todo CPF ainda pela metade. */
+function cartaoMpCpfDigitando(el){
+  const d = el.value.replace(/\D/g,'');
+  el.classList.toggle('erro', d.length >= 11 && cartaoMpDocEhCpf() && !validarCPF(d));
+}
+
+/* false = CPF preenchido e inválido. Campo vazio passa: quem cobra o
+   obrigatório é o próprio cardForm, e duplicar daria dois erros pelo mesmo
+   motivo. */
+function cartaoMpCpfOk(mostrarErro){
+  const el = document.getElementById('form-checkout__identificationNumber');
+  if(!el) return true;
+  const d = el.value.replace(/\D/g,'');
+  if(!d || !cartaoMpDocEhCpf() || validarCPF(d)){
+    el.classList.remove('erro');
+    return true;
+  }
+  el.classList.add('erro');
+  if(mostrarErro) cartaoMpErro('CPF inválido. Confira os números digitados.');
+  return false;
+}
+
 /* O iframe do Mercado Pago não enxerga as CSS vars do app, então a cor do
    texto digitado precisa ir explícita — sem isso o padrão é preto, ilegível
    no tema escuro. */
@@ -5620,6 +5677,11 @@ async function abrirCartaoSheet(plano){
 }
 
 function cartaoMpDesmontarForm(){
+  /* Antes do early return: a bandeira e a borda vermelha são nossas, sobrevivem
+     ao unmount e apareceriam na tentativa seguinte falando do cartão anterior. */
+  cartaoMpBandeira(null);
+  const inpDoc = document.getElementById('form-checkout__identificationNumber');
+  if(inpDoc) inpDoc.classList.remove('erro');
   if(!_mpCardForm) return;
   try{ _mpCardForm.unmount(); }catch(e){ console.error('cardForm unmount:', e); }
   _mpCardForm = null;
@@ -5667,6 +5729,15 @@ function cartaoMpMontarForm(plano){
         if(sel && Array.isArray(tipos) && tipos.some(t => t.id === 'CPF')) sel.value = 'CPF';
       },
 
+      /* O SDK reconhece a bandeira pelo BIN sozinho, a cada dígito. Número
+         curto demais ou BIN desconhecido chega como erro ou lista vazia — aí o
+         indicador só some, sem mensagem: não é falha, é "ainda não dá pra
+         saber". */
+      onPaymentMethodsReceived: (erro, metodos) => {
+        if(erro || !Array.isArray(metodos) || !metodos.length) return cartaoMpBandeira(null);
+        cartaoMpBandeira(metodos[0]);
+      },
+
       onError: erros => {
         console.error('cardForm onError:', erros);
         cartaoMpBotao(false);
@@ -5675,6 +5746,10 @@ function cartaoMpMontarForm(plano){
 
       onSubmit: event => {
         event.preventDefault();
+        /* CPF com dígito verificador errado o Mercado Pago recusaria de
+           qualquer jeito: barrar aqui poupa uma tentativa de cobrança e dá o
+           erro certo na hora. */
+        if(!cartaoMpCpfOk(true)) return;
         /* O token nasce aqui, novo a cada envio: vale uma única vez, expira
            em 7 dias e nunca é guardado em lugar nenhum. */
         const dados = _mpCardForm ? _mpCardForm.getCardFormData() : null;
