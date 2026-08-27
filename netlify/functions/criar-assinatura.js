@@ -23,8 +23,22 @@
 
 /* Preço mensal de cada plano PAGO. O plano 'basico' não aparece aqui de
    propósito: ele é grátis e não gera preapproval nenhuma no Mercado Pago —
-   pedir checkout pra 'basico' é requisição inválida (400 no passo 3). */
+   pedir checkout pra 'basico' é requisição inválida (400 no passo 3).
+   Serve só de referência/log daqui pra frente: quem manda no valor
+   cobrado agora é o PLANO no Mercado Pago (ver PLAN_IDS abaixo), não mais
+   este número — mudar aqui sem mudar o plano lá não muda a cobrança. */
 const VALORES_PLANO  = { plus: 9.90, premium: 14.99 };
+
+/* preapproval_plan_id de cada plano, criados uma única vez via a function
+   temporária `criar-planos-mp.js` (ver comentário no passo 5 abaixo pro
+   porquê de existir plano em vez de preapproval avulsa). Se um dia for
+   preciso mudar preço, NÃO dá pra editar o valor aqui: precisa criar um
+   plano novo no Mercado Pago com o valor novo e trocar o ID correspondente
+   — um preapproval_plan tem o valor congelado nele. */
+const PLAN_IDS = {
+  plus:    'fc54f9a9b0694410acb941612c24ecfc',
+  premium: '2b2ec18f28ff48f2bf2e31e5d705b345'
+};
 const BACK_URL       = 'https://bussola-finance.netlify.app/?assinatura=retorno';
 const RE_UUID        = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const RE_EMAIL       = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -124,8 +138,25 @@ exports.handler = async (event) => {
     return json(502, { erro: 'Não foi possível validar sua conta agora. Tente novamente.' });
   }
 
-  /* ── 5. Cria a preapproval no Mercado Pago (sem plano associado,
-         checkout hospedado, cobrança imediata — sem período de teste) ── */
+  /* ── 5. Cria a preapproval no Mercado Pago, AMARRADA a um plano nativo
+         (preapproval_plan_id) — checkout hospedado, cobrança imediata,
+         sem período de teste.
+
+         Antes esta preapproval era criada avulsa (sem plano), com
+         `auto_recurring` montado na hora. Essa página de checkout específica
+         do Mercado Pago tinha o botão "Confirmar" permanentemente desabilitado
+         por uma violação de CSP NA PÁGINA DELES — reproduzido em várias
+         contas/cartões/navegadores, confirmado como bug do lado deles.
+         Amarrar a um preapproval_plan_id é a tentativa de cair numa página
+         de checkout diferente, sem esse bug. `auto_recurring` some daqui:
+         o plano já define frequência/valor/moeda, reenviar poderia
+         divergir do que está congelado nele. */
+  const planId = PLAN_IDS[plano];
+  if (!planId) {
+    console.error('[criar-assinatura] plano sem preapproval_plan_id cadastrado:', plano);
+    return json(500, { erro: 'Serviço de assinatura indisponível no momento.' });
+  }
+
   let mpData;
   try {
     const rMp = await fetch('https://api.mercadopago.com/preapproval', {
@@ -135,16 +166,10 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        reason: `Bússola Finance — Assinatura ${plano === 'premium' ? 'Premium' : 'Plus'}`,
+        preapproval_plan_id: planId,
         external_reference: uid,
         payer_email: email,
         back_url: BACK_URL,
-        auto_recurring: {
-          frequency: 1,
-          frequency_type: 'months',
-          transaction_amount: VALORES_PLANO[plano],
-          currency_id: 'BRL'
-        },
         status: 'pending'
       })
     });
