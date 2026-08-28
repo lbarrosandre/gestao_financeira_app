@@ -6287,6 +6287,31 @@ window.addEventListener('load',()=>{
     }
   }catch(e){}
 
+  /* App Android (Capacitor): o login Google abre no navegador do sistema e,
+     ao terminar, o Google redireciona pra https://bussolafinance.com.br —
+     igual à web. A diferença é que, dentro do app, esse domínio está
+     verificado como Android App Link (ver AndroidManifest.xml +
+     /.well-known/assetlinks.json), então o Android abre o APP em vez de
+     deixar a pessoa presa no Chrome. Quando isso acontece, quem recebe o
+     evento não é a URL da própria página (o WebView do app não navegou pra
+     lá) — é este listener nativo, com a URL completa (tokens no hash). Só
+     roda dentro do app nativo: na web/PWA, window.Capacitor nem existe. */
+  if (window.Capacitor?.isNativePlatform?.() && window.Capacitor?.Plugins?.App) {
+    window.Capacitor.Plugins.App.addListener('appUrlOpen', async (data) => {
+      try {
+        const url = new URL(data.url);
+        const params = new URLSearchParams(url.hash ? url.hash.substring(1) : '');
+        const access_token = params.get('access_token');
+        const refresh_token = params.get('refresh_token');
+        if (access_token && refresh_token) {
+          const { error } = await _supa.auth.setSession({ access_token, refresh_token });
+          if (error) console.error('appUrlOpen setSession error:', error);
+          // se ok: onAuthStateChange SIGNED_IN cuida do resto, igual ao login normal
+        }
+      } catch (e) { console.error('appUrlOpen error:', e); }
+    });
+  }
+
   // Registra onAuthStateChange após todas as funções estarem disponíveis
   // O callback é síncrono de propósito: chamadas async ao próprio client dentro
   // dele podem travar o SDK do Supabase — por isso tudo vai para um setTimeout(0).

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.bussolafinance.app",
+      "sha256_cert_fingerprints": [
+        "34:F9:10:2F:1B:73:FE:86:15:33:D8:11:E7:70:F9:80:9F:86:24:E0:31:68:55:52:E6:FD:A9:BF:5F:47:E9:6D"
+      ]
+    }
+  }
+]
