@@ -6,3 +6,20 @@
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
+
+# index.html não pode ser cacheado por CDN/navegador: é o único arquivo que
+# muda a cada deploy sem trocar de nome, e PWAs instalados no iOS já
+# mostraram grudar em versões antigas mesmo com o Service Worker fazendo
+# fetch "network first" — o fetch dele ainda passa pelo cache HTTP comum se
+# o servidor não proibir explicitamente. Isso não resolve quem já ficou
+# preso numa versão velha (precisa reinstalar), mas evita que aconteça daqui
+# pra frente.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
