@@ -2669,18 +2669,6 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <!-- preenchido por renderInvestimentos() -->
     </div>
 
-    <!-- Minhas contas correntes (mesmo padrão de "Meus bolsos": grid primeiro, form de criação logo abaixo) -->
-    <div class="sec">Minhas contas correntes</div>
-    <div class="bolsos-grid" id="contas-grid">
-      <div class="empty" style="grid-column:1/-1;padding:20px 0"><div class="empty-v">🏦</div><h4>Só a conta padrão</h4><p style="font-size:.75rem">Cadastre outra abaixo se tiver mais de uma conta bancária.</p></div>
-    </div>
-    <div class="inv-form-box">
-      <div class="inv-form-title">🏦 Nova conta corrente</div>
-      <div class="fi"><label>Nome da conta</label><input type="text" id="inv-conta-nome" placeholder="Ex: Santander, Banco do Brasil..." autocomplete="off"></div>
-      <button class="btn-add azul" id="inv-conta-btn" onclick="criarConta()"><span>+</span> Criar conta corrente</button>
-      <button id="inv-conta-cancelar" onclick="cancelarEdicaoConta()" style="display:none;width:100%;margin-top:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:9px;color:var(--text2);font-family:var(--sans);font-size:.8rem;cursor:pointer">Cancelar edição</button>
-    </div>
-
     <!-- Grid de bolsos -->
     <div class="sec">Meus bolsos</div>
     <div class="bolsos-grid" id="bolsos-grid">
@@ -3288,6 +3276,25 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 <div class="bolso-detalhe" id="bolso-detalhe">
   <div class="sh-h"></div>
   <div id="bolso-detalhe-content"></div>
+</div>
+
+<!-- CONTAS CORRENTES (sheet aberto ao tocar no card "Conta corrente" do
+     resumo) — mesma ideia do detalhe do bolso: tudo embutido aqui dentro,
+     a tela principal da Carteira fica só com o card de resumo. -->
+<div class="sh-edit-ov" id="sh-contas-ov" onclick="fecharContasDetalhe()"></div>
+<div class="sh-edit" id="sh-contas">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">🏦 Contas correntes</div>
+  <div class="rec-hint" style="margin-bottom:12px">Sem nenhuma cadastrada, tudo cai na conta padrão. Cadastre uma por banco se quiser controlar separado.</div>
+  <div class="bolsos-grid" id="contas-grid">
+    <div class="empty" style="grid-column:1/-1;padding:20px 0"><div class="empty-v">🏦</div><h4>Só a conta padrão</h4><p style="font-size:.75rem">Cadastre outra abaixo se tiver mais de uma conta bancária.</p></div>
+  </div>
+  <div class="fi"><label>Nome da nova conta</label><input type="text" id="inv-conta-nome" placeholder="Ex: Santander, Banco do Brasil..." autocomplete="off"></div>
+  <button class="btn-add azul" id="inv-conta-btn" onclick="criarConta()"><span>+</span> Criar conta corrente</button>
+  <button id="inv-conta-cancelar" onclick="cancelarEdicaoConta()" style="display:none;width:100%;margin-top:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:9px;color:var(--text2);font-family:var(--sans);font-size:.8rem;cursor:pointer">Cancelar edição</button>
+  <div class="sh-btns">
+    <button class="sh-cancel" onclick="fecharContasDetalhe()">Fechar</button>
+  </div>
 </div>
 
 <!-- DIALOG UNIVERSAL DE CONFIRMAÇÃO -->
@@ -7547,6 +7554,21 @@ function atualizarContasGrid(){
   }).join('');
 }
 
+/* Sheet de contas correntes: aberto ao tocar no card de resumo "Conta
+   corrente"/"Total em contas correntes" — mesmo espírito de tocar num bolso
+   pra ver o detalhe, só que aqui dentro cabem TODAS as contas (é um resumo
+   agregado no card, não uma conta só). */
+function abrirContasDetalhe(){
+  atualizarContasGrid();
+  document.getElementById('sh-contas-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-contas').classList.add('show'),10);
+}
+function fecharContasDetalhe(){
+  document.getElementById('sh-contas').classList.remove('show');
+  document.getElementById('sh-contas-ov').classList.remove('show');
+  cancelarEdicaoConta();
+}
+
 function setInvMov(m){
   invMov=m;
   document.getElementById('inv-btn-dep').className='tog credito'+(m==='deposito'?' ativo':'');
@@ -7807,16 +7829,18 @@ function renderInvestimentos(){
   // Painel de patrimônio
   const pw=document.getElementById('inv-patrimonio-wrap');
   // Com 0 ou 1 conta cadastrada a tela é a de sempre: card único de CC.
+  // Card sempre clicável: é a única porta de entrada pra ver/criar/gerenciar
+  // contas correntes — o sheet #sh-contas embute tudo, a tela principal fica limpa.
   const ccCard=APP.contas.length>1
-    ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
+    ? `<div onclick="abrirContasDetalhe()" style="cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
         <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">🏦 Total em contas correntes</div>
         <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:${saldoCC>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(saldoCC).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
-        <div style="font-size:.62rem;color:var(--text3);margin-top:3px">${APP.contas.length} contas</div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:3px">${APP.contas.length} contas · toque para ver</div>
       </div>`
-    : `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
+    : `<div onclick="abrirContasDetalhe()" style="cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
         <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">🏦 Conta corrente</div>
         <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:${saldoCC>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(saldoCC).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
-        <div style="font-size:.62rem;color:var(--text3);margin-top:3px">Baseado nos Registros</div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:3px">Baseado nos Registros · toque para gerenciar</div>
       </div>`;
   pw.innerHTML=`
     <div class="inv-saldo-card" style="margin-bottom:10px">
