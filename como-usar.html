@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Como usar — Bússola Finance</title>
+<meta name="description" content="Guia completo de todas as telas e recursos do Bússola Finance: Carteira, Planejar, Passivos, Lançar, Registros, Dashboard e mais.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#020617;--surface:#0B1120;--surface2:#111827;
+  --accent:#3B82F6;--teal:#10B981;--danger:#EF4444;--purple:#8B5CF6;
+  --text:#F1F5F9;--text2:#94A3B8;--text3:#475569;
+  --border:#1E293B;--border2:#2D3F5A;
+  --mono:'DM Mono',monospace;--sans:'Sora',sans-serif;
+  --r:12px;--r2:16px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  line-height:1.7;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:820px;margin:0 auto;padding:48px 20px 80px}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.brand-ico{font-size:1.6rem}
+.brand-name{font-size:1.15rem;font-weight:700;letter-spacing:-.3px}
+.brand-name em{color:var(--teal);font-style:normal}
+.voltar{display:inline-block;margin-bottom:28px;color:var(--text2);font-size:.82rem;text-decoration:none}
+.voltar:hover{color:var(--text)}
+h1{font-size:1.8rem;font-weight:700;letter-spacing:-.5px;margin:18px 0 6px}
+.subtitulo{color:var(--text2);font-size:.92rem;margin-bottom:20px;max-width:560px}
+.vigencia{color:var(--text3);font-size:.8rem;margin-bottom:32px}
+
+/* Sumário */
+.sumario{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:18px 20px;margin-bottom:40px}
+.sumario-titulo{font-size:.72rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+.sumario ul{list-style:none;margin:0;padding:0;columns:2;gap:8px}
+.sumario li{margin-bottom:8px;break-inside:avoid}
+.sumario a{color:var(--text2);font-size:.85rem;text-decoration:none;display:flex;align-items:center;gap:6px}
+.sumario a:hover{color:var(--teal)}
+
+h2{font-size:1.3rem;font-weight:700;margin:44px 0 6px;color:var(--text);display:flex;align-items:center;gap:10px;scroll-margin-top:20px}
+h2 .ico{font-size:1.5rem}
+.h2-sub{color:var(--text3);font-size:.82rem;margin-bottom:16px}
+h3{font-size:.95rem;font-weight:700;margin:22px 0 8px;color:var(--text)}
+p{color:var(--text2);font-size:.92rem;margin:0 0 14px}
+ul,ol{margin:0 0 14px;padding-left:20px;color:var(--text2);font-size:.92rem}
+li{margin-bottom:7px}
+strong{color:var(--text);font-weight:600}
+code{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-family:var(--mono);font-size:.85em;color:var(--teal)}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:18px 20px;margin:0 0 14px}
+.card-titulo{font-weight:700;color:var(--text);font-size:.88rem;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.card-sub{color:var(--text3);font-size:.82rem}
+
+.dica{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22);border-radius:var(--r2);padding:14px 18px;margin:0 0 14px;font-size:.85rem;color:var(--text2)}
+.dica strong{color:var(--teal)}
+.atencao{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);border-radius:var(--r2);padding:14px 18px;margin:0 0 14px;font-size:.85rem;color:var(--text2)}
+.atencao strong{color:var(--danger)}
+
+table{width:100%;border-collapse:collapse;margin:0 0 14px;font-size:.85rem}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border)}
+th{color:var(--text3);font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.plano-basico{color:var(--text2)}
+.plano-plus{color:var(--accent)}
+.plano-premium{color:var(--teal)}
+
+.contato{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:22px;margin-top:44px}
+.contato a{color:var(--accent);text-decoration:none}
+.contato a:hover{text-decoration:underline}
+footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--border);color:var(--text3);font-size:.72rem;text-align:center}
+
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#F8FAFC;--surface:#FFFFFF;--surface2:#F1F5F9;
+    --accent:#2563EB;--teal:#059669;--danger:#DC2626;--purple:#7C3AED;
+    --text:#0F172A;--text2:#475569;--text3:#94A3B8;
+    --border:#E2E8F0;--border2:#CBD5E1;
+  }
+}
+@media (max-width:520px){ .sumario ul{columns:1} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="voltar" href="/">← Voltar ao Bússola Finance</a>
+  <div class="brand"><span class="brand-ico">🧭</span><span class="brand-name">Bús<em>sola</em> Finance</span></div>
+  <h1>Como usar o Bússola Finance</h1>
+  <p class="subtitulo">Guia completo de todas as telas e recursos do app — da conta corrente ao dashboard. Se preferir algo mais rápido, o app também tem um tour interativo (menu ⚙️ → "Como usar o app").</p>
+  <div class="vigencia">Última atualização: 28 de agosto de 2026</div>
+
+  <div class="sumario">
+    <div class="sumario-titulo">Nesta página</div>
+    <ul>
+      <li><a href="#carteira">🐷 Carteira</a></li>
+      <li><a href="#planejar">📅 Planejar</a></li>
+      <li><a href="#passivos">💳 Passivos</a></li>
+      <li><a href="#lancar">➕ Lançar</a></li>
+      <li><a href="#registros">📋 Registros</a></li>
+      <li><a href="#dashboard">📊 Dashboard</a></li>
+      <li><a href="#info">🌐 Info</a></li>
+      <li><a href="#seguranca">🔒 Segurança</a></li>
+      <li><a href="#planos">💎 Planos</a></li>
+      <li><a href="#backup">💾 Backup e dados</a></li>
+    </ul>
+  </div>
+
+  <h2 id="carteira"><span class="ico">🐷</span>Carteira</h2>
+  <div class="h2-sub">Seu patrimônio: conta corrente, bolsos e investimentos.</div>
+  <p>A Carteira mostra o quanto você tem, dividido em duas partes que somadas formam o <strong>Patrimônio total</strong>: a Conta Corrente (calculada a partir do que você registra em Lançar) e os Bolsos (cofrinhos com saldo próprio).</p>
+
+  <h3>🏦 Contas correntes</h3>
+  <p>Por padrão existe uma única Conta Corrente implícita. Se você tem mais de uma conta bancária (ex: Santander e Banco do Brasil), pode cadastrar cada uma com um nome próprio em "Contas correntes" — o saldo de cada uma é calculado automaticamente a partir dos lançamentos que você atribuir a ela. Com 2 ou mais contas cadastradas, o app passa a perguntar "de qual conta corrente?" nos lugares em que isso importa (lançar, pagar fatura, transferir de/para um bolso).</p>
+  <div class="dica"><strong>Dica:</strong> se você só usa uma conta bancária, não precisa cadastrar nada aqui — o app já funciona normalmente com a conta padrão.</div>
+
+  <h3>💰 Bolsos</h3>
+  <p>Um bolso é um cofrinho com nome e meta próprios — "Viagem", "Reserva de emergência", o que fizer sentido pra você. Crie um bolso, dê um nome (a meta é opcional) e use a seção "Movimentação" para depositar ou retirar dele:</p>
+  <ul>
+    <li><strong>Depósito/Retirada da Conta Corrente</strong> — move dinheiro de verdade entre a CC e o bolso. Gera um lançamento automático em Registros (aparece marcado como transferência, não conta como receita/despesa "de verdade" no seu patrimônio total, já que o dinheiro só mudou de lugar).</li>
+    <li><strong>Transferência entre bolsos</strong> — move de um bolso pra outro diretamente.</li>
+    <li><strong>Depósito/Retirada direta</strong> — ajusta o saldo do bolso sem mexer em mais nada (útil pra registrar rendimento, por exemplo).</li>
+  </ul>
+  <p>Cada bolso tem seu próprio histórico de movimentos, visível ao tocar nele.</p>
+
+  <h2 id="planejar"><span class="ico">📅</span>Planejar</h2>
+  <div class="h2-sub">Pagamentos e recebimentos futuros, e orçamento por categoria.</div>
+  <p>Use "+ Agendar Pagamento" pra registrar algo que vai acontecer (uma conta a pagar, um recebimento previsto), preenchendo data, valor e categoria. O agendamento fica pendente até você tocar no ▶ do card e confirmar — só nesse momento ele vira um lançamento de verdade em Registros.</p>
+  <div class="dica"><strong>Dica:</strong> ao confirmar um agendamento, você pode ajustar o valor se ele saiu diferente do previsto (ex: uma conta de luz que varia todo mês).</div>
+  <p>Mais abaixo, em <strong>"🎯 Orçamento por categoria"</strong>, defina um teto mensal para gastos variáveis (ex: R$ 800 em Supermercado) e acompanhe visualmente o quanto já foi consumido no mês.</p>
+
+  <h2 id="passivos"><span class="ico">💳</span>Passivos</h2>
+  <div class="h2-sub">Dívidas e cartão de crédito.</div>
+  <h3>📉 Dívidas</h3>
+  <p>Cadastre uma dívida com valor total e vá registrando pagamentos parciais — o saldo devedor diminui a cada pagamento confirmado. Útil pra financiamentos, empréstimos ou parcelamentos fora do cartão.</p>
+  <h3>💳 Cartão de crédito</h3>
+  <p>Cadastre um cartão e lance as compras nele (em <a href="#lancar">Lançar</a>, escolhendo o cartão no lugar de Débito comum). A regra mais importante:</p>
+  <div class="card">
+    <div class="card-titulo">💡 Compra no cartão ≠ saída de dinheiro na hora</div>
+    <div class="card-sub">Uma compra no cartão entra em Registros e no Dashboard como despesa do mês, mas <strong>não desconta a Conta Corrente</strong> — ela só acumula na fatura. O dinheiro só sai de verdade quando você toca em <strong>"Pagar fatura"</strong>, o que gera um lançamento próprio de pagamento (que aí sim desconta a CC, ou o bolso/conta que você escolher).</div>
+  </div>
+
+  <h2 id="lancar"><span class="ico">➕</span>Lançar</h2>
+  <div class="h2-sub">Onde você registra o dia a dia.</div>
+  <ol>
+    <li>Escolha <strong>Débito</strong> (saiu dinheiro) ou <strong>Crédito</strong> (entrou dinheiro).</li>
+    <li>Preencha valor, descrição, tipo e categoria.</li>
+    <li>Se for Débito, pode marcar que é uma compra no <strong>cartão de crédito</strong> (não desconta a CC agora) ou o pagamento de uma <strong>dívida</strong> cadastrada.</li>
+    <li>Se for Crédito e o dinheiro entrar direto num bolso — um rendimento de poupança, por exemplo — escolha "Onde esse valor entra?" e selecione o bolso, em vez de deixar cair na Conta Corrente.</li>
+    <li>Com mais de uma conta corrente cadastrada, escolha de qual conta o valor sai/entra.</li>
+    <li>Toque em <strong>Adicionar Lançamento</strong>.</li>
+  </ol>
+  <div class="atencao"><strong>Importante:</strong> transferir dinheiro entre bolsos e a Conta Corrente (na aba Carteira) não conta como receita/despesa em Registros ou Dashboard — é só movimento interno do seu próprio patrimônio, não um ganho ou gasto real.</div>
+
+  <h2 id="registros"><span class="ico">📋</span>Registros</h2>
+  <div class="h2-sub">Todo o seu histórico, organizado por mês.</div>
+  <p>Toque no mês pra abrir/fechar a lista de lançamentos daquele período. Use a busca pra encontrar algo específico pela descrição. Cada lançamento mostra selos indicando origem especial (pago do bolso, recebido direto no bolso, compra no cartão, pagamento de dívida) quando for o caso.</p>
+  <p>É aqui também que você exclui um lançamento (toque nele) — a exclusão desfaz automaticamente qualquer efeito colateral (estorna saldo de bolso, por exemplo).</p>
+
+  <h2 id="dashboard"><span class="ico">📊</span>Dashboard</h2>
+  <div class="h2-sub">Gráficos e insights automáticos.</div>
+  <p>Toque no filtro de mês pra escolher um mês específico ou vários de uma vez — os gráficos e KPIs se ajustam automaticamente ao período escolhido. Inclui gráfico de categorias, evolução mensal e comparação com o período anterior.</p>
+
+  <h2 id="info"><span class="ico">🌐</span>Info</h2>
+  <div class="h2-sub">Cotações ao vivo.</div>
+  <p>Dólar, euro, bitcoin e ações, só pra consulta — não afeta seus lançamentos nem cálculos.</p>
+
+  <h2 id="seguranca"><span class="ico">🔒</span>Segurança da conta</h2>
+  <h3>PIN e biometria</h3>
+  <p>Em Menu ⚙️ → Segurança → "Bloqueio do app", ative uma trava local: o app passa a pedir um PIN (4 a 6 dígitos) toda vez que abrir, mesmo com a sessão já logada. Se o aparelho tiver leitor biométrico compatível, você pode ativar também "Usar biometria" como atalho — vale só para aquele aparelho específico. Esqueceu o PIN? Toque em "Esqueci meu PIN" na tela de bloqueio: isso desliga a trava e te desconecta, bastando entrar de novo com e-mail/senha ou Google.</p>
+  <h3>Excluir conta</h3>
+  <p>Em Menu ⚙️ → "Excluir conta". A exclusão é <strong>imediata e permanente</strong>: apaga cadastro, assinatura e todos os dados financeiros, sem volta. Você recebe um e-mail confirmando.</p>
+
+  <h2 id="planos"><span class="ico">💎</span>Planos</h2>
+  <p>O Bússola tem três planos. O Básico é gratuito e cobre o essencial; Plus e Premium liberam mais controle e são cobrados mensalmente via Mercado Pago, com cancelamento a qualquer momento direto no app.</p>
+  <table>
+    <tr><th>Recurso</th><th class="plano-basico">Básico</th><th class="plano-plus">Plus</th><th class="plano-premium">Premium</th></tr>
+    <tr><td>Lançamentos, Planejar, Bolsos</td><td>✓ (com limites)</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Cartão de crédito e Dívidas</td><td>—</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Dashboard completo</td><td>—</td><td>—</td><td>✓</td></tr>
+    <tr><td>Cotações (Info)</td><td>—</td><td>—</td><td>✓</td></tr>
+  </table>
+  <p>Veja os valores atuais e assine em Menu ⚙️ → "Meu plano".</p>
+
+  <h2 id="backup"><span class="ico">💾</span>Backup e exportação</h2>
+  <p>Em Menu ⚙️, você encontra opções pra exportar seus dados: <strong>CSV</strong> (planilha do histórico de lançamentos, pra abrir no Excel/Google Sheets) e <strong>backup completo</strong> (arquivo que guarda tudo — lançamentos, bolsos, contas, dívidas, cartões — pra importar de volta se precisar).</p>
+
+  <div class="contato">
+    <div class="card-titulo" style="margin-bottom:8px">✉️ Ainda com dúvida?</div>
+    <p style="margin:0">Escreve pra gente: <a href="mailto:leviai.br@newrest.eu">leviai.br@newrest.eu</a></p>
+  </div>
+
+  <footer>Bússola Finance — bussolafinance.com.br</footer>
+</div>
+</body>
+</html>
