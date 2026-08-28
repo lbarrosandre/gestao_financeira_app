@@ -3747,12 +3747,25 @@ function authUrlBase(){
   return window.location.origin + window.location.pathname;
 }
 
+/* Dentro do app Android nativo, o retorno do login usa um esquema de link
+   PRÓPRIO do app (br.com.bussolafinance.app://auth-callback) em vez da URL
+   https normal. Diferente de um Android App Link, esse esquema não depende
+   de nenhuma verificação assíncrona do Android com o nosso servidor — o
+   sistema operacional já sabe, na hora, que esse esquema pertence a este
+   app (foi declarado no AndroidManifest), então não fica preso no
+   navegador esperando uma verificação que pode falhar silenciosamente em
+   certos aparelhos. Na web/PWA (window.Capacitor não existe) nada muda. */
+function authRedirectTo(){
+  if(window.Capacitor?.isNativePlatform?.()) return 'br.com.bussolafinance.app://auth-callback';
+  return authUrlBase();
+}
+
 async function authGoogle(){
   authLimparMensagens();
   authSetLoading(true);
   const { error } = await _supa.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: authUrlBase() }
+    options: { redirectTo: authRedirectTo() }
   });
   if(error){ authSetLoading(false); authErro(authMensagemErroSupa(error)); }
   // Redireciona para Google — onAuthStateChange vai lidar ao voltar
