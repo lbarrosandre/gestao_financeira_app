@@ -68,6 +68,7 @@ window.APP = {
   dados: [],
   plan: [],
   bolsos: [],
+  contas: [],
   dividas: [],
   pagamentos: [],
   cartoes: [],
@@ -100,6 +101,7 @@ function sbIniciarRealtime() {
     .on('postgres_changes',{ event:'*', schema:'public', table:'planejamentos',     filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
     .on('postgres_changes',{ event:'*', schema:'public', table:'bolsos',            filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
     .on('postgres_changes',{ event:'*', schema:'public', table:'bolso_movimentos',  filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
+    .on('postgres_changes',{ event:'*', schema:'public', table:'contas_correntes',  filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
     .on('postgres_changes',{ event:'*', schema:'public', table:'dividas',           filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
     .on('postgres_changes',{ event:'*', schema:'public', table:'pagamentos_divida', filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
     .on('postgres_changes',{ event:'*', schema:'public', table:'cartoes',           filter:`uid=eq.${window._sbUID}` }, sbReloadDados)
@@ -165,11 +167,13 @@ async function sbCarregarDados() {
     const uid = window._sbUID;
 
     // Paralelo: busca todas as tabelas ao mesmo tempo
-    const [rLanc, rPlan, rBolsos, rMovs, rDiv, rPag, rCart, rOrc] = await Promise.all([
+    const [rLanc, rPlan, rBolsos, rMovs, rContas, rDiv, rPag, rCart, rOrc] = await Promise.all([
       _supa.from('lancamentos').select('*').eq('uid', uid).order('data_lancto', { ascending: false }),
       _supa.from('planejamentos').select('*').eq('uid', uid).order('data_prevista', { ascending: true }),
       _supa.from('bolsos').select('*').eq('uid', uid).order('created_at', { ascending: true }),
       _supa.from('bolso_movimentos').select('*').eq('uid', uid).order('data_mov', { ascending: false }),
+      // Ordem por id ascendente: a conta mais antiga é sempre a padrão (ver contaPadraoId).
+      _supa.from('contas_correntes').select('*').eq('uid', uid).order('id', { ascending: true }),
       _supa.from('dividas').select('*').eq('uid', uid).order('criado_em', { ascending: false }),
       _supa.from('pagamentos_divida').select('*').eq('uid', uid).order('data_pag', { ascending: false }),
       _supa.from('cartoes').select('*').eq('uid', uid).order('criado_em', { ascending: false }),
@@ -178,7 +182,8 @@ async function sbCarregarDados() {
 
     const falhas = [
       ['lancamentos', rLanc], ['planejamentos', rPlan], ['bolsos', rBolsos],
-      ['bolso_movimentos', rMovs], ['dividas', rDiv], ['pagamentos_divida', rPag],
+      ['bolso_movimentos', rMovs], ['contas_correntes', rContas],
+      ['dividas', rDiv], ['pagamentos_divida', rPag],
       ['cartoes', rCart], ['orcamentos_categoria', rOrc]
     ].filter(([, r]) => r.error);
     if (falhas.length > 0) {
@@ -207,6 +212,10 @@ async function sbCarregarDados() {
         movimentos: movs.filter(m => m.bolso_id === b.id).map(sbMovToApp)
       }));
       localStorage.setItem('bussola_bolsos', JSON.stringify(APP.bolsos));
+    }
+    if (rContas.data) {
+      APP.contas = rContas.data.map(c => ({ id: c.id, nome: c.nome }));
+      localStorage.setItem('bussola_contas', JSON.stringify(APP.contas));
     }
     if (rDiv.data) {
       // Múltiplas dívidas: o banco sempre suportou (tabela `dividas`), o app é que
@@ -285,6 +294,9 @@ function sbLancToApp(r) {
     pagoDoBolso: r.pago_do_bolso||false,
     // Receita que entrou direto num bolso (espelho do pagoDoBolso).
     recebidoNoBolso: r.recebido_no_bolso||false,
+    // Conta corrente do lançamento. null/ausente = conta padrão (a mais antiga):
+    // é o que mantém compatível todo lançamento criado antes de existir contas.
+    contaId: r.conta_id||null,
     pagamentoDivida: r.pagamento_divida||false,
     // Cartão de crédito: compra (cartaoId + faturaRef) ou pagamento de fatura
     // (faturaPagamento). Compras não tocam a CC até a fatura ser paga.
@@ -360,6 +372,22 @@ window._sbSync = async function(patch) {
   try {
     const uid = window._sbUID;
 
+    /* Contas correntes — mesmo padrão dos bolsos (upsert item a item +
+       delete-orphans). Sem tabela de movimentos: o saldo de cada conta é sempre
+       derivado dos lançamentos que apontam pra ela.
+       Vai ANTES dos lançamentos: lancamentos.conta_id só pode apontar para uma
+       conta que já exista (importa se um dia a coluna ganhar FK). O delete das
+       contas removidas, por simetria, fica DEPOIS dos lançamentos. */
+    if (patch.contas) {
+      for (const c of patch.contas) {
+        if (!c || !c.id) continue;
+        const { error: errC } = await _supa.from('contas_correntes').upsert({
+          id: c.id, uid, nome: c.nome
+        }, { onConflict: 'id' });
+        houveErro = _sbErr('contas_correntes.upsert', errC) || houveErro;
+      }
+    }
+
     if (patch.dados) {
       // Upsert todos os lançamentos
       const rows = (patch.dados).map(d => ({
@@ -373,6 +401,7 @@ window._sbSync = async function(patch) {
         de_bolso: d.deBolso||false, bolso_id: d.bolsoId||null,
         pago_do_bolso: d.pagoDoBolso||false,
         recebido_no_bolso: d.recebidoNoBolso||false,
+        conta_id: d.contaId||null,
         pagamento_divida: d.pagamentoDivida||false,
         cartao_id: d.cartaoId||null,
         fatura_ref: d.faturaRef||null,
@@ -396,6 +425,20 @@ window._sbSync = async function(patch) {
             const { error } = await _supa.from('lancamentos').delete().in('id', toDelete).eq('uid', uid);
             houveErro = _sbErr('lancamentos.delete', error) || houveErro;
           }
+        }
+      }
+    }
+
+    // Remove contas excluídas (depois dos lançamentos, que podem referenciá-las)
+    if (patch.contas && _sbPodeApagarOrfaos()) {
+      const { data: remote, error: errSel } = await _supa.from('contas_correntes').select('id').eq('uid', uid);
+      houveErro = _sbErr('contas_correntes.select', errSel) || houveErro;
+      if (remote && !errSel) {
+        const localIds = new Set((patch.contas).map(c => c.id));
+        const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+        if (toDelete.length > 0) {
+          const { error } = await _supa.from('contas_correntes').delete().in('id', toDelete).eq('uid', uid);
+          houveErro = _sbErr('contas_correntes.delete', error) || houveErro;
         }
       }
     }
@@ -579,7 +622,7 @@ window._sbSync = async function(patch) {
 window.sbSyncTodos = async function() {
   if (!window._sbReady) return;
   await window._sbSync({
-    dados: APP.dados, plan: APP.plan, bolsos: APP.bolsos,
+    dados: APP.dados, plan: APP.plan, bolsos: APP.bolsos, contas: APP.contas,
     dividas: APP.dividas, pagamentos: APP.pagamentos,
     cartoes: APP.cartoes, orcamentos: APP.orcamentos
   });
@@ -2250,6 +2293,10 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       </div>
       <div class="rec-hint" style="margin-top:8px">Use isto pra rendimento de poupança/investimento, ou qualquer receita que já nasce dentro de um bolso — o valor entra como receita normal em Registros, mas credita o bolso escolhido em vez da Conta Corrente.</div>
     </div>
+    <!-- CONTA CORRENTE (só aparece com mais de uma conta cadastrada) -->
+    <div class="rec-box" id="lanc-conta-wrap" style="display:none">
+      <div class="fi" style="margin-bottom:0"><label>🏦 De qual conta corrente?</label><div class="sw"><select id="lanc-conta-sel"></select></div></div>
+    </div>
     <!-- COMPRA NO CARTÃO DE CRÉDITO (só aparece em Débito e com cartão cadastrado) -->
     <div class="rec-box" id="lanc-cartao-box" style="display:none">
       <div class="fi" style="margin-bottom:0"><label>💳 Cartão de crédito (opcional)</label><div class="sw"><select id="lanc-cartao-sel" onchange="atualizarVisibilidadeOrigemLanc()">
@@ -2612,6 +2659,14 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="sec">Visão geral do patrimônio</div>
     <div id="inv-patrimonio-wrap">
       <!-- preenchido por renderInvestimentos() -->
+    </div>
+
+    <!-- Contas correntes -->
+    <div class="inv-form-box">
+      <div class="inv-form-title">🏦 Contas correntes</div>
+      <div class="fi"><label>Nome da conta</label><input type="text" id="inv-conta-nome" placeholder="Ex: Santander, Banco do Brasil..." autocomplete="off"></div>
+      <button class="btn-add azul" id="inv-conta-btn" onclick="criarConta()"><span>+</span> Criar conta corrente</button>
+      <button id="inv-conta-cancelar" onclick="cancelarEdicaoConta()" style="display:none;width:100%;margin-top:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:9px;color:var(--text2);font-family:var(--sans);font-size:.8rem;cursor:pointer">Cancelar edição</button>
     </div>
 
     <!-- Grid de bolsos -->
@@ -3480,6 +3535,7 @@ const ICONS={Receita:'💰','Despesas fixas':'🏠','Despesas variaveis':'🛒',
 APP.dados=JSON.parse(localStorage.getItem('gastos_v2')||'[]');
 APP.plan=JSON.parse(localStorage.getItem('gastos_plan')||'[]');
 APP.bolsos=JSON.parse(localStorage.getItem('bussola_bolsos')||'[]');
+APP.contas=JSON.parse(localStorage.getItem('bussola_contas')||'[]');
 /* Migração automática: 'bussola_divida' guardava UM objeto; agora é um array. */
 const _rawDivida=JSON.parse(localStorage.getItem('bussola_divida')||'null');
 APP.dividas=Array.isArray(_rawDivida)?_rawDivida:(_rawDivida?[_rawDivida]:[]);
@@ -3490,6 +3546,8 @@ let mov='Debito',planMov='Debito',invMov='deposito',execId=null;
 /* Estado da aba Dívidas: qual dívida está aberta no detalhe e qual está em edição
    (null = criando uma nova). */
 let dividaVisualizandoId=null,dividaEmEdicaoId=null,dividaCriandoNova=false;
+/* Conta corrente sendo renomeada na aba Carteira (null = criando uma nova). */
+let contaEmEdicaoId=null;
 /* Mesmo esquema para os cartões de crédito (segunda seção da mesma aba). */
 let cartaoVisualizandoId=null,cartaoEmEdicaoId=null,cartaoCriandoNovo=false;
 /* Meses escolhidos no "replicar agendamento". Guarda RÓTULOS COMPLETOS
@@ -5322,6 +5380,7 @@ function planoEfetivo(){
 
 const LIMITE_TRANSACOES_BASICO = 35;
 const LIMITE_BOLSOS_BASICO     = 1;
+const LIMITE_CONTAS_BASICO     = 1;
 const LIMITE_CARTOES_PLUS      = 1;
 
 /* Conta lançamentos do MÊS ATUAL (mesmo vocabulário 'mmm/aa' usado em toda
@@ -6946,6 +7005,11 @@ function salvarBolsos(){
   window._sbUltimaEscritaLocal = Date.now();
   if(window._sbSync) window._sbSync({ bolsos: APP.bolsos });
 }
+function salvarContas(){
+  localStorage.setItem('bussola_contas',JSON.stringify(APP.contas));
+  window._sbUltimaEscritaLocal = Date.now();
+  if(window._sbSync) window._sbSync({ contas: APP.contas });
+}
 function salvarDivida(){
   localStorage.setItem('bussola_divida',JSON.stringify(APP.dividas));
   localStorage.setItem('bussola_pagamentos',JSON.stringify(APP.pagamentos));
@@ -7153,7 +7217,7 @@ function exportarCSV(){
 
 function exportarBackup(){
   try{
-    const b={gastos:localStorage.getItem('gastos_v2'),planejamento:localStorage.getItem('gastos_plan'),bolsos:localStorage.getItem('bussola_bolsos'),divida:localStorage.getItem('bussola_divida'),pagamentos:localStorage.getItem('bussola_pagamentos'),cartoes:localStorage.getItem('bussola_cartoes'),versao:APP_VERSION,exportadoEm:new Date().toISOString()};
+    const b={gastos:localStorage.getItem('gastos_v2'),planejamento:localStorage.getItem('gastos_plan'),bolsos:localStorage.getItem('bussola_bolsos'),contas:localStorage.getItem('bussola_contas'),divida:localStorage.getItem('bussola_divida'),pagamentos:localStorage.getItem('bussola_pagamentos'),cartoes:localStorage.getItem('bussola_cartoes'),versao:APP_VERSION,exportadoEm:new Date().toISOString()};
     const blob=new Blob([JSON.stringify(b,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=`backup_bussola_${new Date().toISOString().split('T')[0]}.json`;a.click();URL.revokeObjectURL(url);
@@ -7169,6 +7233,7 @@ function importarBackup(event){
       if(bk.gastos)localStorage.setItem('gastos_v2',bk.gastos);
       if(bk.planejamento)localStorage.setItem('gastos_plan',bk.planejamento);
       if(bk.bolsos)localStorage.setItem('bussola_bolsos',bk.bolsos);
+      if(bk.contas)localStorage.setItem('bussola_contas',bk.contas);
       if(bk.divida)localStorage.setItem('bussola_divida',bk.divida);
       if(bk.pagamentos)localStorage.setItem('bussola_pagamentos',bk.pagamentos);
       if(bk.cartoes)localStorage.setItem('bussola_cartoes',bk.cartoes);
@@ -7320,7 +7385,124 @@ function calcSaldoCC(){
   // pagamento, que tem faturaPagamento=true, entra normalmente na conta).
   // Simétrico do lado da receita: recebimento que entrou direto num bolso
   // (recebidoNoBolso) também fica de fora — o dinheiro nunca passou pela CC.
+  // Com múltiplas contas correntes este valor é o TOTAL agregado (soma de
+  // todas): o filtro não olha contaId, então cobre as contas nomeadas e os
+  // lançamentos sem contaId (= conta padrão) de uma vez só.
   return somaRecDesp(APP.dados.filter(d=>!d.pagoDoBolso&&!d.recebidoNoBolso&&!(d.cartaoId&&!d.faturaPagamento)),true).saldo;
+}
+
+/* ── Múltiplas contas correntes ──
+   Lançamento sem contaId pertence à conta PADRÃO (a mais antiga). É isso que
+   dispensa migração em massa: todo dado criado antes desta feature continua
+   válido e some no lugar certo. */
+function contaPadraoId(){
+  return APP.contas.length?APP.contas[0].id:null;
+}
+
+function getConta(id){
+  return APP.contas.find(c=>String(c.id)===String(id))||null;
+}
+
+/* Conta efetiva de um lançamento, já resolvendo o null para a padrão. */
+function contaDoLanc(d){
+  return d.contaId||contaPadraoId();
+}
+
+/* Cria a conta padrão se ainda não existir. Chamada só quando o usuário
+   realmente entra no fluxo de múltiplas contas — assim quem nunca usar a
+   feature não ganha linha nenhuma no banco. */
+function garantirContaPadrao(){
+  if(APP.contas.length)return APP.contas[0];
+  const c={id:novoId(),nome:'Conta Corrente'};
+  APP.contas.push(c);
+  return c;
+}
+
+/* Mesmo filtro do calcSaldoCC, restrito a uma conta. */
+function calcSaldoConta(contaId){
+  const alvo=String(contaId);
+  return somaRecDesp(APP.dados.filter(d=>
+    !d.pagoDoBolso&&!d.recebidoNoBolso&&!(d.cartaoId&&!d.faturaPagamento)
+    &&String(contaDoLanc(d))===alvo
+  ),true).saldo;
+}
+
+function contaTemLancamentos(id){
+  const alvo=String(id);
+  return APP.dados.some(d=>String(contaDoLanc(d))===alvo);
+}
+
+function criarConta(){
+  const inp=document.getElementById('inv-conta-nome');
+  const nome=(inp?.value||'').trim();
+  if(!nome)return toast('⚠️ Informe o nome da conta',true);
+  if(contaEmEdicaoId){
+    const alvo=getConta(contaEmEdicaoId);
+    if(alvo){
+      alvo.nome=nome;
+      salvarContas();renderInvestimentos();
+      cancelarEdicaoConta();
+      toast('✅ Conta renomeada!');
+    }
+    return;
+  }
+  // Conta efetiva hoje: sem nenhuma cadastrada o usuário já tem a padrão implícita.
+  const totalAtual=Math.max(1,APP.contas.length);
+  if(planoEfetivo()==='basico' && totalAtual>=LIMITE_CONTAS_BASICO){
+    toast(`⚠️ O plano Básico permite ${LIMITE_CONTAS_BASICO} conta corrente. Assine o Plus ou o Premium para cadastrar quantas quiser.`, true);
+    setTimeout(assinaturaAbrirPlanos, 900);
+    return;
+  }
+  // A padrão precisa existir ANTES da nova: é ela que passa a receber todos os
+  // lançamentos antigos, que continuam sem contaId.
+  garantirContaPadrao();
+  APP.contas.push({id:novoId(),nome});
+  salvarContas();renderInvestimentos();
+  if(inp)inp.value='';
+  toast('🏦 Conta corrente criada!');
+}
+
+function editarConta(id){
+  const c=getConta(id);if(!c)return;
+  contaEmEdicaoId=c.id;
+  const inp=document.getElementById('inv-conta-nome');
+  if(inp){inp.value=c.nome;inp.focus();}
+  const btn=document.getElementById('inv-conta-btn');
+  if(btn)btn.innerHTML='<span>✓</span> Salvar nome';
+  const cancel=document.getElementById('inv-conta-cancelar');
+  if(cancel)cancel.style.display='block';
+}
+
+function cancelarEdicaoConta(){
+  contaEmEdicaoId=null;
+  const inp=document.getElementById('inv-conta-nome');
+  if(inp)inp.value='';
+  const btn=document.getElementById('inv-conta-btn');
+  if(btn)btn.innerHTML='<span>+</span> Criar conta corrente';
+  const cancel=document.getElementById('inv-conta-cancelar');
+  if(cancel)cancel.style.display='none';
+}
+
+function removerConta(id){
+  const c=getConta(id);
+  if(!c)return;
+  if(APP.contas.length<=1)return toast('⚠️ É preciso manter pelo menos uma conta corrente',true);
+  // Excluir uma conta com lançamentos jogaria esses lançamentos na conta padrão
+  // sem o usuário perceber — melhor bloquear e deixar ele decidir o que fazer.
+  if(contaTemLancamentos(id))
+    return toast(`⚠️ A conta "${c.nome}" tem lançamentos e não pode ser excluída.`,true);
+  confirmar({
+    icone:'🏦',
+    titulo:'Excluir conta corrente?',
+    msg:`A conta "${c.nome}" será removida permanentemente.`,
+    btnTxt:'Excluir conta',
+    cor:'var(--danger)',
+    fn:()=>{
+      APP.contas=APP.contas.filter(x=>String(x.id)!==String(id));
+      if(contaEmEdicaoId&&String(contaEmEdicaoId)===String(id))cancelarEdicaoConta();
+      salvarContas();renderInvestimentos();toast('🗑 Conta removida');
+    }
+  });
 }
 
 function setInvMov(m){
@@ -7553,6 +7735,18 @@ function renderInvestimentos(){
 
   // Painel de patrimônio
   const pw=document.getElementById('inv-patrimonio-wrap');
+  // Com 0 ou 1 conta cadastrada a tela é a de sempre: card único de CC.
+  const ccCard=APP.contas.length>1
+    ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
+        <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">🏦 Total em contas correntes</div>
+        <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:${saldoCC>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(saldoCC).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:3px">${APP.contas.length} contas</div>
+      </div>`
+    : `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
+        <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">🏦 Conta corrente</div>
+        <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:${saldoCC>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(saldoCC).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+        <div style="font-size:.62rem;color:var(--text3);margin-top:3px">Baseado nos Registros</div>
+      </div>`;
   pw.innerHTML=`
     <div class="inv-saldo-card" style="margin-bottom:10px">
       <div class="inv-saldo-label">Patrimônio total</div>
@@ -7560,17 +7754,28 @@ function renderInvestimentos(){
       <div class="inv-saldo-sub">Conta corrente + bolsos</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
-        <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">🏦 Conta corrente</div>
-        <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:${saldoCC>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(saldoCC).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
-        <div style="font-size:.62rem;color:var(--text3);margin-top:3px">Baseado nos Registros</div>
-      </div>
+      ${ccCard}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--teal)">
         <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">💰 Total em bolsos</div>
         <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:var(--teal)"><span class="val-txt">R$ ${totalBolsos.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
         <div style="font-size:.62rem;color:var(--text3);margin-top:3px">${APP.bolsos.length} bolso${APP.bolsos.length!==1?'s':''}</div>
       </div>
-    </div>`;
+    </div>
+    ${APP.contas.length>1?`<div class="bolsos-grid">
+      ${APP.contas.map(c=>{
+        const s=calcSaldoConta(c.id);
+        return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
+          <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">🏦 ${escHtml(c.nome)}</div>
+          <div class="s-val" style="font-family:var(--mono);font-size:.95rem;font-weight:500;color:${s>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(s).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+          <div style="display:flex;gap:6px;margin-top:7px">
+            <button onclick="editarConta(${c.id})" style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;padding:5px;color:var(--text2);font-size:.66rem;cursor:pointer;font-family:var(--sans)">✏️ Renomear</button>
+            <button onclick="removerConta(${c.id})" style="flex:1;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:7px;padding:5px;color:var(--danger);font-size:.66rem;cursor:pointer;font-family:var(--sans)">🗑 Excluir</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`:''}`;
+
+  atualizarVisibilidadeContaLanc();
 
   // Atualiza select de bolsos na movimentação
   const sel=document.getElementById('inv-bolso-sel');
@@ -7666,6 +7871,15 @@ function addLancamento(){
       if(!destBolso)return toast('⚠️ Bolso não encontrado',true);
     }
   }
+  // ── Conta corrente do lançamento (só com mais de uma conta cadastrada) ──
+  // Fora desse caso contaSelId fica null e o lançamento cai na conta padrão,
+  // exatamente como todo lançamento anterior a esta feature.
+  let contaSelId=null;
+  if(APP.contas.length>1&&document.getElementById('lanc-conta-wrap')?.style.display!=='none'){
+    contaSelId=parseInt(document.getElementById('lanc-conta-sel')?.value||'0')||null;
+    if(contaSelId&&!getConta(contaSelId))return toast('⚠️ Conta corrente não encontrada',true);
+  }
+
   // ── Pagamento de dívida (opcional): qual dívida recebe a baixa ──
   // Compra no cartão nunca é pagamento de dívida (o seletor fica escondido).
   const ehDivida=!!(!cartaoSel&&APP.dividas.length&&document.getElementById('lanc-divida-chk')?.checked);
@@ -7724,6 +7938,7 @@ function addLancamento(){
     // Receita que entra direto num bolso: espelho do pagoDoBolso. Conta como
     // receita em Registros/Dashboard, mas fica fora do saldo da CC.
     if(destOrigem==='bolso'){lanc.recebidoNoBolso=true;lanc.bolsoId=destBolso.id;}
+    if(contaSelId)lanc.contaId=contaSelId;
     APP.dados.push(lanc);
     salvar();atualizarStats();
   }
@@ -7981,11 +8196,35 @@ function atualizarVisibilidadeOrigemLanc(){
       toggleLancDestinoBolso();
     }
   }
+  atualizarVisibilidadeContaLanc();
+}
+
+/* Seletor de conta corrente: só faz sentido com mais de uma conta cadastrada E
+   quando o lançamento realmente cai na CC (débito comum ou crédito recebido na
+   conta). Compra no cartão, baixa do bolso e receita direto no bolso não passam
+   pela CC — nesses casos o seletor some, igual aos outros sub-seletores. */
+function atualizarVisibilidadeContaLanc(){
+  const wrap=document.getElementById('lanc-conta-wrap');
+  if(!wrap)return;
+  const comCartao=mov==='Debito'&&!!document.getElementById('lanc-cartao-sel')?.value;
+  const origem=document.getElementById('lanc-divida-origem')?.value||'cc';
+  const destino=document.getElementById('lanc-destino-sel')?.value||'cc';
+  const ehCC=(mov==='Debito'&&!comCartao&&origem==='cc')||(mov==='Credito'&&destino==='cc');
+  const mostrar=APP.contas.length>1&&ehCC;
+  wrap.style.display=mostrar?'block':'none';
+  if(!mostrar)return;
+  const sel=document.getElementById('lanc-conta-sel');
+  if(!sel)return;
+  const prev=sel.value;
+  sel.innerHTML='';
+  APP.contas.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=`🏦 ${c.nome}`;sel.appendChild(o);});
+  if(prev&&APP.contas.some(c=>String(c.id)===String(prev)))sel.value=prev;
 }
 function toggleLancDestinoBolso(){
   const v=document.getElementById('lanc-destino-sel')?.value||'cc';
   const wrap=document.getElementById('lanc-destino-bolso-wrap');
   if(wrap)wrap.style.display=v==='bolso'?'block':'none';
+  atualizarVisibilidadeContaLanc();
   if(v==='bolso'){
     const sel=document.getElementById('lanc-destino-bolso-sel');
     if(!sel)return;
@@ -8009,6 +8248,7 @@ function toggleLancBolso(){
   const v=document.getElementById('lanc-divida-origem')?.value||'cc';
   const wrap=document.getElementById('lanc-divida-bolso-wrap');
   if(wrap)wrap.style.display=v==='bolso'?'block':'none';
+  atualizarVisibilidadeContaLanc();
   if(v==='bolso'){
     const sel=document.getElementById('lanc-divida-bolso-sel');
     if(!sel)return;
@@ -8029,6 +8269,7 @@ function resetLancDivida(){
   const dS=document.getElementById('lanc-destino-sel');if(dS)dS.value='cc';
   const dW=document.getElementById('lanc-destino-bolso-wrap');if(dW)dW.style.display='none';
   atualizarVisibilidadeOrigemLanc();
+  atualizarVisibilidadeContaLanc();
 }
 
 /* ── Migração: todo pagamento do ledger aparece em Registros ──
