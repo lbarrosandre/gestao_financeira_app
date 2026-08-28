@@ -702,15 +702,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex
 .update-banner.show{display:block}
 @keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:none;opacity:1}}
 
+/* ─── ÁREA SEGURA (recorte de câmera / status bar) ───
+   Antes disto era resolvido com `padding:max(calc(var(--safe-top)+Npx),Mpx)`
+   no próprio topbar/hero. Trocado porque a função CSS max() combinada com
+   calc()+env() aninhados não é suportada em toda WebView Android — quando
+   falha, o navegador invalida a declaração de padding INTEIRA (não só a
+   parte quebrada), e o conteúdo cola na borda física da tela, exatamente o
+   relato de sobreposição em aparelho real mesmo após reinstalar o app.
+   Esta div é um bloco separado, sempre visível, com altura fixa em calc()
+   puro (sem max() nenhum — suporte muito mais amplo) — se o env() falhar
+   por qualquer motivo, ainda sobra o piso de 44px, nunca zero. */
+.safe-spacer{height:calc(44px + var(--safe-top));background:var(--bg);flex-shrink:0;align-self:stretch;width:100%}
+
 /* ─── TOPBAR ─────────────────────────── */
-/* max() em vez de só calc(): em alguns iPhones, quando o app está instalado
-   (modo standalone, não Safari), o iOS às vezes reporta env(safe-area-inset-top)
-   como 0 mesmo havendo recorte de câmera/Ilha Dinâmica de verdade — bug/
-   inconsistência conhecida do sistema, não do nosso CSS. O max(...,100px)
-   garante uma folga mínima segura mesmo quando isso acontece, sem mudar nada
-   nos aparelhos onde env() já funciona certo (ali o cálculo normal já é maior
-   que 100px, então o max() não altera o resultado). */
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:max(calc(var(--safe-top)+56px),100px) 18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10;gap:12px}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:24px 18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10;gap:12px}
 .topbar-brand{display:flex;align-items:center;gap:10px;min-width:0}
 .topbar-logo{width:50px;height:50px;border-radius:14px;overflow:hidden;flex-shrink:0}
 .topbar-logo img{width:100%;height:100%;object-fit:cover}
@@ -1152,8 +1157,8 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 /* Landing hero */
 .auth-hero{
   display:flex;flex-direction:column;align-items:center;
-  /* max() por segurança — mesmo motivo do .topbar, ver comentário lá. */
-  padding:max(calc(var(--safe-top)+40px),90px) 24px 0;
+  /* Área segura tratada pelo .safe-spacer logo acima — ver comentário dele. */
+  padding:32px 24px 0;
   text-align:center;position:relative;z-index:1;
 }
 .auth-logo-wrap{position:relative;margin-bottom:20px;animation:sDrop .6s cubic-bezier(.22,1,.36,1) both}
@@ -1875,6 +1880,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
+  <div class="safe-spacer"></div>
   <div class="auth-bg-glow"></div>
 
   <!-- Hero / Landing -->
@@ -2167,6 +2173,8 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
 <!-- APP -->
 <div id="appRoot" style="display:none;flex:1;flex-direction:column;height:100%;min-height:0;overflow:hidden">
+
+<div class="safe-spacer"></div>
 
 <div class="update-banner" id="updateBanner" onclick="aplicarUpdate()">🔄 Nova versão disponível — toque para atualizar</div>
 
