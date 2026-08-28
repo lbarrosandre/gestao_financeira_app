@@ -2715,6 +2715,10 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div id="inv-origem-bolso-wrap" style="display:none">
           <div class="fi" style="margin-bottom:0"><label id="inv-origem-bolso-label">Bolso origem</label><div class="sw"><select id="inv-origem-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
         </div>
+        <!-- Conta corrente da transferência (só aparece com mais de uma conta cadastrada) -->
+        <div id="inv-origem-conta-wrap" style="display:none">
+          <div class="fi" style="margin-bottom:0"><label>🏦 Qual conta corrente?</label><div class="sw"><select id="inv-origem-conta-sel"></select></div></div>
+        </div>
         <div style="font-size:.7rem;color:var(--text3);line-height:1.5;margin-top:6px" id="inv-origem-hint">💡 O valor será debitado da sua conta corrente e creditado no bolso.</div>
         <div id="inv-cc-saldo-row" style="margin-top:6px;background:var(--surface2);border-radius:8px;padding:8px 11px;display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:.68rem;color:var(--text3)">Saldo disponível na CC</span>
@@ -2808,6 +2812,10 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         </select></div></div>
         <div id="cartao-pag-bolso-wrap" style="display:none">
           <div class="fi"><label>Bolso origem</label><div class="sw"><select id="cartao-pag-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
+        </div>
+        <!-- Conta corrente do pagamento (só aparece com mais de uma conta cadastrada) -->
+        <div id="cartao-pag-conta-wrap" style="display:none">
+          <div class="fi"><label>🏦 Qual conta corrente?</label><div class="sw"><select id="cartao-pag-conta-sel"></select></div></div>
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn-add azul" onclick="confirmarPagarFatura()" style="flex:1"><span>✓</span> Confirmar pagamento</button>
@@ -7531,6 +7539,7 @@ function onInvOrigemChange(){
   const bolsoLabel=document.getElementById('inv-origem-bolso-label');
   if(wrap)wrap.style.display=v==='bolso'?'block':'none';
   if(ccRow)ccRow.style.display=v==='cc'?'flex':'none';
+  atualizarVisibilidadeContaBolso();
   if(v==='bolso'){
     // Popula bolsos disponíveis (exceto o bolso destino/origem principal)
     const sel=document.getElementById('inv-origem-bolso-sel');
@@ -7545,6 +7554,24 @@ function onInvOrigemChange(){
   };
   if(hint)hint.textContent=hints[invMov]?.[v]||'';
   atualizarSaldoCCDisplay();
+}
+
+/* Sub-seletor de conta corrente da transferência bolso↔CC: mesma regra do
+   +Lançar — só aparece com mais de uma conta cadastrada e quando o dinheiro
+   realmente passa pela CC. Escondido, o lançamento cai na conta padrão. */
+function atualizarVisibilidadeContaBolso(){
+  const wrap=document.getElementById('inv-origem-conta-wrap');
+  if(!wrap)return;
+  const v=document.getElementById('inv-origem-sel')?.value||'cc';
+  const mostrar=APP.contas.length>1&&v==='cc';
+  wrap.style.display=mostrar?'block':'none';
+  if(!mostrar)return;
+  const sel=document.getElementById('inv-origem-conta-sel');
+  if(!sel)return;
+  const prev=sel.value;
+  sel.innerHTML='';
+  APP.contas.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=`🏦 ${c.nome}`;sel.appendChild(o);});
+  if(prev&&APP.contas.some(c=>String(c.id)===String(prev)))sel.value=prev;
 }
 
 function toggleInvCC(){
@@ -7591,6 +7618,13 @@ function addMovBolso(){
   if(!b)return;
   if(invMov==='retirada'&&vl>b.saldo)return toast('⚠️ Saldo insuficiente no bolso',true);
   const origemSel=document.getElementById('inv-origem-sel')?.value||'cc';
+  // Valida a conta antes de mexer no saldo do bolso: com o seletor escondido
+  // contaSelId fica null e o lançamento cai na conta padrão.
+  let contaSelId=null;
+  if(origemSel==='cc'&&APP.contas.length>1&&document.getElementById('inv-origem-conta-wrap')?.style.display!=='none'){
+    contaSelId=parseInt(document.getElementById('inv-origem-conta-sel')?.value||'0')||null;
+    if(contaSelId&&!getConta(contaSelId))return toast('⚠️ Conta corrente não encontrada',true);
+  }
 
   const delta=invMov==='deposito'?vl:-vl;
   b.saldo+=delta;
@@ -7604,19 +7638,22 @@ function addMovBolso(){
     // Mês de referência com o ANO REAL da data informada (antes o rótulo
     // vinha de MESES, que só tem o ano corrente).
     const mesRef=mesRefDeISO(data);
+    let lanc;
     if(invMov==='deposito'){
-      APP.dados.push({id:lancId,data:`${d}/${mm}/${y}`,dataISO:data,mes:mesRef,
+      lanc={id:lancId,data:`${d}/${mm}/${y}`,dataISO:data,mes:mesRef,
         descricao:('TRANSF → '+b.nome+' — '+desc).toUpperCase(),
         movimento:'Debito',valor:-Math.abs(vl),valorAbs:Math.abs(vl),
         categoria:'Compromissos Financeiros',classificacao:'Despesas',
-        tipo:'Despesas fixas',dePlan:false,recorrente:false,deBolso:true,bolsoId:bid});
+        tipo:'Despesas fixas',dePlan:false,recorrente:false,deBolso:true,bolsoId:bid};
     } else {
-      APP.dados.push({id:lancId,data:`${d}/${mm}/${y}`,dataISO:data,mes:mesRef,
+      lanc={id:lancId,data:`${d}/${mm}/${y}`,dataISO:data,mes:mesRef,
         descricao:('RESGATE ← '+b.nome+' — '+desc).toUpperCase(),
         movimento:'Credito',valor:Math.abs(vl),valorAbs:Math.abs(vl),
         categoria:'Rendimentos Financeiros',classificacao:'Receita',
-        tipo:'Receita',dePlan:false,recorrente:false,deBolso:true,bolsoId:bid});
+        tipo:'Receita',dePlan:false,recorrente:false,deBolso:true,bolsoId:bid};
     }
+    if(contaSelId)lanc.contaId=contaSelId;
+    APP.dados.push(lanc);
     salvar();atualizarStats();
   } else if(origemSel==='bolso'){
     // Transferência entre bolsos
@@ -7776,6 +7813,7 @@ function renderInvestimentos(){
     </div>`:''}`;
 
   atualizarVisibilidadeContaLanc();
+  atualizarVisibilidadeContaBolso();
 
   // Atualiza select de bolsos na movimentação
   const sel=document.getElementById('inv-bolso-sel');
@@ -8748,6 +8786,18 @@ function toggleCartaoPagBolso(){
   const v=document.getElementById('cartao-pag-origem')?.value||'cc';
   const wrap=document.getElementById('cartao-pag-bolso-wrap');
   if(wrap)wrap.style.display=v==='bolso'?'block':'none';
+  const contaWrap=document.getElementById('cartao-pag-conta-wrap');
+  if(contaWrap){
+    const mostrarConta=APP.contas.length>1&&v==='cc';
+    contaWrap.style.display=mostrarConta?'block':'none';
+    const cs=document.getElementById('cartao-pag-conta-sel');
+    if(mostrarConta&&cs){
+      const prevC=cs.value;
+      cs.innerHTML='';
+      APP.contas.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=`🏦 ${c.nome}`;cs.appendChild(o);});
+      if(prevC&&APP.contas.some(c=>String(c.id)===String(prevC)))cs.value=prevC;
+    }
+  }
   if(v==='bolso'){
     const sel=document.getElementById('cartao-pag-bolso-sel');
     if(!sel)return;
@@ -8774,6 +8824,12 @@ function confirmarPagarFatura(){
     if(!bolso)return toast('⚠️ Bolso não encontrado',true);
     if(valor>bolso.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${bolso.nome}"`,true);
   }
+  // Sem seletor visível contaSelId fica null e o débito cai na conta padrão.
+  let contaSelId=null;
+  if(origem==='cc'&&APP.contas.length>1&&document.getElementById('cartao-pag-conta-wrap')?.style.display!=='none'){
+    contaSelId=parseInt(document.getElementById('cartao-pag-conta-sel')?.value||'0')||null;
+    if(contaSelId&&!getConta(contaSelId))return toast('⚠️ Conta corrente não encontrada',true);
+  }
   const h=new Date();
   const iso=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
   const[y,m,d]=iso.split('-');
@@ -8787,6 +8843,7 @@ function confirmarPagarFatura(){
     dePlan:false,recorrente:false,
     cartaoId:c.id,faturaPagamento:true};
   if(origem==='bolso'){lanc.pagoDoBolso=true;lanc.bolsoId=bolso.id;}
+  if(contaSelId)lanc.contaId=contaSelId;
   APP.dados.push(lanc);
   salvar();
 
