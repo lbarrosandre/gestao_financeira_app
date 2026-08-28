@@ -2669,9 +2669,13 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <!-- preenchido por renderInvestimentos() -->
     </div>
 
-    <!-- Contas correntes -->
+    <!-- Minhas contas correntes (mesmo padrão de "Meus bolsos": grid primeiro, form de criação logo abaixo) -->
+    <div class="sec">Minhas contas correntes</div>
+    <div class="bolsos-grid" id="contas-grid">
+      <div class="empty" style="grid-column:1/-1;padding:20px 0"><div class="empty-v">🏦</div><h4>Só a conta padrão</h4><p style="font-size:.75rem">Cadastre outra abaixo se tiver mais de uma conta bancária.</p></div>
+    </div>
     <div class="inv-form-box">
-      <div class="inv-form-title">🏦 Contas correntes</div>
+      <div class="inv-form-title">🏦 Nova conta corrente</div>
       <div class="fi"><label>Nome da conta</label><input type="text" id="inv-conta-nome" placeholder="Ex: Santander, Banco do Brasil..." autocomplete="off"></div>
       <button class="btn-add azul" id="inv-conta-btn" onclick="criarConta()"><span>+</span> Criar conta corrente</button>
       <button id="inv-conta-cancelar" onclick="cancelarEdicaoConta()" style="display:none;width:100%;margin-top:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:9px;color:var(--text2);font-family:var(--sans);font-size:.8rem;cursor:pointer">Cancelar edição</button>
@@ -7515,6 +7519,34 @@ function removerConta(id){
   });
 }
 
+/* Grid próprio das contas correntes — mesmo padrão visual do grid de bolsos
+   (.bolso-card, com a listra colorida no topo), só que sem abrir um detalhe:
+   as duas ações (renomear/excluir) já cabem como ícones no canto do próprio
+   card, porque não há histórico de movimentos pra mostrar como no bolso. */
+function atualizarContasGrid(){
+  const g=document.getElementById('contas-grid');
+  if(!g)return;
+  if(!APP.contas.length){
+    g.innerHTML='<div class="empty" style="grid-column:1/-1;padding:20px 0"><div class="empty-v">🏦</div><h4>Só a conta padrão</h4><p style="font-size:.75rem">Cadastre outra abaixo se tiver mais de uma conta bancária.</p></div>';
+    return;
+  }
+  g.innerHTML=APP.contas.map(c=>{
+    const s=calcSaldoConta(c.id);
+    return `<div class="bolso-card bc-blue" style="cursor:default">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+        <div style="min-width:0">
+          <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🏦 ${escHtml(c.nome)}</div>
+          <div class="s-val" style="font-family:var(--mono);font-size:.95rem;font-weight:500;color:${s>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(s).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="editarConta(${c.id})" title="Renomear" style="width:26px;height:26px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-size:.7rem;cursor:pointer;flex-shrink:0">✏️</button>
+          <button onclick="removerConta(${c.id})" title="Excluir" style="width:26px;height:26px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:7px;color:var(--danger);font-size:.7rem;cursor:pointer;flex-shrink:0">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function setInvMov(m){
   invMov=m;
   document.getElementById('inv-btn-dep').className='tog credito'+(m==='deposito'?' ativo':'');
@@ -7799,21 +7831,9 @@ function renderInvestimentos(){
         <div class="s-val" style="font-family:var(--mono);font-size:1rem;font-weight:500;color:var(--teal)"><span class="val-txt">R$ ${totalBolsos.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
         <div style="font-size:.62rem;color:var(--text3);margin-top:3px">${APP.bolsos.length} bolso${APP.bolsos.length!==1?'s':''}</div>
       </div>
-    </div>
-    ${APP.contas.length>1?`<div class="bolsos-grid">
-      ${APP.contas.map(c=>{
-        const s=calcSaldoConta(c.id);
-        return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;border-top:2px solid var(--accent)">
-          <div style="font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">🏦 ${escHtml(c.nome)}</div>
-          <div class="s-val" style="font-family:var(--mono);font-size:.95rem;font-weight:500;color:${s>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(s).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
-          <div style="display:flex;gap:6px;margin-top:7px">
-            <button onclick="editarConta(${c.id})" style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;padding:5px;color:var(--text2);font-size:.66rem;cursor:pointer;font-family:var(--sans)">✏️ Renomear</button>
-            <button onclick="removerConta(${c.id})" style="flex:1;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:7px;padding:5px;color:var(--danger);font-size:.66rem;cursor:pointer;font-family:var(--sans)">🗑 Excluir</button>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`:''}`;
+    </div>`;
 
+  atualizarContasGrid();
   atualizarVisibilidadeContaLanc();
   atualizarVisibilidadeContaBolso();
 
