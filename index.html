@@ -5405,7 +5405,19 @@ const BASICO_AD_BANNER_KEY = 'bussola_basico_ad_fechado';
    Qualquer outro status (trial, atrasado, cancelado, ou sem linha nenhuma)
    cai pro Básico — é o comportamento correto: pagamento atrasado ou
    cancelado não deve manter acesso pago indefinidamente. */
+/* ⚠️ TEMPORÁRIO — enquanto o Google Play Billing não estiver implementado
+   no app Android, ninguém rodando dentro dele tem como pagar nada (o
+   Mercado Pago não vale como cobrança dentro de app publicado na Play
+   Store). Sem isso, todo testador do Teste Fechado cai no Básico e não
+   consegue avaliar Plus/Premium — o que é o próprio propósito do teste.
+   Então dentro do app nativo, todo mundo é tratado como Premium.
+   Não afeta a web (bussolafinance.com.br): lá o Mercado Pago já cobra de
+   verdade, e planoEfetivo() continua olhando a assinatura real.
+   REMOVER esta condição assim que o Play Billing entrar no ar. */
+const APP_LIBERADO_NO_ANDROID = true;
+
 function planoEfetivo(){
+  if(APP_LIBERADO_NO_ANDROID && window.Capacitor?.isNativePlatform?.()) return 'premium';
   const r = window._assinaturaAtual;
   if(!r) return 'basico';
   if(r.status==='ativo' || r.status==='cortesia') return r.plano || 'basico';
