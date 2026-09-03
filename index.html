@@ -612,9 +612,11 @@ window._sbSync = async function(patch) {
     }
 
     if (!houveErro) window._sbSetSyncStatus('synced');
+    return houveErro;
   } catch(e) {
     console.error('_sbSync error:', e);
     window._sbSetSyncStatus('error');
+    return true;
   }
 };
 
@@ -6933,9 +6935,19 @@ function confirmarExec(){
     if(document.getElementById('pane-div')?.classList.contains('ativo'))renderDividasUI();
   }
 
-  salvarPlan();atualizarStatsPlan();renderPlan();fecharSh();
+  // A UI local já reflete o estado certo na hora (a mutação de `p` já
+  // aconteceu acima) — não espera a rede pra isso. Só o AVISO de falha de
+  // sync é que espera a resposta: sem isso, uma gravação remota que falhar
+  // silenciosamente deixa o planejamento "pendente" pra sempre no banco,
+  // mesmo com o pagamento já certo em Registros — e ninguém percebe, porque
+  // o único sinal era um ícone discreto dentro do menu.
+  const syncPromise=salvarPlan();
+  atualizarStatsPlan();renderPlan();fecharSh();
   const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','manual':'✋ Manual'}[origem]||'';
   toast(`✅ Executado! [${origemLabel}]`,false,true);
+  Promise.resolve(syncPromise).then(falhou=>{
+    if(falhou) toast('⚠️ O pagamento foi registrado, mas houve um problema ao salvar no plano. Confira em Planejar e, se ainda aparecer pendente, tente confirmar de novo.',true);
+  });
 }
 
 let valoresVisiveis=false;
@@ -7066,10 +7078,15 @@ function salvar(){
   window._sbUltimaEscritaLocal = Date.now();
   if(window._sbSync) window._sbSync({ dados: APP.dados });
 }
+/* Devolve a Promise do _sbSync (diferente das outras salvarX, que são
+   fire-and-forget) — só pra quem PRECISA saber se a gravação remota deu
+   certo, como confirmarExec(), onde uma falha silenciosa deixava o
+   planejamento marcado como pendente pra sempre mesmo com o pagamento já
+   registrado em Registros. Quem não usar o retorno continua igual. */
 function salvarPlan(){
   localStorage.setItem('gastos_plan',JSON.stringify(APP.plan));
   window._sbUltimaEscritaLocal = Date.now();
-  if(window._sbSync) window._sbSync({ plan: APP.plan });
+  return window._sbSync ? window._sbSync({ plan: APP.plan }) : Promise.resolve(false);
 }
 function salvarBolsos(){
   localStorage.setItem('bussola_bolsos',JSON.stringify(APP.bolsos));
