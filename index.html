@@ -3262,13 +3262,13 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="sh-info"><span class="sh-il">Valor planejado</span><span class="sh-iv" id="sh-vp">R$ 0,00</span></div>
   <div class="fi"><label>Valor real pago R$</label><input type="text" id="sheet-valor-real" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this)"></div>
   <div class="fi"><label>Data de pagamento</label><input type="date" id="sheet-data-pag"></div>
-  <div class="fi"><label>💳 Origem do pagamento</label><div class="sw"><select id="sh-origem" onchange="toggleShBolso()">
-    <option value="cc">🏦 Conta Corrente (lança débito)</option>
-    <option value="bolso">🐷 Poupança / Investimento (retira do bolso)</option>
+  <div class="fi"><label id="sh-origem-label">💳 Origem do pagamento</label><div class="sw"><select id="sh-origem" onchange="toggleShBolso()">
+    <option id="sh-opt-cc" value="cc">🏦 Conta Corrente (lança débito)</option>
+    <option id="sh-opt-bolso" value="bolso">🐷 Poupança / Investimento (retira do bolso)</option>
     <option value="manual">✋ Sem lançamento automático</option>
   </select></div></div>
   <div id="sh-bolso-wrap" style="display:none">
-    <div class="fi"><label>Bolso origem</label><div class="sw"><select id="sh-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
+    <div class="fi"><label id="sh-bolso-label">Bolso origem</label><div class="sw"><select id="sh-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
   </div>
   <div class="sh-btns"><button class="sh-cancel" onclick="fecharSh()">Cancelar</button><button class="sh-ok" onclick="confirmarExec()">✅ Confirmar</button></div>
 </div>
@@ -6861,6 +6861,18 @@ function abrirSh(id){
   document.getElementById('sheet-valor-real').value=p.valorPlanejado.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   document.getElementById('sheet-data-pag').value=new Date().toISOString().split('T')[0];
   document.getElementById('sh-origem').value='cc';
+  // Receita (Crédito): não existe "de onde vem" — é "onde entra". Mesmo
+  // espelho de recebidoNoBolso em addLancamento(), aqui pro fluxo de
+  // confirmar um agendamento (ex: vale combustível caindo direto no bolso).
+  const ehCreditoSh=p.movimento==='Credito';
+  const shLbl=document.getElementById('sh-origem-label');
+  if(shLbl)shLbl.textContent=ehCreditoSh?'💳 Onde esse valor entra?':'💳 Origem do pagamento';
+  const shOptCc=document.getElementById('sh-opt-cc');
+  if(shOptCc)shOptCc.textContent=ehCreditoSh?'🏦 Conta Corrente (lança crédito)':'🏦 Conta Corrente (lança débito)';
+  const shOptBolso=document.getElementById('sh-opt-bolso');
+  if(shOptBolso)shOptBolso.textContent=ehCreditoSh?'🐷 Direto num bolso':'🐷 Poupança / Investimento (retira do bolso)';
+  const shBolsoLbl=document.getElementById('sh-bolso-label');
+  if(shBolsoLbl)shBolsoLbl.textContent=ehCreditoSh?'Bolso destino':'Bolso origem';
   const shBWrap=document.getElementById('sh-bolso-wrap');if(shBWrap)shBWrap.style.display='none';
   document.getElementById('sh-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh').classList.add('show'),10);
@@ -6878,12 +6890,15 @@ function confirmarExec(){
   // Valida a origem ANTES de mutar o plano (senão um retorno antecipado
   // deixava o plano marcado como executado sem lançamento nenhum).
   let bolsoOrigem=null;
+  const ehCreditoExec=p.movimento==='Credito';
   if(origem==='bolso'){
     const bid=parseInt(document.getElementById('sh-bolso-sel')?.value||'0');
-    if(!bid)return toast('⚠️ Selecione o bolso origem',true);
+    if(!bid)return toast('⚠️ Selecione o bolso '+(ehCreditoExec?'destino':'origem'),true);
     bolsoOrigem=APP.bolsos.find(x=>x.id===bid);
     if(!bolsoOrigem)return toast('⚠️ Bolso não encontrado',true);
-    if(Math.abs(vr)>bolsoOrigem.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${bolsoOrigem.nome}"`,true);
+    // Saldo insuficiente só faz sentido tirando dinheiro do bolso (despesa) —
+    // receita entrando não tem restrição nenhuma.
+    if(!ehCreditoExec && Math.abs(vr)>bolsoOrigem.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${bolsoOrigem.nome}"`,true);
   }
 
   // Executar um plano também gera lançamento em APP.dados → conta no limite do
@@ -6906,16 +6921,25 @@ function confirmarExec(){
     salvar();atualizarStats();
   } else if(origem==='bolso'){
     const b=bolsoOrigem;
-    b.saldo-=Math.abs(vr);
     if(!b.movimentos)b.movimentos=[];
-    b.movimentos.unshift({id:lId,tipo:'retirada',valor:Math.abs(vr),desc:p.descricao,data:de,delta:-Math.abs(vr),origemCC:false,dePlan:true});
+    if(ehCreditoExec){
+      // Receita direto no bolso (ex: vale combustível caindo no bolso "Vale
+      // Combustível") — espelho exato do recebidoNoBolso de addLancamento():
+      // soma no bolso, e o lançamento fica marcado pra calcSaldoCC() ignorar
+      // (o dinheiro nunca passou pela conta corrente).
+      b.saldo+=Math.abs(vr);
+      b.movimentos.unshift({id:lId,tipo:'deposito',valor:Math.abs(vr),desc:p.descricao,data:de,delta:Math.abs(vr),origemCC:false,dePlan:true});
+    } else {
+      b.saldo-=Math.abs(vr);
+      b.movimentos.unshift({id:lId,tipo:'retirada',valor:Math.abs(vr),desc:p.descricao,data:de,delta:-Math.abs(vr),origemCC:false,dePlan:true});
+    }
     salvarBolsos();renderInvestimentos();
-    // Também aparece em Registros, com indicação de que a baixa foi na
-    // Poupança (pagoDoBolso) — diferente de deBolso (transferência interna
-    // CC↔bolso): isto É uma despesa real, então entra normal nas somas de
-    // receita/despesa. Só calcSaldoCC() precisa ignorar, pois o dinheiro
+    // Também aparece em Registros — despesa paga do bolso (pagoDoBolso) ou
+    // receita recebida direto no bolso (recebidoNoBolso), espelhos um do
+    // outro. Nos dois casos é um ganho/gasto real (entra normal nas somas de
+    // receita/despesa); só calcSaldoCC() precisa ignorar, pois o dinheiro
     // nunca passou pela conta corrente.
-    APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente,pagoDoBolso:true,pagamentoDivida:p.pagamentoDivida||undefined});
+    APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente,pagoDoBolso:ehCreditoExec?undefined:true,recebidoNoBolso:ehCreditoExec?true:undefined,pagamentoDivida:p.pagamentoDivida||undefined});
     salvar();atualizarStats();
   }
   // 'manual' = sem lançamento automático
@@ -7268,7 +7292,14 @@ function removerPlan(id){
             ||APP.bolsos.find(b=>(b.movimentos||[]).some(m=>m.id===p.lancId));
         if(bOrig){
           const mv=(bOrig.movimentos||[]).find(m=>m.id===p.lancId);
-          bOrig.saldo+=Math.abs(mv?Number(mv.valor)||0:Number(p.valorReal)||0);
+          const valorMv=mv?Number(mv.valor)||0:Number(p.valorReal)||0;
+          // 'deposito' = era receita que ENTROU no bolso (recebidoNoBolso) —
+          // estornar tira de volta. 'retirada' = era despesa paga DO bolso
+          // (pagoDoBolso) — estornar devolve. Sinais opostos de propósito.
+          // Sem `mv` (plano antigo, de antes dessa distinção existir), cai no
+          // comportamento de sempre: assume despesa e devolve.
+          if(mv?.tipo==='deposito') bOrig.saldo-=Math.abs(valorMv);
+          else bOrig.saldo+=Math.abs(valorMv);
           bOrig.movimentos=(bOrig.movimentos||[]).filter(m=>m.id!==p.lancId);
         }
         APP.dados=APP.dados.filter(d=>d.id!==p.lancId);
