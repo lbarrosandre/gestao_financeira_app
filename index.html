@@ -454,8 +454,7 @@ window._sbSync = async function(patch) {
         data_exec_iso: p.dataExecISO||null, lanc_id: p.lancId||null,
         recorrente: p.recorrente||false, grupo_rec: p.grupoRec||null,
         comentario: p.comentario||null,
-        pagamento_divida: p.pagamentoDivida||false,
-        divida_id: p.dividaId||null
+        pagamento_divida: p.pagamentoDivida||false
       }));
       if (rows.length > 0) {
         const { error } = await _supa.from('planejamentos').upsert(rows, { onConflict: 'id' });
@@ -8669,7 +8668,14 @@ function salvarCartao(){
   if(!fech||fech<1||fech>31)return toast('⚠️ Dia de fechamento inválido (1 a 31)',true);
   if(!venc||venc<1||venc>31)return toast('⚠️ Dia de vencimento inválido (1 a 31)',true);
   let alvo=getCartao(cartaoEmEdicaoId);
-  if(alvo){alvo.nome=nome;alvo.limite=limite;alvo.diaFechamento=fech;alvo.diaVencimento=venc;}
+  let recalculouFatura=false;
+  if(alvo){
+    alvo.nome=nome;alvo.limite=limite;alvo.diaFechamento=fech;alvo.diaVencimento=venc;
+    // Mudou o dia de fechamento: as compras já lançadas precisam voltar pra fatura certa.
+    const compras=comprasDoCartao(alvo.id);
+    compras.forEach(d=>{d.faturaRef=calcularFaturaRef(d.dataISO,alvo);});
+    recalculouFatura=compras.length>0;
+  }
   else{
     // Só a CRIAÇÃO de cartão novo tem limite — editar um cartão existente
     // (bloco `if` acima) nunca é barrado. Básico não chega aqui: a aba
@@ -8686,6 +8692,7 @@ function salvarCartao(){
   cartaoVisualizandoId=alvo.id;
   cartaoCriandoNovo=false;
   salvarCartoes();
+  if(recalculouFatura)salvar();
   // O cartão passou a existir: libera o seletor na aba Lançar.
   atualizarVisibilidadeCartaoLanc();
   document.getElementById('cartao-cfg-box').style.display='none';
@@ -8867,6 +8874,7 @@ function renderCartaoDetalhe(cartaoId){
             <div class="bmv-data">${d.data||'—'}</div>
           </div>
           <div class="bmv-val s-val" style="color:var(--purple)"><span class="val-txt">R$ ${(Number(d.valorAbs)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+          <button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button>
           ${d.parcelaGrupoId?`<button onclick="removerGrupoParcelas('${d.parcelaGrupoId}')" title="Excluir a compra parcelada inteira" style="background:none;border:none;color:var(--danger);font-size:.82rem;cursor:pointer;padding:0 0 0 6px;flex-shrink:0;font-family:var(--sans)">🗑</button>`:''}
         </div>`;}).join('')}
     </div>`:''}
