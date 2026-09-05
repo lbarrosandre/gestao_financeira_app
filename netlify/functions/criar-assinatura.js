@@ -43,15 +43,19 @@
    Serve só de referência/log daqui pra frente: quem manda no valor
    cobrado agora é o PLANO no Mercado Pago (ver PLAN_IDS abaixo), não mais
    este número — mudar aqui sem mudar o plano lá não muda a cobrança. */
-const VALORES_PLANO  = { plus: 9.90, premium: 14.99 };
+const VALORES_PLANO  = { premium: 14.99 };
 
 /* preapproval_plan_id de cada plano, criados uma única vez via a function
    temporária `criar-planos-mp.js`. Se um dia for preciso mudar preço, NÃO
    dá pra editar o valor aqui: precisa criar um plano novo no Mercado Pago
    com o valor novo e trocar o ID correspondente — um preapproval_plan tem
-   o valor congelado nele. */
+   o valor congelado nele.
+
+   O plano 'plus' foi descontinuado (o catálogo virou só Grátis + Premium):
+   o preapproval_plan dele segue existindo no Mercado Pago para não quebrar
+   quem já assinou, mas não é mais oferecido — pedir 'plus' agora cai no
+   "plano inválido" do passo 2, porque saiu de VALORES_PLANO. */
 const PLAN_IDS = {
-  plus:    'fc54f9a9b0694410acb941612c24ecfc',
   premium: '2b2ec18f28ff48f2bf2e31e5d705b345'
 };
 const RE_UUID        = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;

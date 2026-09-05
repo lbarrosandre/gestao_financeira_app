@@ -102,10 +102,15 @@ function diasDesde(iso, agora) {
   return Math.floor((agora - t) / MS_DIA);
 }
 
-/* Réplica EXATA da regra de `planoEfetivo()` do client (index.html):
-   só 'ativo'/'cortesia' valem o plano contratado; trial, atrasado,
-   cancelado ou SEM linha em `assinaturas` caem pro Básico.
-   As duas cópias precisam concordar — se a regra mudar lá, muda aqui. */
+/* Mesma regra de `planoEfetivo()` do client (index.html) para decidir QUEM
+   está pagando: só 'ativo'/'cortesia' valem o plano contratado; trial,
+   atrasado, cancelado ou SEM linha em `assinaturas` caem pro Grátis.
+
+   DIVERGÊNCIA PROPOSITAL: o client converte o plano 'plus' (descontinuado)
+   em 'premium', porque lá o que importa é o NÍVEL DE ACESSO e ninguém em dia
+   pode ser rebaixado. Aqui o 'plus' é mantido cru, porque o que importa é a
+   REALIDADE DA COBRANÇA — um assinante legado paga R$ 9,90, e somar ele como
+   premium inflaria o MRR. */
 function planoEfetivoDe(assin) {
   if (!assin) return 'basico';
   if (assin.status === 'ativo' || assin.status === 'cortesia') {

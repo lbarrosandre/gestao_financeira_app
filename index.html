@@ -836,7 +836,6 @@ body.light .tab .ti{background:linear-gradient(145deg,#fff,var(--surface2));box-
 .planos-lista{display:flex;flex-direction:column;gap:16px;margin-bottom:14px}
 .plano-pill-card{--pp-cor:var(--text2);--pp-ink:#fff;position:relative;display:flex;flex-direction:column;background:var(--surface);border:1.5px solid var(--border2);border-radius:28px;padding:9px;text-align:left}
 .plano-pill-card.basico{--pp-cor:var(--teal)}
-.plano-pill-card.plus{--pp-cor:var(--accent)}
 /* Premium segue sendo o destaque da tela — anel + sombra na própria
    cor, sem badge sobreposto (que arrebentaria a cápsula do topo). */
 .plano-pill-card.premium{--pp-cor:var(--gold);--pp-ink:var(--bg);border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 12px 34px rgba(0,0,0,.30)}
@@ -1070,7 +1069,6 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .adm-email{font-size:.66rem;color:var(--text3);margin-top:2px;word-break:break-all}
 .adm-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .adm-tag{font-size:.6rem;font-weight:600;padding:3px 7px;border-radius:6px;background:var(--surface2);color:var(--text2);border:1px solid var(--border2)}
-.adm-tag.plano-plus{background:rgba(59,130,246,.14);color:var(--accent);border-color:transparent}
 .adm-tag.plano-premium{background:rgba(139,92,246,.16);color:#A78BFA;border-color:transparent}
 .adm-tag.perigo{background:rgba(239,68,68,.14);color:var(--danger);border-color:transparent}
 .adm-tag.aviso{background:rgba(245,158,11,.14);color:var(--gold);border-color:transparent}
@@ -1912,13 +1910,13 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   #auth-screen:has(#form-assinatura.ativo) .auth-hero{display:none}
   #auth-screen:has(#form-assinatura.ativo) .auth-card{
     flex:0 1 auto;
-    width:940px;
-    max-width:940px;
+    width:700px;
+    max-width:700px;
     padding:30px 28px;
   }
   #auth-screen:has(#form-assinatura.ativo) .planos-lista{
     flex-direction:row;
-    align-items:stretch;   /* os 3 cartões com a mesma altura */
+    align-items:stretch;   /* os 2 cartões com a mesma altura */
     gap:20px;
     margin-bottom:20px;
   }
@@ -2068,27 +2066,27 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div id="assin-gate-oferta">
         <div class="auth-header">
           <div class="auth-title">💎 Desbloqueie <em>mais recursos</em></div>
-          <div class="auth-sub">Você pode continuar no plano Básico, grátis para sempre. Assine só quando fizer sentido pra você.</div>
+          <div class="auth-sub">Você pode continuar no plano Grátis, para sempre. Assine só quando fizer sentido pra você.</div>
         </div>
 
-        <!-- Três cartões no formato cápsula · corpo · cápsula. A lista de
+        <!-- Dois cartões no formato cápsula · corpo · cápsula. A lista de
              recursos é COMPARATIVA: as mesmas 7 linhas, na mesma ordem, nos
-             três cartões — muda só o ✓/✖ e o valor ao lado. A área de ação
+             dois cartões — muda só o ✓/✖ e o valor ao lado. A área de ação
              (#plano-acao-*) é reescrita por assinaturaRenderAcoesPlanos()
              toda vez que a tela aparece, pra marcar o plano atual da pessoa. -->
         <div class="planos-lista">
 
           <div class="plano-pill-card basico">
             <div class="plano-pill-head">
-              <div class="plano-pill-nome">Básico</div>
+              <div class="plano-pill-nome">Grátis</div>
               <div class="plano-pill-num">1</div>
             </div>
             <div class="plano-pill-corpo">
               <div class="plano-pill-lista">
-                <div class="plano-pill-item sim"><i>✓</i><span>35 transações por mês</span></div>
-                <div class="plano-pill-item sim"><i>✓</i><span>1 bolso na Carteira</span></div>
-                <div class="plano-pill-item nao"><i>✖</i><span>Cartão de crédito</span></div>
-                <div class="plano-pill-item nao"><i>✖</i><span>Dívidas</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>50 transações por mês</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>2 bolsos na Carteira</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>2 cartões de crédito</span></div>
+                <div class="plano-pill-item sim"><i>✓</i><span>Dívidas ilimitadas</span></div>
                 <div class="plano-pill-item nao"><i>✖</i><span>Dashboard com Insights</span></div>
                 <div class="plano-pill-item nao"><i>✖</i><span>Cotações ao vivo</span></div>
                 <div class="plano-pill-item nao"><i>✖</i><span>Com anúncios</span></div>
@@ -2098,32 +2096,10 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
             <div id="plano-acao-basico"><div class="plano-pill-selo" data-ico="✓">Sempre incluso</div></div>
           </div>
 
-          <div class="plano-pill-card plus">
-            <div class="plano-pill-head">
-              <div class="plano-pill-nome">Plus</div>
-              <div class="plano-pill-num">2</div>
-            </div>
-            <div class="plano-pill-corpo">
-              <div class="plano-pill-lista">
-                <div class="plano-pill-item sim"><i>✓</i><span>Transações ilimitadas</span></div>
-                <div class="plano-pill-item sim"><i>✓</i><span>Bolsos ilimitados na Carteira</span></div>
-                <div class="plano-pill-item sim"><i>✓</i><span>1 cartão de crédito</span></div>
-                <div class="plano-pill-item sim"><i>✓</i><span>Dívidas ilimitadas</span></div>
-                <div class="plano-pill-item nao"><i>✖</i><span>Dashboard com Insights</span></div>
-                <div class="plano-pill-item nao"><i>✖</i><span>Cotações ao vivo</span></div>
-                <div class="plano-pill-item sim"><i>✓</i><span>Sem anúncios</span></div>
-              </div>
-              <div class="plano-pill-preco">R$ 9,90<small>/mês</small></div>
-            </div>
-            <div id="plano-acao-plus">
-              <button class="plano-pill-btn" data-ico="💳" onclick="abrirCartaoSheet('plus')">Assinar</button>
-            </div>
-          </div>
-
           <div class="plano-pill-card premium">
             <div class="plano-pill-head">
               <div class="plano-pill-nome">Premium</div>
-              <div class="plano-pill-num">3</div>
+              <div class="plano-pill-num">2</div>
             </div>
             <div class="plano-pill-corpo">
               <div class="plano-pill-lista">
@@ -2145,9 +2121,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         </div>
 
         <div style="font-size:.75rem;color:var(--text2);line-height:1.6;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px">
-          • Plus e Premium são <strong>cobrados na hora da assinatura</strong>, com acesso liberado imediatamente.<br>
+          • O Premium é <strong>cobrado na hora da assinatura</strong>, com acesso liberado imediatamente.<br>
           • O pagamento é processado pelo <strong>Mercado Pago</strong> — os dados do cartão vão criptografados direto pra eles e não ficam guardados aqui.<br>
-          • Você pode <strong>cancelar quando quiser</strong>, direto no app, e voltar pro plano Básico sem perder seus dados.
+          • Você pode <strong>cancelar quando quiser</strong>, direto no app, e voltar pro plano Grátis sem perder seus dados.
         </div>
       </div>
 
@@ -2284,7 +2260,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="notif-banner-list">
     <div class="notif-banner-item">
       <span>👉</span>
-      <span>Transações ilimitadas, Dashboard com Insights e muito mais — a partir de R$9,90/mês.</span>
+      <span>Transações ilimitadas, Dashboard com Insights e muito mais — por R$ 14,99/mês.</span>
     </div>
   </div>
 </div>
@@ -4591,7 +4567,7 @@ async function salvarCompletarPerfil(){
 const ONB_PASSOS=[
   {aba:'inv',  sel:'[onclick="criarBolso()"]',      ico:'👜',tab:'Carteira', txt:'Veja seu patrimônio total (conta corrente + bolsos) e crie "bolsos" — um cofrinho com nome e meta próprios, tipo "Viagem" ou "Reserva de emergência". Preencha o nome (a meta é opcional) e toque em <strong>+ Criar bolso</strong>, aqui embaixo.'},
   {aba:'plan', sel:'[onclick="addPlanejamento()"]', ico:'📅',tab:'Planejar', txt:'Agende pagamentos e recebimentos futuros preenchendo data, valor e categoria, e toque em <strong>Agendar Pagamento</strong>. Depois, quando for pago, toque no ▶ do card pra confirmar. Mais abaixo, em "🎯 Orçamento por categoria", defina tetos mensais pra gastos variáveis.'},
-  {aba:'div',  sel:'[onclick="novaDivida()"]',      ico:'💳',tab:'Passivos', txt:'Controle dívidas e cartão de crédito. Toque em <strong>+ Nova dívida</strong> (ou "+ Novo cartão", ao lado) pra cadastrar. Compras no cartão só descontam quando você paga a fatura. Disponível nos planos Plus e Premium.'},
+  {aba:'div',  sel:'[onclick="novaDivida()"]',      ico:'💳',tab:'Passivos', txt:'Controle dívidas e cartão de crédito. Toque em <strong>+ Nova dívida</strong> (ou "+ Novo cartão", ao lado) pra cadastrar. Compras no cartão só descontam quando você paga a fatura. No plano Grátis dá pra cadastrar até 2 cartões; no Premium, ilimitados.'},
   {aba:'form', sel:'[onclick="addLancamento()"]',   ico:'➕',tab:'Lançar',   txt:'É aqui que você registra o dia a dia. Escolha Débito ou Crédito, preencha valor, descrição e categoria, e toque em <strong>Adicionar Lançamento</strong>.'},
   {aba:'lista',sel:'#busca',                        ico:'📋',tab:'Registros',txt:'Todo o seu histórico, organizado por mês (toque no mês pra abrir/fechar). Use esta <strong>busca</strong> pra encontrar um lançamento específico pela descrição.'},
   {aba:'dash', sel:'#df-mes-btn',                   ico:'📊',tab:'Dashboard',txt:'Gráficos e insights automáticos sobre sua vida financeira. Toque no <strong>filtro de mês</strong> pra escolher um ou vários meses de uma vez. Disponível no plano Premium.'},
@@ -5155,9 +5131,10 @@ function adminFmtBRL(v){
   return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 
-/* Rótulo do plano pra exibição (o valor cru é 'basico'/'plus'/'premium'). */
+/* Rótulo do plano pra exibição. O valor cru continua 'basico'/'premium' (e
+   'plus' para os assinantes antigos, que hoje valem como Premium). */
 function adminRotuloPlano(p){
-  return p==='premium' ? 'Premium' : p==='plus' ? 'Plus' : 'Básico';
+  return p==='premium' ? 'Premium' : p==='plus' ? 'Premium (Plus legado)' : 'Grátis';
 }
 
 async function abrirPainelAdmin(){
@@ -5218,7 +5195,7 @@ function adminRenderResumo(r){
       <div class="dash-kpi" style="--kpi-color:var(--accent)">
         <div class="dash-kpi-label">Usuários</div>
         <div class="dash-kpi-val">${r.totalUsuarios ?? 0}</div>
-        <div class="dash-kpi-sub">${porPlano.basico||0} básico · ${porPlano.plus||0} plus · ${porPlano.premium||0} premium</div>
+        <div class="dash-kpi-sub">${porPlano.basico||0} grátis · ${porPlano.premium||0} premium${porPlano.plus ? ' · '+porPlano.plus+' plus (legado)' : ''}</div>
         <div class="dash-kpi-icon">👥</div>
       </div>
       <div class="dash-kpi" style="--kpi-color:var(--teal)">
@@ -5258,8 +5235,7 @@ function adminRenderLista(usuarios){
     const titulo = escHtml(u.nome || u.email || u.uid);
     const sub    = u.nome ? escHtml(u.email || '') : '';
     const dias   = u.diasSemAcesso == null ? '—' : u.diasSemAcesso;
-    const classePlano = u.planoEfetivo==='premium' ? 'plano-premium'
-                      : u.planoEfetivo==='plus'    ? 'plano-plus' : '';
+    const classePlano = (u.planoEfetivo==='premium'||u.planoEfetivo==='plus') ? 'plano-premium' : '';
     const tags = [
       `<span class="adm-tag ${classePlano}">${adminRotuloPlano(u.planoEfetivo)}</span>`,
       `<span class="adm-tag${u.elegivelExclusao?' perigo':''}">${dias} dia${dias===1?'':'s'} sem acesso</span>`,
@@ -5282,7 +5258,7 @@ function adminRenderLista(usuarios){
           <button class="adm-del" onclick="adminConfirmarExclusao('${escHtml(u.uid)}')">🗑 Excluir conta</button>
         </div>
         <div class="adm-tags">${tags}</div>
-        ${u.elegivelExclusao ? '<div class="adm-selo">⚠️ 30+ dias sem acesso · Básico</div>' : ''}
+        ${u.elegivelExclusao ? '<div class="adm-selo">⚠️ 30+ dias sem acesso · Grátis</div>' : ''}
       </div>`;
   }).join('');
 }
@@ -5520,14 +5496,23 @@ function planoEfetivo(){
   if(APP_LIBERADO_NO_ANDROID && window.Capacitor?.isNativePlatform?.()) return 'premium';
   const r = window._assinaturaAtual;
   if(!r) return 'basico';
-  if(r.status==='ativo' || r.status==='cortesia') return r.plano || 'basico';
+  if(r.status==='ativo' || r.status==='cortesia'){
+    /* O Plus foi descontinuado — agora só existem Grátis e Premium. Quem
+       assinou Plus continua pagando o que já pagava e passa a valer como
+       Premium: ninguém que está em dia pode ser rebaixado por uma mudança
+       de catálogo nossa. */
+    return (r.plano==='premium' || r.plano==='plus') ? 'premium' : 'basico';
+  }
   return 'basico';
 }
 
-const LIMITE_TRANSACOES_BASICO = 35;
-const LIMITE_BOLSOS_BASICO     = 1;
+/* Limites do plano GRÁTIS (internamente o plano continua se chamando
+   'basico', que é o valor gravado no banco — só o rótulo virou "Grátis").
+   Dívidas são ilimitadas nos dois planos, por isso não têm limite aqui. */
+const LIMITE_TRANSACOES_BASICO = 50;
+const LIMITE_BOLSOS_BASICO     = 2;
 const LIMITE_CONTAS_BASICO     = 1;
-const LIMITE_CARTOES_PLUS      = 1;
+const LIMITE_CARTOES_GRATIS    = 2;
 
 /* Conta lançamentos do MÊS ATUAL (mesmo vocabulário 'mmm/aa' usado em toda
    parte, ex: MESES[new Date().getMonth()]). Independe de qualquer filtro de
@@ -5544,15 +5529,14 @@ function transacoesMesAtual(){
    LIMITAÇÃO CONHECIDA: se o usuário assinar DURANTE a sessão (sem dar F5), o
    pane bloqueado só volta ao conteúdo real depois de um reload — o innerHTML
    de fallback não é desfeito sozinho aqui. */
-function renderBloqueioPlano(paneId, icone, tituloRecurso, planoNecessario){
+function renderBloqueioPlano(paneId, icone, tituloRecurso){
   const el = document.getElementById(paneId);
   if(!el) return;
-  const rotulo = planoNecessario==='premium' ? 'Premium (R$14,99/mês)' : 'Plus (R$9,90/mês) ou Premium (R$14,99/mês)';
   el.innerHTML = `
     <div class="empty" style="padding:60px 20px;text-align:center">
       <div class="empty-v" style="font-size:2.4rem;margin-bottom:10px">${icone}</div>
-      <h4 style="margin-bottom:6px">${tituloRecurso} é exclusivo do plano ${planoNecessario==='premium'?'Premium':'Plus/Premium'}</h4>
-      <p style="font-size:.8rem;color:var(--text3);margin-bottom:18px">Assine o ${rotulo} para desbloquear.</p>
+      <h4 style="margin-bottom:6px">${tituloRecurso} é exclusivo do plano Premium</h4>
+      <p style="font-size:.8rem;color:var(--text3);margin-bottom:18px">Assine o Premium (R$ 14,99/mês) para desbloquear.</p>
       <button class="btn-add azul" style="max-width:260px;margin:0 auto" onclick="assinaturaAbrirPlanos()">💎 Ver planos</button>
     </div>`;
 }
@@ -5660,8 +5644,8 @@ function assinaturaResumo(row){
      Básico, grátis e permanente, sempre com o caminho de upgrade
      disponível e nunca como perda de acesso. */
   return {
-    titulo: 'Plano Básico (grátis)',
-    texto: 'Você está no plano Básico — grátis para sempre. Assine o Plus ou o Premium quando quiser desbloquear mais recursos.',
+    titulo: 'Plano Grátis',
+    texto: 'Você está no plano Grátis — para sempre. Assine o Premium quando quiser desbloquear mais recursos.',
     cor: 'var(--text2)',
     acao: 'assinar',
     botao: 'Ver planos',
@@ -5694,7 +5678,7 @@ async function abrirAssinaturaSheet(){
       '<div style="font-weight:700;font-size:.95rem;color:'+r.cor+';margin-bottom:6px">'+r.titulo+'</div>'
       + '<div>'+r.texto+'</div>'
       + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:.75rem;opacity:.7">'
-      + 'Básico é grátis para sempre. Plus e Premium são cobrados na hora da assinatura, com acesso liberado imediatamente. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
+      + 'O plano Grátis é grátis para sempre. O Premium é cobrado na hora da assinatura, com acesso liberado imediatamente. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
       + '</div>';
   }
   /* Um botão de ação por vez, conforme `r.acao`:
@@ -5727,24 +5711,19 @@ function fecharAssinaturaSheet(){
    Pago — aqui só viaja o NOME do plano. */
 let planoEscolhido = 'premium';
 
-/* Área de ação de cada um dos 3 cartões, conforme o plano atual da pessoa.
-   O Básico nunca tem botão: "voltar" pra ele é cancelamento, fluxo que já
+/* Área de ação de cada um dos 2 cartões, conforme o plano atual da pessoa.
+   O Grátis nunca tem botão: "voltar" pra ele é cancelamento, fluxo que já
    existe no sheet de assinatura. */
 function assinaturaRenderAcoesPlanos(){
   const atual = (typeof planoEfetivo === 'function') ? planoEfetivo() : 'basico';
   /* O selo herda --pp-cor/--pp-ink do .plano-pill-card em que cai, então a
-     mesma string sai teal no Básico, azul no Plus e dourada no Premium. */
+     mesma string sai teal no Grátis e dourada no Premium. */
   const selo  = '<div class="plano-pill-selo on" data-ico="✓">Plano atual</div>';
 
   const bas = document.getElementById('plano-acao-basico');
   if(bas) bas.innerHTML = (atual === 'basico')
     ? selo
     : '<div class="plano-pill-selo" data-ico="✓">Sempre incluso</div>';
-
-  const plus = document.getElementById('plano-acao-plus');
-  if(plus) plus.innerHTML = (atual === 'plus')
-    ? selo
-    : '<button class="plano-pill-btn" data-ico="💳" onclick="abrirCartaoSheet(\'plus\')">Assinar</button>';
 
   const prem = document.getElementById('plano-acao-premium');
   if(prem) prem.innerHTML = (atual === 'premium')
@@ -5767,7 +5746,7 @@ function assinaturaRenderAcoesPlanos(){
 /* Serve SÓ pro SDK calcular bin/parcelas do formulário — não é o valor
    cobrado: quem cobra é o preapproval_plan lá no Mercado Pago. São os
    mesmos preços exibidos nos cartões de plano. */
-const MP_VALOR_PLANO = { plus: '9.90', premium: '14.99' };
+const MP_VALOR_PLANO = { premium: '14.99' };
 
 let _mpCheckout = null;  /* instância MercadoPago — criada na 1ª abertura */
 let _mpCardForm = null;  /* cardForm montado no momento; some ao fechar */
@@ -5847,9 +5826,9 @@ function cartaoMpEstiloCampo(){
 }
 
 /* Abre o formulário já com plano, e-mail da conta e CPF do perfil
-   preenchidos. Chamado pelos botões "Assinar" dos 3 cartões de plano. */
+   preenchidos. Chamado pelo botão "Assinar" do cartão Premium. */
 async function abrirCartaoSheet(plano){
-  if(plano !== 'plus' && plano !== 'premium') return;
+  if(plano !== 'premium') return;
   if(!window._sbUID) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
   if(typeof MercadoPago !== 'function')
     return toast('⚠️ Não foi possível carregar o pagamento. Recarregue a página e tente de novo.', true);
@@ -5863,7 +5842,7 @@ async function abrirCartaoSheet(plano){
 
   const resumo = document.getElementById('cartao-mp-resumo');
   if(resumo) resumo.textContent =
-    (plano === 'premium' ? 'Plano Premium' : 'Plano Plus')
+    'Plano Premium'
     + ' — R$ ' + MP_VALOR_PLANO[plano].replace('.', ',')
     + '/mês, cobrado agora e renovado todo mês. Cancele quando quiser.';
 
@@ -6597,16 +6576,16 @@ function trocarTab(t){
   // recebe a tela de bloqueio NO LUGAR do conteúdo e o render real NÃO roda
   // (ele populava ids que acabaram de ser removidos do DOM).
   // A aba Dívidas sempre abre na LISTA, nunca no último detalhe visto.
-  if(t==='div'){
-    if(planoEfetivo()==='basico') renderBloqueioPlano('pane-div','💳','Passivos (Dívidas e Cartão de crédito)','plus');
-    else renderDividas();
-  }
+  // Passivos NÃO é mais aba exclusiva de plano pago: no Grátis as dívidas são
+  // ilimitadas e os cartões vão até LIMITE_CARTOES_GRATIS (o limite é cobrado
+  // na criação do cartão, não no acesso à aba).
+  if(t==='div')renderDividas();
   if(t==='dash'){
-    if(planoEfetivo()!=='premium') renderBloqueioPlano('pane-dash','📊','O Dashboard','premium');
+    if(planoEfetivo()!=='premium') renderBloqueioPlano('pane-dash','📊','O Dashboard');
     else {atualizarBotaoFiltroMeses('dash');renderDash();}
   }
   if(t==='info'){
-    if(planoEfetivo()!=='premium') renderBloqueioPlano('pane-info','🌐','As cotações ao vivo','premium');
+    if(planoEfetivo()!=='premium') renderBloqueioPlano('pane-info','🌐','As cotações ao vivo');
     else infoInit();
   }
 }
@@ -7031,7 +7010,7 @@ function confirmarExec(){
   // Básico. Checado ANTES de mutar o plano, senão ele ficaria marcado como
   // executado sem lançamento nenhum.
   if(planoEfetivo()==='basico' && transacoesMesAtual()>=LIMITE_TRANSACOES_BASICO){
-    toast(`⚠️ Você atingiu o limite de ${LIMITE_TRANSACOES_BASICO} transações do plano Básico este mês. Assine o Plus ou o Premium para lançar sem limite.`, true);
+    toast(`⚠️ Você atingiu o limite de ${LIMITE_TRANSACOES_BASICO} transações do plano Grátis este mês. Assine o Premium para lançar sem limite.`, true);
     setTimeout(assinaturaAbrirPlanos, 900);
     return;
   }
@@ -7703,7 +7682,7 @@ function criarConta(){
   // Conta efetiva hoje: sem nenhuma cadastrada o usuário já tem a padrão implícita.
   const totalAtual=Math.max(1,APP.contas.length);
   if(planoEfetivo()==='basico' && totalAtual>=LIMITE_CONTAS_BASICO){
-    toast(`⚠️ O plano Básico permite ${LIMITE_CONTAS_BASICO} conta corrente. Assine o Plus ou o Premium para cadastrar quantas quiser.`, true);
+    toast(`⚠️ O plano Grátis permite ${LIMITE_CONTAS_BASICO} conta corrente. Assine o Premium para cadastrar quantas quiser.`, true);
     setTimeout(assinaturaAbrirPlanos, 900);
     return;
   }
@@ -7882,7 +7861,7 @@ function criarBolso(){
   const nome=document.getElementById('inv-nome').value.trim();
   if(!nome)return toast('⚠️ Informe o nome do bolso',true);
   if(planoEfetivo()==='basico' && APP.bolsos.length>=LIMITE_BOLSOS_BASICO){
-    toast(`⚠️ O plano Básico permite ${LIMITE_BOLSOS_BASICO} bolso. Assine o Plus ou o Premium para criar quantos quiser.`, true);
+    toast(`⚠️ O plano Grátis permite ${LIMITE_BOLSOS_BASICO} bolsos. Assine o Premium para criar quantos quiser.`, true);
     setTimeout(assinaturaAbrirPlanos, 900);
     return;
   }
@@ -8143,7 +8122,7 @@ function addLancamento(){
   // sentido falar de limite com o formulário pela metade) e ANTES de criar
   // qualquer lançamento/parcela.
   if(planoEfetivo()==='basico' && transacoesMesAtual()>=LIMITE_TRANSACOES_BASICO){
-    toast(`⚠️ Você atingiu o limite de ${LIMITE_TRANSACOES_BASICO} transações do plano Básico este mês. Assine o Plus ou o Premium para lançar sem limite.`, true);
+    toast(`⚠️ Você atingiu o limite de ${LIMITE_TRANSACOES_BASICO} transações do plano Grátis este mês. Assine o Premium para lançar sem limite.`, true);
     setTimeout(assinaturaAbrirPlanos, 900);
     return;
   }
@@ -8733,9 +8712,6 @@ function _mostrarViewDiv(qual){
 
 /* ESTADO LISTA: um card por dívida (nome + saldo devedor + % pago). */
 function renderDividas(){
-  // Mesma guarda do renderDash(): no Básico o pane-div carrega a tela de
-  // bloqueio, então nada aqui tem onde escrever.
-  if(planoEfetivo()==='basico') return;
   dividaVisualizandoId=null;dividaEmEdicaoId=null;dividaCriandoNova=false;
   _mostrarViewDiv('lista');
   // A lista de cartões vive na MESMA view: volta para a lista repinta as duas.
@@ -8856,10 +8832,9 @@ function salvarCartao(){
   }
   else{
     // Só a CRIAÇÃO de cartão novo tem limite — editar um cartão existente
-    // (bloco `if` acima) nunca é barrado. Básico não chega aqui: a aba
-    // Passivos inteira já é bloqueada pra ele em trocarTab().
-    if(planoEfetivo()==='plus' && APP.cartoes.length>=LIMITE_CARTOES_PLUS){
-      toast(`⚠️ O plano Plus permite ${LIMITE_CARTOES_PLUS} cartão. Assine o Premium para ter cartões ilimitados.`, true);
+    // (bloco `if` acima) nunca é barrado.
+    if(planoEfetivo()!=='premium' && APP.cartoes.length>=LIMITE_CARTOES_GRATIS){
+      toast(`⚠️ O plano Grátis permite ${LIMITE_CARTOES_GRATIS} cartões. Assine o Premium para ter cartões ilimitados.`, true);
       setTimeout(assinaturaAbrirPlanos, 900);
       return;
     }
