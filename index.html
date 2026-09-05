@@ -2402,6 +2402,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     </div>
     <div class="fi"><label>Tipo</label><div class="sw"><select id="plan-tipo" onchange="atualizarCats('plan-tipo','plan-cat','p')"><option value="">Selecione o tipo</option><option>Receita</option><option value="Despesas fixas">Despesas fixas</option><option value="Despesas variaveis">Despesas variáveis</option><option value="Despesas eventuais">Despesas eventuais</option></select></div></div>
     <div class="fi"><label>Categoria</label><div class="sw"><select id="plan-cat"><option value="">Selecione o tipo primeiro</option></select></div></div>
+    <div class="rec-hint" style="margin:-6px 0 12px">💳 A conta de origem (Conta Corrente, Poupança ou, se for uma despesa, Cartão de crédito) é escolhida na hora de confirmar o pagamento.</div>
 
     <!-- PAGAMENTO DE DÍVIDA (só aparece quando existe dívida cadastrada) -->
     <div class="rec-box" id="plan-divida-box" style="display:none">
@@ -3269,6 +3270,9 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div id="sh-bolso-wrap" style="display:none">
     <div class="fi"><label id="sh-bolso-label">Bolso origem</label><div class="sw"><select id="sh-bolso-sel"><option value="">Selecione o bolso</option></select></div></div>
   </div>
+  <div id="sh-cartao-wrap" style="display:none">
+    <div class="fi"><label>Qual cartão?</label><div class="sw"><select id="sh-cartao-sel"><option value="">Selecione o cartão</option></select></div></div>
+  </div>
   <div class="sh-btns"><button class="sh-cancel" onclick="fecharSh()">Cancelar</button><button class="sh-ok" onclick="confirmarExec()">✅ Confirmar</button></div>
 </div>
 
@@ -3547,10 +3551,55 @@ function faturaAbertaValor(cartaoId){
     .reduce((s,d)=>s+(Number(d.valorAbs)||0),0);
 }
 
-/* Fechado aguardando pagamento = saldo total − o que ainda está na fatura
-   aberta. Cobre fatura(s) atrasada(s) sem precisar enumerar mês a mês. */
+/* Data de vencimento de UMA fatura (ref 'AAAA-MM'). Vencimento cai no MESMO
+   mês do fechamento quando o dia de vencer vem depois do dia de fechar (ex:
+   fecha 04, vence 09 → mesmo mês); senão cai no mês seguinte (ex: fecha 20,
+   vence 05 → mês seguinte). new Date normaliza virada de ano sozinho. */
+function faturaVencimentoData(ref,cartao){
+  const[y,m]=String(ref||'').split('-').map(Number);
+  const venc=Math.max(1,Math.min(31,Number(cartao&&cartao.diaVencimento)||1));
+  const fech=Math.max(1,Math.min(31,Number(cartao&&cartao.diaFechamento)||1));
+  const mesVenc=venc>fech?m:m+1;
+  return new Date(y,mesVenc-1,venc);
+}
+
+/* Faturas FECHADAS (ciclos já encerrados) com saldo ainda não pago, uma por
+   uma — não é mais um valor único agregado. Cada fatura carrega seu total e
+   os lançamentos que a compõem, pra dar pra pagar (e listar) uma de cada vez.
+   Pagamentos ANTIGOS (de antes desta separação por ciclo) não têm faturaRef
+   próprio — abatem em ordem cronológica a partir da fatura mais antiga, pra
+   manter o total batendo com o que já tinha sido pago no modelo agregado. */
+function faturasFechadasDoCartao(cartaoId){
+  const c=getCartao(cartaoId);
+  if(!c)return[];
+  const refAberta=faturaAbertaRef(c);
+  const porRef={};
+  comprasDoCartao(cartaoId).forEach(d=>{
+    const ref=d.faturaRef;
+    if(!ref||ref===refAberta)return;
+    if(!porRef[ref])porRef[ref]={ref,total:0,itens:[]};
+    porRef[ref].total+=Number(d.valorAbs)||0;
+    porRef[ref].itens.push(d);
+  });
+  let saldoLegado=0;
+  pagamentosDoCartao(cartaoId).forEach(p=>{
+    if(p.faturaRef&&porRef[p.faturaRef])porRef[p.faturaRef].total-=Number(p.valorAbs)||0;
+    else if(!p.faturaRef)saldoLegado+=Number(p.valorAbs)||0;
+  });
+  const refsOrdenados=Object.keys(porRef).sort();
+  refsOrdenados.forEach(ref=>{
+    if(saldoLegado<=0)return;
+    const f=porRef[ref];
+    const abate=Math.min(Math.max(f.total,0),saldoLegado);
+    f.total-=abate;saldoLegado-=abate;
+  });
+  return refsOrdenados.map(ref=>porRef[ref]).filter(f=>f.total>0.005);
+}
+
+/* Fechado aguardando pagamento = soma de todas as faturas fechadas em aberto.
+   Mantida por compatibilidade (usada no card resumido da lista de cartões). */
 function faturaFechadaValor(cartaoId){
-  return Math.max(0,saldoCartao(cartaoId)-faturaAbertaValor(cartaoId));
+  return faturasFechadasDoCartao(cartaoId).reduce((s,f)=>s+f.total,0);
 }
 
 const ICONS={Receita:'💰','Despesas fixas':'🏠','Despesas variaveis':'🛒','Despesas eventuais':'⚡'};
@@ -3571,7 +3620,7 @@ let dividaVisualizandoId=null,dividaEmEdicaoId=null,dividaCriandoNova=false;
 /* Conta corrente sendo renomeada na aba Carteira (null = criando uma nova). */
 let contaEmEdicaoId=null;
 /* Mesmo esquema para os cartões de crédito (segunda seção da mesma aba). */
-let cartaoVisualizandoId=null,cartaoEmEdicaoId=null,cartaoCriandoNovo=false;
+let cartaoVisualizandoId=null,cartaoEmEdicaoId=null,cartaoCriandoNovo=false,cartaoPagandoRef=null;
 /* Meses escolhidos no "replicar agendamento". Guarda RÓTULOS COMPLETOS
    (ex: 'jan/27') e não índices, para permitir selecionar meses de anos
    diferentes ao mesmo tempo sem perder a seleção ao navegar de ano. */
@@ -6850,6 +6899,13 @@ function toggleShBolso(){
     sel.innerHTML='<option value="">Selecione o bolso</option>';
     APP.bolsos.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=`${b.ico} ${b.nome} — R$ ${b.saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;sel.appendChild(o);});
   }
+  const cwrap=document.getElementById('sh-cartao-wrap');
+  if(cwrap)cwrap.style.display=v==='cartao'?'block':'none';
+  if(v==='cartao'){
+    const sel=document.getElementById('sh-cartao-sel');
+    sel.innerHTML='<option value="">Selecione o cartão</option>';
+    APP.cartoes.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=`💳 ${escHtml(c.nome)}`;sel.appendChild(o);});
+  }
 }
 
 function abrirSh(id){
@@ -6873,6 +6929,17 @@ function abrirSh(id){
   const shBolsoLbl=document.getElementById('sh-bolso-label');
   if(shBolsoLbl)shBolsoLbl.textContent=ehCreditoSh?'Bolso destino':'Bolso origem';
   const shBWrap=document.getElementById('sh-bolso-wrap');if(shBWrap)shBWrap.style.display='none';
+  const shCWrap=document.getElementById('sh-cartao-wrap');if(shCWrap)shCWrap.style.display='none';
+  // Pagar no cartão só faz sentido pra Débito — receita não "entra" num
+  // cartão. A opção é montada aqui (não fixa no HTML) pra não aparecer sem
+  // cartão cadastrado nenhum.
+  const shOptCartaoOld=document.getElementById('sh-opt-cartao');
+  if(shOptCartaoOld)shOptCartaoOld.remove();
+  if(!ehCreditoSh&&APP.cartoes.length>0){
+    const opt=document.createElement('option');
+    opt.id='sh-opt-cartao';opt.value='cartao';opt.textContent='💳 Cartão de crédito';
+    document.getElementById('sh-origem').appendChild(opt);
+  }
   document.getElementById('sh-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh').classList.add('show'),10);
   setTimeout(()=>document.getElementById('sheet-valor-real').focus(),320);
@@ -6898,6 +6965,13 @@ function confirmarExec(){
     // Saldo insuficiente só faz sentido tirando dinheiro do bolso (despesa) —
     // receita entrando não tem restrição nenhuma.
     if(!ehCreditoExec && Math.abs(vr)>bolsoOrigem.saldo)return toast(`⚠️ Saldo insuficiente no bolso "${bolsoOrigem.nome}"`,true);
+  }
+  let cartaoOrigem=null;
+  if(origem==='cartao'){
+    const cid=parseInt(document.getElementById('sh-cartao-sel')?.value||'0');
+    if(!cid)return toast('⚠️ Selecione o cartão',true);
+    cartaoOrigem=getCartao(cid);
+    if(!cartaoOrigem)return toast('⚠️ Cartão não encontrado',true);
   }
 
   // Executar um plano também gera lançamento em APP.dados → conta no limite do
@@ -6940,6 +7014,13 @@ function confirmarExec(){
     // nunca passou pela conta corrente.
     APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente,pagoDoBolso:ehCreditoExec?undefined:true,recebidoNoBolso:ehCreditoExec?true:undefined,pagamentoDivida:p.pagamentoDivida||undefined});
     salvar();atualizarStats();
+  } else if(origem==='cartao'){
+    // Igual a uma compra no cartão feita em Lançar: entra em Registros como
+    // despesa normal, mas NÃO debita CC nem bolso agora — só acumula na
+    // fatura (calcSaldoCC ignora compras de cartão ainda não pagas).
+    APP.dados.push({id:lId,data:p.dataExec,dataISO:de,mes:p.mes,descricao:p.descricao,movimento:p.movimento,valor:p.movimento==='Debito'?-Math.abs(vr):Math.abs(vr),valorAbs:Math.abs(vr),categoria:p.categoria,classificacao:p.classificacao,tipo:p.tipo,dePlan:true,recorrente:p.recorrente,cartaoId:cartaoOrigem.id,faturaRef:calcularFaturaRef(de,cartaoOrigem),pagamentoDivida:p.pagamentoDivida||undefined});
+    salvar();atualizarStats();
+    if(document.getElementById('pane-div')?.classList.contains('ativo'))renderCartoesUI();
   }
   // 'manual' = sem lançamento automático
 
@@ -6966,7 +7047,7 @@ function confirmarExec(){
   // o único sinal era um ícone discreto dentro do menu.
   const syncPromise=salvarPlan();
   atualizarStatsPlan();renderPlan();fecharSh();
-  const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','manual':'✋ Manual'}[origem]||'';
+  const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','cartao':'💳 Cartão','manual':'✋ Manual'}[origem]||'';
   toast(`✅ Executado! [${origemLabel}]`,false,true);
   Promise.resolve(syncPromise).then(falhou=>{
     if(falhou) toast('⚠️ O pagamento foi registrado, mas houve um problema ao salvar no plano. Confira em Planejar e, se ainda aparecer pendente, tente confirmar de novo.',true);
@@ -8808,6 +8889,24 @@ function renderCartoes(){
   }).join('');
 }
 
+/* Uma linha de compra na lista da fatura (aberta ou fechada) — descrição,
+   data, valor, editar e (se for parcela) excluir o grupo inteiro. */
+function cartaoCompraRowHtml(d){
+  const marca=(Number(d.parcelaTotal)||0)>1?`(${d.parcelaNum}/${d.parcelaTotal})`:'';
+  const descBase=marca&&String(d.descricao||'').endsWith(marca)
+    ?String(d.descricao).slice(0,-marca.length).trim():String(d.descricao||'');
+  return`<div class="bmv">
+    <div class="bmv-ico saida">💳</div>
+    <div class="bmv-info">
+      <div class="bmv-desc">${escHtml(descBase)}${marca?` <span style="color:var(--text3);font-weight:600">${marca}</span>`:''}</div>
+      <div class="bmv-data">${d.data||'—'}</div>
+    </div>
+    <div class="bmv-val s-val" style="color:var(--purple)"><span class="val-txt">R$ ${(Number(d.valorAbs)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+    <button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button>
+    ${d.parcelaGrupoId?`<button onclick="removerGrupoParcelas('${d.parcelaGrupoId}')" title="Excluir a compra parcelada inteira" style="background:none;border:none;color:var(--danger);font-size:.82rem;cursor:pointer;padding:0 0 0 6px;flex-shrink:0;font-family:var(--sans)">🗑</button>`:''}
+  </div>`;
+}
+
 /* ESTADO DETALHE: hero + faturas + ações de UM cartão. */
 function renderCartaoDetalhe(cartaoId){
   const c=getCartao(cartaoId);
@@ -8816,7 +8915,8 @@ function renderCartaoDetalhe(cartaoId){
   _mostrarViewDiv('cartao');
   const saldo=saldoCartao(c.id);
   const aberta=faturaAbertaValor(c.id);
-  const fechada=faturaFechadaValor(c.id);
+  const faturas=faturasFechadasDoCartao(c.id);
+  const fechada=faturas.reduce((s,f)=>s+f.total,0);
   const refAberta=faturaAbertaRef(c);
   const limite=Number(c.limite)||0;
   const pct=limite>0?Math.max(0,Math.min(100,Math.round(saldo/limite*100))):0;
@@ -8847,38 +8947,29 @@ function renderCartaoDetalhe(cartaoId){
         ${alerta?'<div style="font-size:.62rem;color:var(--danger);margin-top:5px">⚠️ Você já usou mais de 90% do limite.</div>':''}
       </div>`:'<div style="font-size:.62rem;color:var(--text3)">Sem limite informado (o limite é apenas informativo).</div>'}
     </div>
-    <div class="cartao-fat">
+    <div class="cartao-fat" style="grid-template-columns:1fr">
       <div class="cartao-fat-item">
         <div class="fl">Fatura aberta · ${faturaRefLabel(refAberta)}</div>
         <div class="fv" style="color:var(--accent)">R$ ${aberta.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-        <div class="fs">${qtdAberta} compra${qtdAberta!==1?'s':''} · ainda acumulando</div>
-      </div>
-      <div class="cartao-fat-item">
-        <div class="fl">Fechada a pagar</div>
-        <div class="fv" style="color:${fechada>0.005?'var(--warn)':'var(--teal)'}">R$ ${fechada.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-        <div class="fs">${fechada>0.005?'aguardando pagamento':'nada em atraso'}</div>
+        <div class="fs">${qtdAberta} compra${qtdAberta!==1?'s':''} · fecha dia ${String(c.diaFechamento).padStart(2,'0')} · ainda acumulando</div>
       </div>
     </div>
     ${qtdAberta?`<div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin:0 0 8px">Compras na fatura aberta</div>
     <div class="bolso-mv-list" style="margin-bottom:12px">
-      ${comprasAberta.map(d=>{
-        // A descrição já vem com "(1/3)" quando é parcelada — tira do texto e
-        // mostra como marcador, para não duplicar o mesmo "(1/3)" na linha.
-        const marca=(Number(d.parcelaTotal)||0)>1?`(${d.parcelaNum}/${d.parcelaTotal})`:'';
-        const descBase=marca&&String(d.descricao||'').endsWith(marca)
-          ?String(d.descricao).slice(0,-marca.length).trim():String(d.descricao||'');
-        return`<div class="bmv">
-          <div class="bmv-ico saida">💳</div>
-          <div class="bmv-info">
-            <div class="bmv-desc">${escHtml(descBase)}${marca?` <span style="color:var(--text3);font-weight:600">${marca}</span>`:''}</div>
-            <div class="bmv-data">${d.data||'—'}</div>
-          </div>
-          <div class="bmv-val s-val" style="color:var(--purple)"><span class="val-txt">R$ ${(Number(d.valorAbs)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
-          <button class="btn-del" onclick="abrirEditSh(${d.id})" title="Editar" style="color:var(--text3);font-size:.78rem">✏️</button>
-          ${d.parcelaGrupoId?`<button onclick="removerGrupoParcelas('${d.parcelaGrupoId}')" title="Excluir a compra parcelada inteira" style="background:none;border:none;color:var(--danger);font-size:.82rem;cursor:pointer;padding:0 0 0 6px;flex-shrink:0;font-family:var(--sans)">🗑</button>`:''}
-        </div>`;}).join('')}
+      ${comprasAberta.map(cartaoCompraRowHtml).join('')}
     </div>`:''}
-    ${fechada>0.005?`<button class="btn-add azul" onclick="abrirPagarFatura()" style="margin-bottom:12px"><span>💰</span> Pagar fatura — R$ ${fechada.toLocaleString('pt-BR',{minimumFractionDigits:2})}</button>`:''}
+    ${faturas.length?`<div style="font-size:.6rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin:0 0 8px">Faturas fechadas aguardando pagamento</div>
+    ${faturas.map(f=>{
+      const vencto=faturaVencimentoData(f.ref,c).toLocaleDateString('pt-BR');
+      return`<div class="cartao-fat-item" style="margin-bottom:10px">
+        <div class="fl">Fatura ${faturaRefLabel(f.ref)} · vence ${vencto}</div>
+        <div class="fv" style="color:var(--warn)">R$ ${f.total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <div class="fs">${f.itens.length} compra${f.itens.length!==1?'s':''} · aguardando pagamento</div>
+        <div class="bolso-mv-list" style="margin:8px 0 10px">
+          ${f.itens.slice().sort((a,b)=>String(b.dataISO||'').localeCompare(String(a.dataISO||''))).map(cartaoCompraRowHtml).join('')}
+        </div>
+        <button class="btn-add azul" onclick="abrirPagarFatura('${f.ref}')"><span>💰</span> Pagar esta fatura — R$ ${f.total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</button>
+      </div>`;}).join('')}`:`<div class="cartao-fat-item" style="margin-bottom:12px"><div class="fs">✅ Nenhuma fatura fechada aguardando pagamento.</div></div>`}
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <button onclick="abrirCfgCartao(${c.id})" style="display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 12px;color:var(--text3);font-size:.72rem;cursor:pointer;font-family:var(--sans)">⚙️ Editar cartão</button>
       <button onclick="excluirCartao(${c.id})" style="display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 12px;color:var(--danger);font-size:.72rem;cursor:pointer;font-family:var(--sans)">🗑 Excluir</button>
@@ -8916,13 +9007,15 @@ function renderCartoesUI(){
   else if(document.getElementById('div-lista-view')?.style.display!=='none')renderCartoes();
 }
 
-/* ── Pagar a fatura FECHADA (só aqui o dinheiro sai de verdade) ── */
-function abrirPagarFatura(){
+/* ── Pagar UMA fatura FECHADA específica, pelo ref (só aqui o dinheiro sai
+   de verdade). Cada ciclo tem seu próprio botão — ver faturasFechadasDoCartao. */
+function abrirPagarFatura(ref){
   const c=getCartao(cartaoVisualizandoId);
   if(!c)return;
-  const valor=faturaFechadaValor(c.id);
-  if(valor<=0.005)return toast('⚠️ Não há fatura fechada para pagar',true);
-  document.getElementById('cartao-pag-title').textContent=`💰 Pagar fatura — R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+  const fatura=faturasFechadasDoCartao(c.id).find(f=>f.ref===ref);
+  if(!fatura||fatura.total<=0.005)return toast('⚠️ Fatura não encontrada ou já paga',true);
+  cartaoPagandoRef=ref;
+  document.getElementById('cartao-pag-title').textContent=`💰 Pagar fatura ${faturaRefLabel(ref)} — R$ ${fatura.total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
   const o=document.getElementById('cartao-pag-origem');if(o)o.value='cc';
   toggleCartaoPagBolso();
   const box=document.getElementById('cartao-pag-box');
@@ -8932,6 +9025,7 @@ function abrirPagarFatura(){
 function fecharPagarFatura(){
   const box=document.getElementById('cartao-pag-box');
   if(box)box.style.display='none';
+  cartaoPagandoRef=null;
 }
 /* Mesmo padrão de toggleLancBolso: lista os bolsos com saldo no rótulo. */
 function toggleCartaoPagBolso(){
@@ -8963,9 +9057,12 @@ function toggleCartaoPagBolso(){
 function confirmarPagarFatura(){
   const c=getCartao(cartaoVisualizandoId);
   if(!c)return toast('⚠️ Cartão não encontrado',true);
+  const ref=cartaoPagandoRef;
+  if(!ref)return toast('⚠️ Fatura não selecionada',true);
   // Recalcula na hora de confirmar: o valor do botão pode estar velho.
-  const valor=faturaFechadaValor(c.id);
-  if(valor<=0.005)return toast('⚠️ Não há fatura fechada para pagar',true);
+  const fatura=faturasFechadasDoCartao(c.id).find(f=>f.ref===ref);
+  if(!fatura||fatura.total<=0.005)return toast('⚠️ Não há fatura fechada para pagar',true);
+  const valor=fatura.total;
   // Valida TUDO antes de criar qualquer coisa (mesmo cuidado de addLancamento).
   const origem=document.getElementById('cartao-pag-origem')?.value||'cc';
   let bolso=null;
@@ -8989,11 +9086,11 @@ function confirmarPagarFatura(){
   // faturaPagamento:true = NÃO conta como despesa nova no dashboard (a compra
   // já foi contada), mas entra normalmente no saldo da Conta Corrente.
   const lanc={id:lancId,data:`${d}/${m}/${y}`,dataISO:iso,mes:mesRefDeISO(iso),
-    descricao:`PAGAMENTO FATURA - ${c.nome}`.toUpperCase(),movimento:'Debito',
+    descricao:`PAGAMENTO FATURA ${faturaRefLabel(ref)} - ${c.nome}`.toUpperCase(),movimento:'Debito',
     valor:-valor,valorAbs:valor,
     categoria:'Compromissos Financeiros',classificacao:'Despesas',tipo:'Despesas fixas',
     dePlan:false,recorrente:false,
-    cartaoId:c.id,faturaPagamento:true};
+    cartaoId:c.id,faturaPagamento:true,faturaRef:ref};
   if(origem==='bolso'){lanc.pagoDoBolso=true;lanc.bolsoId=bolso.id;}
   if(contaSelId)lanc.contaId=contaSelId;
   APP.dados.push(lanc);
@@ -9009,7 +9106,7 @@ function confirmarPagarFatura(){
   atualizarStats();renderLista();
   fecharPagarFatura();
   renderCartaoDetalhe(c.id);
-  toast(`✅ Fatura paga: R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})} [${origem==='bolso'?'🐷 '+bolso.nome:'🏦 CC'}]`,false,true);
+  toast(`✅ Fatura ${faturaRefLabel(ref)} paga: R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})} [${origem==='bolso'?'🐷 '+bolso.nome:'🏦 CC'}]`,false,true);
 }
 
 let tt;
