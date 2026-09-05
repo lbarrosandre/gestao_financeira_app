@@ -18,11 +18,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- ═══ SUPABASE SDK ═══════════════════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- ═══ MERCADO PAGO SDK ═══════════════════════════════════════════════
-     Usado só no formulário de cartão (#sh-cartao-mp): é ele que monta os
-     campos sensíveis em iframe e devolve o token. A instância
-     `new MercadoPago(...)` só nasce quando alguém abre esse formulário. -->
-<script src="https://sdk.mercadopago.com/js/v2"></script>
 <script>
 /* ─────────────────────────────────────────────────────
    SUPABASE CONFIG
@@ -31,17 +26,6 @@
 ───────────────────────────────────────────────────── */
 const SUPA_URL  = 'https://iocpvtruwheumbwolxtd.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvY3B2dHJ1d2hldW1id29seHRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwOTg5MTIsImV4cCI6MjA5NDY3NDkxMn0.vs_kVkbzFLlT0NUhIEgENH_Zxvz8muG-OFNYHfR1ZCA';
-
-/* ─────────────────────────────────────────────────────
-   MERCADO PAGO — CHAVE PÚBLICA
-   ⚠️ COLE AQUI a public key da conta (Mercado Pago →
-   Suas integrações → Credenciais de produção → Public Key).
-   Só ela: o access token é secreto e vive exclusivamente
-   nas Netlify Functions, nunca neste arquivo.
-   Esta é a ÚNICA definição da chave no client — o
-   formulário de cartão lê daqui.
-───────────────────────────────────────────────────── */
-const MP_PUBLIC_KEY = 'APP_USR-13f13439-5e13-44c9-9522-17335e4919d3';
 
 // Fix: Supabase OAuth retorna ##access_token — normaliza para #access_token
 if (window.location.href.includes('##access_token')) {
@@ -1025,31 +1009,6 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .sh-edit{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+28px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:303;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh-edit.show{transform:none}
 .sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-
-/* ─── FORMULÁRIO DE CARTÃO (#sh-cartao-mp) ─────────
-   Número, validade e CVV são iframes servidos pelo Mercado Pago — não dá
-   pra estilizar o que está dentro deles, então o container só reproduz a
-   moldura de `.fi input` pra caixa não destoar do resto do app. */
-.mp-secure{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);height:38px;padding:0 12px;display:flex;align-items:center}
-.mp-secure iframe{width:100%;height:100%;border:0;display:block}
-/* Emissor e parcelas: o cardForm exige os dois no DOM, mas nenhum faz
-   sentido numa recorrência de valor fixo — ficam fora da vista. */
-.mp-oculto{display:none}
-/* A bandeira detectada pelo BIN entra DENTRO da label do número, e não perto
-   da moldura, porque a moldura é iframe do Mercado Pago — nada nosso pode
-   ocupar espaço lá dentro. */
-#sh-cartao-mp label.lbl-num{display:flex;align-items:center;gap:6px}
-#cartao-mp-bandeira{display:none;align-items:center;gap:4px;color:var(--text2);text-transform:none;letter-spacing:0}
-#cartao-mp-bandeira.show{display:inline-flex}
-#cartao-mp-bandeira img{display:block;height:13px;width:auto;border-radius:2px}
-/* CPF com dígito verificador errado: só a borda, sem ícone nem texto — o
-   recado explicado fica no #cartao-mp-err. */
-#sh-cartao-mp .fi input.erro{border-color:var(--danger)}
-#sh-cartao-mp .fi input.erro:focus{border-color:var(--danger);box-shadow:0 0 0 3px rgba(239,68,68,.18)}
-/* A tela de planos é uma #auth-screen (z-index 10000) e este sheet abre por
-   cima dela — os 302/303 padrão de .sh-edit ficariam por baixo. */
-#sh-cartao-mp-ov{z-index:10004}
-#sh-cartao-mp{z-index:10005}
 
 /* ─── PAINEL ADMIN (sheet #sh-admin) ───────────────
    Só o dono do app vê esta tela. Visualmente reaproveita a linguagem já
@@ -2111,27 +2070,29 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
                 <div class="plano-pill-item sim"><i>✓</i><span>Cotações ao vivo</span></div>
                 <div class="plano-pill-item sim"><i>✓</i><span>Sem anúncios</span></div>
               </div>
-              <div class="plano-pill-preco">R$ 14,99<small>/mês</small></div>
+              <div class="plano-pill-preco">R$ 9,90<small>/mês</small></div>
             </div>
             <div id="plano-acao-premium">
-              <button class="plano-pill-btn" data-ico="💳" onclick="abrirCartaoSheet('premium')">Assinar</button>
+              <button class="plano-pill-btn" data-ico="📲" onclick="assinarPremium()">Assinar no app</button>
             </div>
           </div>
 
         </div>
 
         <div style="font-size:.75rem;color:var(--text2);line-height:1.6;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px">
-          • O Premium é <strong>cobrado na hora da assinatura</strong>, com acesso liberado imediatamente.<br>
-          • O pagamento é processado pelo <strong>Mercado Pago</strong> — os dados do cartão vão criptografados direto pra eles e não ficam guardados aqui.<br>
-          • Você pode <strong>cancelar quando quiser</strong>, direto no app, e voltar pro plano Grátis sem perder seus dados.
+          • A assinatura é feita <strong>dentro do app Bússola, no Android</strong>, pelo Google Play — é lá que a cobrança acontece.<br>
+          • Assinou no app, vale <strong>também aqui na web</strong>: é a mesma conta, o Premium libera nos dois.<br>
+          • Você pode <strong>cancelar quando quiser</strong>, pelas assinaturas da sua conta Google, e voltar pro plano Grátis sem perder seus dados.
         </div>
       </div>
 
-      <!-- Estado 2: voltou do checkout do Mercado Pago (?assinatura=retorno) -->
+      <!-- Estado 2: pagamento feito, esperando a confirmação chegar no
+           servidor. Nasceu pro retorno do checkout antigo (?assinatura=retorno)
+           e será reaproveitado pela confirmação do Google Play Billing. -->
       <div id="assin-gate-retorno" style="display:none">
         <div class="auth-header">
           <div class="auth-title">⏳ Confirmando seu <em>pagamento</em></div>
-          <div class="auth-sub">Isso pode levar alguns segundos. Assim que o Mercado Pago confirmar, seu acesso é liberado automaticamente.</div>
+          <div class="auth-sub">Isso pode levar alguns segundos. Assim que o pagamento for confirmado, seu acesso é liberado automaticamente.</div>
         </div>
         <button class="btn-auth-next" id="assin-gate-btn-verificar" onclick="assinaturaGateVerificarNovamente(this)">🔄 Verificar novamente</button>
         <div style="text-align:center;margin-top:12px">
@@ -2260,7 +2221,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   <div class="notif-banner-list">
     <div class="notif-banner-item">
       <span>👉</span>
-      <span>Transações ilimitadas, Dashboard com Insights e muito mais — por R$ 14,99/mês.</span>
+      <span>Transações ilimitadas, Dashboard com Insights e muito mais — por R$ 9,90/mês.</span>
     </div>
   </div>
 </div>
@@ -3244,39 +3205,6 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
          (#form-assinatura), que é quem sabe qual plano mandar pro MP. -->
     <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaAbrirPlanos()">💳 Assinar agora</button>
   </div>
-</div>
-
-<!-- CARTÃO SHEET (tokenização do cartão dentro do nosso próprio domínio)
-     Número, validade e CVV são iframes montados pelo SDK do Mercado Pago:
-     esses três campos nunca existem no nosso DOM. O resto são inputs
-     normais. O <form id="form-checkout"> e os ids "form-checkout__*" são
-     exigidos pelo cardForm — não renomear. -->
-<div class="sh-edit-ov" id="sh-cartao-mp-ov" onclick="fecharCartaoSheet()"></div>
-<div class="sh-edit" id="sh-cartao-mp">
-  <div class="sh-h"></div>
-  <div class="sh-edit-title">💳 Dados do cartão</div>
-  <div class="rec-hint" id="cartao-mp-resumo" style="margin-bottom:12px"></div>
-  <div class="auth-err" id="cartao-mp-err"></div>
-  <form id="form-checkout">
-    <div class="fi"><label class="lbl-num">Número do cartão<span id="cartao-mp-bandeira"></span></label><div class="mp-secure" id="form-checkout__cardNumber"></div></div>
-    <div class="r2">
-      <div class="fi"><label>Validade</label><div class="mp-secure" id="form-checkout__expirationDate"></div></div>
-      <div class="fi"><label>CVV</label><div class="mp-secure" id="form-checkout__securityCode"></div></div>
-    </div>
-    <div class="fi"><label>Nome impresso no cartão</label><input type="text" id="form-checkout__cardholderName" placeholder="Como está no cartão" autocomplete="cc-name" autocapitalize="characters"></div>
-    <div class="r2">
-      <div class="fi"><label>Documento</label><div class="sw"><select id="form-checkout__identificationType"></select></div></div>
-      <!-- Só dígitos: o Mercado Pago não aceita o CPF pontuado. -->
-      <div class="fi"><label>Número do documento</label><input type="text" id="form-checkout__identificationNumber" placeholder="Somente números" inputmode="numeric" maxlength="14" autocomplete="off" oninput="cartaoMpSoDigitos(this);cartaoMpCpfDigitando(this)" onblur="cartaoMpCpfOk(true)"></div>
-    </div>
-    <div class="fi"><label>E-mail</label><input type="email" id="form-checkout__cardholderEmail" placeholder="voce@email.com" autocomplete="email"></div>
-    <div class="mp-oculto"><select id="form-checkout__issuer"></select></div>
-    <div class="mp-oculto"><select id="form-checkout__installments"></select></div>
-    <div class="sh-btns">
-      <button type="button" class="sh-cancel" onclick="fecharCartaoSheet()">Cancelar</button>
-      <button type="submit" class="sh-ok" id="cartao-mp-btn">🔒 Assinar agora</button>
-    </div>
-  </form>
 </div>
 
 <!-- SHEET -->
@@ -5464,8 +5392,11 @@ async function adminEnviarReengajamento(lista){
    Status vem da tabela `assinaturas` (RLS: o usuário só lê a própria
    linha; escrita é exclusiva do gatilho do banco e das Netlify Functions
    com a service role key — o client NUNCA escreve aqui).
-   O checkout é criado pela function /.netlify/functions/criar-assinatura,
-   que é quem fala com o Mercado Pago. Nenhum segredo mora neste arquivo.
+
+   A COBRANÇA acontece exclusivamente no Google Play Billing, dentro do app
+   Android: não existe checkout próprio nem cobrança pela web. O site apenas
+   LÊ o resultado — assinou no app, o Premium vale aqui também, porque é a
+   mesma conta e a mesma linha em `assinaturas`.
 ════════════════════════════════════════ */
 
 const ASSIN_BANNER_KEY = 'bussola_assin_banner_dismissed';
@@ -5481,14 +5412,13 @@ const BASICO_AD_BANNER_KEY = 'bussola_basico_ad_fechado';
    Qualquer outro status (trial, atrasado, cancelado, ou sem linha nenhuma)
    cai pro Básico — é o comportamento correto: pagamento atrasado ou
    cancelado não deve manter acesso pago indefinidamente. */
-/* ⚠️ TEMPORÁRIO — enquanto o Google Play Billing não estiver implementado
-   no app Android, ninguém rodando dentro dele tem como pagar nada (o
-   Mercado Pago não vale como cobrança dentro de app publicado na Play
-   Store). Sem isso, todo testador do Teste Fechado cai no Básico e não
-   consegue avaliar Plus/Premium — o que é o próprio propósito do teste.
-   Então dentro do app nativo, todo mundo é tratado como Premium.
-   Não afeta a web (bussolafinance.com.br): lá o Mercado Pago já cobra de
-   verdade, e planoEfetivo() continua olhando a assinatura real.
+/* ⚠️ TEMPORÁRIO — o Google Play Billing é o ÚNICO meio de pagamento do app,
+   e ainda não está implementado: hoje ninguém tem como assinar de verdade.
+   Enquanto isso, dentro do app nativo todo mundo é tratado como Premium —
+   sem isso os testadores do Teste Fechado cairiam no Grátis e não teriam
+   como avaliar o que é pago, que é justamente o propósito do teste.
+   Não afeta a web: lá planoEfetivo() continua olhando a assinatura real, e
+   quem não assinou vê o convite pra assinar pelo app.
    REMOVER esta condição assim que o Play Billing entrar no ar. */
 const APP_LIBERADO_NO_ANDROID = true;
 
@@ -5536,7 +5466,7 @@ function renderBloqueioPlano(paneId, icone, tituloRecurso){
     <div class="empty" style="padding:60px 20px;text-align:center">
       <div class="empty-v" style="font-size:2.4rem;margin-bottom:10px">${icone}</div>
       <h4 style="margin-bottom:6px">${tituloRecurso} é exclusivo do plano Premium</h4>
-      <p style="font-size:.8rem;color:var(--text3);margin-bottom:18px">Assine o Premium (R$ 14,99/mês) para desbloquear.</p>
+      <p style="font-size:.8rem;color:var(--text3);margin-bottom:18px">Assine o Premium (R$ 9,90/mês) para desbloquear.</p>
       <button class="btn-add azul" style="max-width:260px;margin:0 auto" onclick="assinaturaAbrirPlanos()">💎 Ver planos</button>
     </div>`;
 }
@@ -5580,7 +5510,7 @@ async function assinaturaEmailUsuario(){
 
 /* Traduz a linha do banco no que a tela precisa mostrar.
    `acao` diz QUAL botão o sheet deve mostrar:
-     'assinar'  → #assin-btn-assinar  (leva ao checkout do Mercado Pago)
+     'assinar'  → #assin-btn-assinar  (leva à tela de planos)
      'cancelar' → #assin-btn-cancelar (cancela a recorrência)
      null       → nenhum botão de ação (só o "Fechar") */
 function assinaturaResumo(row){
@@ -5678,7 +5608,7 @@ async function abrirAssinaturaSheet(){
       '<div style="font-weight:700;font-size:.95rem;color:'+r.cor+';margin-bottom:6px">'+r.titulo+'</div>'
       + '<div>'+r.texto+'</div>'
       + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:.75rem;opacity:.7">'
-      + 'O plano Grátis é grátis para sempre. O Premium é cobrado na hora da assinatura, com acesso liberado imediatamente. Pagamento processado pelo Mercado Pago; cancele quando quiser.'
+      + 'O plano Grátis é grátis para sempre. O Premium é assinado dentro do app Android, pelo Google Play, e vale também na web na mesma conta; cancele quando quiser.'
       + '</div>';
   }
   /* Um botão de ação por vez, conforme `r.acao`:
@@ -5728,274 +5658,37 @@ function assinaturaRenderAcoesPlanos(){
   const prem = document.getElementById('plano-acao-premium');
   if(prem) prem.innerHTML = (atual === 'premium')
     ? selo
-    : '<button class="plano-pill-btn" data-ico="💳" onclick="abrirCartaoSheet(\'premium\')">Assinar</button>';
+    : '<button class="plano-pill-btn" data-ico="📲" onclick="assinarPremium()">Assinar no app</button>';
 }
 
-/* ═══ FORMULÁRIO DE CARTÃO (#sh-cartao-mp) ═══════════════════════════
-   O cartão é tokenizado AQUI, no nosso próprio domínio: os campos
-   sensíveis são iframes servidos pelo Mercado Pago (o número nunca toca
-   no nosso DOM) e o que sai daqui pra Netlify Function é só um token de
-   uso único. Ninguém é redirecionado pra lugar nenhum.
+/* Link do app na Play Store — a assinatura só é vendida por lá. */
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=br.com.bussolafinance.app';
 
-   Isso substituiu o checkout hospedado do Mercado Pago, cuja página tinha
-   o botão "Confirmar" permanentemente travado por uma violação de CSP DO
-   LADO DELES — reproduzido em várias contas, cartões e navegadores. Sem
-   sair do nosso site, o bug deixa de existir.
-════════════════════════════════════════════════════════════════════ */
+/* ── Assinar o Premium ──
+   A cobrança acontece EXCLUSIVAMENTE pelo Google Play Billing, dentro do app
+   Android: é exigência da política do Google (assinatura digital consumida no
+   app não pode ser cobrada por fora) e é também a decisão de negócio — não há
+   mais checkout próprio.
 
-/* Serve SÓ pro SDK calcular bin/parcelas do formulário — não é o valor
-   cobrado: quem cobra é o preapproval_plan lá no Mercado Pago. São os
-   mesmos preços exibidos nos cartões de plano. */
-const MP_VALOR_PLANO = { premium: '14.99' };
+   Na WEB não existe compra: o site manda a pessoa instalar o app. Depois de
+   assinar por lá, a assinatura fica gravada na conta (tabela `assinaturas`),
+   e é essa linha que libera o Premium aqui também.
 
-let _mpCheckout = null;  /* instância MercadoPago — criada na 1ª abertura */
-let _mpCardForm = null;  /* cardForm montado no momento; some ao fechar */
-
-function cartaoMpErro(msg){
-  const el = document.getElementById('cartao-mp-err');
-  if(!el) return;
-  el.textContent = msg || '';
-  el.classList.toggle('show', !!msg);
-}
-
-function cartaoMpBotao(carregando){
-  const b = document.getElementById('cartao-mp-btn');
-  if(!b) return;
-  b.disabled  = !!carregando;
-  b.textContent = carregando ? '⏳ Processando...' : '🔒 Assinar agora';
-}
-
-function cartaoMpSoDigitos(el){ el.value = el.value.replace(/\D/g,''); }
-
-/* `name` e `thumbnail` vêm da API do Mercado Pago, não de input do usuário —
-   por isso vão direto no innerHTML. `secure_thumbnail` primeiro: o `thumbnail`
-   às vezes vem em http e seria bloqueado como conteúdo misto. */
-function cartaoMpBandeira(metodo){
-  const el = document.getElementById('cartao-mp-bandeira');
-  if(!el) return;
-  if(!metodo){
-    el.innerHTML = '';
-    el.classList.remove('show');
+   TODO: quando o Play Billing entrar, o ramo nativo abre o fluxo de compra
+   em vez do aviso provisório. */
+function assinarPremium(){
+  if(window.Capacitor?.isNativePlatform?.()){
+    toast('⏳ A assinatura pelo app está sendo finalizada. Enquanto isso, seu acesso está liberado.', false, true);
     return;
   }
-  const img = metodo.secure_thumbnail || metodo.thumbnail;
-  el.innerHTML = (img ? '<img src="'+img+'" alt="">' : '') + (metodo.name || '');
-  el.classList.add('show');
-}
-
-/* CNPJ tem outro algoritmo e não passaria por validarCPF() — sem tipo
-   escolhido ainda, assume CPF, que é o caso de quase todo mundo. */
-function cartaoMpDocEhCpf(){
-  const sel = document.getElementById('form-checkout__identificationType');
-  return !sel || !sel.value || sel.value === 'CPF';
-}
-
-/* Sinal visual enquanto digita: só a partir de 11 dígitos, senão marcaria em
-   vermelho todo CPF ainda pela metade. */
-function cartaoMpCpfDigitando(el){
-  const d = el.value.replace(/\D/g,'');
-  el.classList.toggle('erro', d.length >= 11 && cartaoMpDocEhCpf() && !validarCPF(d));
-}
-
-/* false = CPF preenchido e inválido. Campo vazio passa: quem cobra o
-   obrigatório é o próprio cardForm, e duplicar daria dois erros pelo mesmo
-   motivo. */
-function cartaoMpCpfOk(mostrarErro){
-  const el = document.getElementById('form-checkout__identificationNumber');
-  if(!el) return true;
-  const d = el.value.replace(/\D/g,'');
-  if(!d || !cartaoMpDocEhCpf() || validarCPF(d)){
-    el.classList.remove('erro');
-    return true;
-  }
-  el.classList.add('erro');
-  if(mostrarErro) cartaoMpErro('CPF inválido. Confira os números digitados.');
-  return false;
-}
-
-/* O iframe do Mercado Pago não enxerga as CSS vars do app, então a cor do
-   texto digitado precisa ir explícita — sem isso o padrão é preto, ilegível
-   no tema escuro. */
-function cartaoMpEstiloCampo(){
-  const cs = getComputedStyle(document.body);
-  return {
-    color:            (cs.getPropertyValue('--text')  || '').trim() || '#E2E8F0',
-    placeholderColor: (cs.getPropertyValue('--text3') || '').trim() || '#64748B',
-    fontSize:         '14px'
-  };
-}
-
-/* Abre o formulário já com plano, e-mail da conta e CPF do perfil
-   preenchidos. Chamado pelo botão "Assinar" do cartão Premium. */
-async function abrirCartaoSheet(plano){
-  if(plano !== 'premium') return;
-  if(!window._sbUID) return toast('⚠️ Sessão expirada. Faça login novamente.', true);
-  if(typeof MercadoPago !== 'function')
-    return toast('⚠️ Não foi possível carregar o pagamento. Recarregue a página e tente de novo.', true);
-
-  const email = await assinaturaEmailUsuario();
-  if(!email) return toast('⚠️ Não encontramos seu e-mail. Complete seu perfil e tente de novo.', true);
-
-  planoEscolhido = plano;
-  cartaoMpErro('');
-  cartaoMpBotao(false);
-
-  const resumo = document.getElementById('cartao-mp-resumo');
-  if(resumo) resumo.textContent =
-    'Plano Premium'
-    + ' — R$ ' + MP_VALOR_PLANO[plano].replace('.', ',')
-    + '/mês, cobrado agora e renovado todo mês. Cancele quando quiser.';
-
-  const inpEmail = document.getElementById('form-checkout__cardholderEmail');
-  if(inpEmail) inpEmail.value = email;
-
-  /* CPF do perfil entra só com os dígitos (o app guarda pontuado) e segue
-     editável — o titular do cartão pode ser outra pessoa. */
-  const inpDoc = document.getElementById('form-checkout__identificationNumber');
-  if(inpDoc) inpDoc.value = String(window._perfilAtual?.cpf || '').replace(/\D/g,'');
-
-  document.getElementById('sh-cartao-mp-ov').classList.add('show');
-  setTimeout(()=>document.getElementById('sh-cartao-mp').classList.add('show'),10);
-
-  cartaoMpMontarForm(plano);
-}
-
-function cartaoMpDesmontarForm(){
-  /* Antes do early return: a bandeira e a borda vermelha são nossas, sobrevivem
-     ao unmount e apareceriam na tentativa seguinte falando do cartão anterior. */
-  cartaoMpBandeira(null);
-  const inpDoc = document.getElementById('form-checkout__identificationNumber');
-  if(inpDoc) inpDoc.classList.remove('erro');
-  if(!_mpCardForm) return;
-  try{ _mpCardForm.unmount(); }catch(e){ console.error('cardForm unmount:', e); }
-  _mpCardForm = null;
-}
-
-function fecharCartaoSheet(){
-  document.getElementById('sh-cartao-mp').classList.remove('show');
-  document.getElementById('sh-cartao-mp-ov').classList.remove('show');
-  cartaoMpDesmontarForm();
-}
-
-function cartaoMpMontarForm(plano){
-  if(!_mpCheckout) _mpCheckout = new MercadoPago(MP_PUBLIC_KEY);
-
-  /* Remonta do zero a cada abertura: o `amount` muda conforme o plano e o
-     token de um envio anterior é de uso único — reaproveitar o form montado
-     arriscaria mandar token queimado. */
-  cartaoMpDesmontarForm();
-
-  const estilo = cartaoMpEstiloCampo();
-
-  _mpCardForm = _mpCheckout.cardForm({
-    amount: MP_VALOR_PLANO[plano],
-    iframe: true,
-    form: {
-      id: 'form-checkout',
-      cardNumber:           { id: 'form-checkout__cardNumber',     placeholder: '0000 0000 0000 0000', style: estilo },
-      expirationDate:       { id: 'form-checkout__expirationDate', placeholder: 'MM/AA',               style: estilo },
-      securityCode:         { id: 'form-checkout__securityCode',   placeholder: 'CVV',                 style: estilo },
-      cardholderName:       { id: 'form-checkout__cardholderName' },
-      issuer:               { id: 'form-checkout__issuer' },
-      installments:         { id: 'form-checkout__installments' },
-      identificationType:   { id: 'form-checkout__identificationType' },
-      identificationNumber: { id: 'form-checkout__identificationNumber' },
-      cardholderEmail:      { id: 'form-checkout__cardholderEmail' }
-    },
-    callbacks: {
-      onFormMounted: erro => { if(erro) console.error('cardForm onFormMounted:', erro); },
-
-      onIdentificationTypesReceived: (erro, tipos) => {
-        if(erro) return console.error('cardForm identificationTypes:', erro);
-        /* Pessoa física no Brasil: CPF é o caso de praticamente todo mundo —
-           deixa pré-selecionado, mas o select continua editável. */
-        const sel = document.getElementById('form-checkout__identificationType');
-        if(sel && Array.isArray(tipos) && tipos.some(t => t.id === 'CPF')) sel.value = 'CPF';
-      },
-
-      /* O SDK reconhece a bandeira pelo BIN sozinho, a cada dígito. Número
-         curto demais ou BIN desconhecido chega como erro ou lista vazia — aí o
-         indicador só some, sem mensagem: não é falha, é "ainda não dá pra
-         saber". */
-      onPaymentMethodsReceived: (erro, metodos) => {
-        if(erro || !Array.isArray(metodos) || !metodos.length) return cartaoMpBandeira(null);
-        cartaoMpBandeira(metodos[0]);
-      },
-
-      onError: erros => {
-        console.error('cardForm onError:', erros);
-        cartaoMpBotao(false);
-        cartaoMpErro('Confira os dados do cartão — algum campo está incompleto ou inválido.');
-      },
-
-      onSubmit: event => {
-        event.preventDefault();
-        /* CPF com dígito verificador errado o Mercado Pago recusaria de
-           qualquer jeito: barrar aqui poupa uma tentativa de cobrança e dá o
-           erro certo na hora. */
-        if(!cartaoMpCpfOk(true)) return;
-        /* O token nasce aqui, novo a cada envio: vale uma única vez, expira
-           em 7 dias e nunca é guardado em lugar nenhum. */
-        const dados = _mpCardForm ? _mpCardForm.getCardFormData() : null;
-        cartaoMpEnviar(dados?.token || '');
-      }
-    }
+  confirmar({
+    icone:'📲',
+    titulo:'Assine pelo app',
+    msg:'O Premium é assinado dentro do app Bússola, no Android — é lá que a cobrança acontece. Depois de assinar, o Premium vale também aqui na web, na mesma conta.',
+    btnTxt:'Abrir na Play Store',
+    cor:'var(--teal)',
+    fn:()=>{ window.open(PLAY_STORE_URL,'_blank','noopener'); }
   });
-}
-
-/* Manda o token pra function, que cria a assinatura já autorizada no
-   Mercado Pago. Em caso de falha o sheet fica ABERTO de propósito: o token
-   já queimou, e reenviar o formulário gera outro automaticamente — a pessoa
-   corrige ou troca de cartão sem recomeçar o fluxo. */
-async function cartaoMpEnviar(token){
-  if(!token){
-    cartaoMpBotao(false);
-    return cartaoMpErro('Não conseguimos validar seu cartão. Confira os dados e tente de novo.');
-  }
-
-  const uid = window._sbUID;
-  if(!uid){
-    cartaoMpBotao(false);
-    return cartaoMpErro('Sessão expirada. Faça login novamente.');
-  }
-
-  cartaoMpErro('');
-  cartaoMpBotao(true);
-
-  try{
-    /* E-mail da CONTA, não o digitado no formulário: é ele que amarra a
-       assinatura ao usuário certo (mesma fonte do resto do app). */
-    const email = await assinaturaEmailUsuario();
-
-    const resp = await fetch('/.netlify/functions/criar-assinatura', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, email, plano: planoEscolhido, cardTokenId: token })
-    });
-
-    let data = null;
-    try{ data = await resp.json(); }catch(e){ data = null; }
-
-    if(!resp.ok || !data?.ok){
-      console.error('cartaoMpEnviar falhou:', resp.status, data);
-      cartaoMpBotao(false);
-      return cartaoMpErro(data?.erro || 'Não foi possível ativar sua assinatura agora. Tente novamente em instantes.');
-    }
-
-    fecharCartaoSheet();
-    toast('✅ Assinatura ativada!');
-
-    /* Daqui pra frente é o caminho que já existia: a assinatura está
-       autorizada no Mercado Pago, mas quem grava `assinaturas.status =
-       'ativo'` é o webhook. A tela de "confirmando pagamento" + a
-       verificação liberam o app assim que isso chega. */
-    assinaturaGateMostrarRetorno();
-    assinaturaGateVerificarNovamente();
-  }catch(e){
-    console.error('cartaoMpEnviar error:', e);
-    cartaoMpBotao(false);
-    cartaoMpErro('Erro de conexão ao ativar a assinatura. Tente novamente.');
-  }
 }
 
 /* ── Cancelamento de assinatura (confirmação + execução) ──
@@ -6378,11 +6071,11 @@ window.addEventListener('load',()=>{
     authMostrarNovaSenha();
   }
 
-  /* Volta do checkout do Mercado Pago (back_url = .../?assinatura=retorno).
-     O login NÃO é mais barrado por isso: a pessoa entra direto no app (no
-     Básico, se o webhook ainda não confirmou). A flag só faz a tela de
-     planos abrir no estado "confirmando pagamento" em vez da oferta, se ela
-     for aberta nesta sessão. Limpa o parâmetro da URL (mesmo padrão do
+  /* ?assinatura=retorno abre a tela de planos no estado "confirmando
+     pagamento" em vez da oferta. Nasceu pro retorno do checkout antigo e
+     hoje ninguém gera esse link (a cobrança é no Play Billing), mas o
+     estado fica de pé porque é exatamente o que a confirmação da compra do
+     Google vai precisar. Limpa o parâmetro da URL (mesmo padrão do
      ?reset=1) para um F5 não repetir esse estado. */
   try{
     if (new URLSearchParams(location.search).get('assinatura') === 'retorno') {
