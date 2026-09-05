@@ -3486,7 +3486,7 @@ function sincronizarSaldoDivida(dividaId){const d=getDivida(dividaId);if(d)d.sal
 function getCartao(cartaoId){return APP.cartoes.find(c=>c.id===cartaoId)||null;}
 
 /* Dia de compra vs dia de fechamento → referência da fatura ('AAAA-MM').
-   Comprou DEPOIS do fechamento, cai na fatura do mês seguinte (com rollover
+   Comprou NO dia do fechamento ou depois, cai na fatura do mês seguinte (com rollover
    de ano: 20/dez com fechamento 15 → fatura de jan do ano seguinte). */
 function calcularFaturaRef(dataISO,cartao){
   const p=String(dataISO||'').split('-');
@@ -3494,7 +3494,7 @@ function calcularFaturaRef(dataISO,cartao){
   const y=Number(p[0]),m=Number(p[1]),d=Number(p[2]);
   if(!y||!m||!d)return'';
   const fech=Math.max(1,Math.min(31,Number(cartao&&cartao.diaFechamento)||1));
-  if(d<=fech)return`${y}-${String(m).padStart(2,'0')}`;
+  if(d<fech)return`${y}-${String(m).padStart(2,'0')}`;
   // m é 1-based, então new Date(y,m,1) já é o dia 1 do mês SEGUINTE
   // (e o construtor normaliza dezembro → janeiro do ano seguinte sozinho).
   const prox=new Date(y,m,1);
