@@ -249,6 +249,19 @@ async function sbCarregarDados() {
       window.migrarPagamentosDividaParaRegistros();
     }
 
+    // Devolve as baixas do Planejar perdidas enquanto o banco recusava o
+    // upsert (ver repararBaixasPerdidasDoPlano). Roda ANTES de renderizar,
+    // e grava — agora a gravação funciona, então o conserto vai pra nuvem.
+    if (typeof window.repararBaixasPerdidasDoPlano === 'function') {
+      const nRep = window.repararBaixasPerdidasDoPlano();
+      if (nRep > 0) {
+        if (typeof salvarPlan === 'function') salvarPlan();
+        if (typeof toast === 'function') {
+          toast(`🔧 ${nRep} baixa${nRep>1?'s':''} do Planejar restaurada${nRep>1?'s':''}.`, false, true);
+        }
+      }
+    }
+
     // Atualiza UI
     if (typeof window.renderLista === 'function') {
       window.renderLista(); window.renderPlan(); window.atualizarStats();
@@ -311,14 +324,20 @@ function sbLancToApp(r) {
 }
 function sbPlanToApp(r) {
   const [y,m,d] = (r.data_prevista||'').split('-');
+  // data_exec/data_exec_iso são DATE: voltam sempre em aaaa-mm-dd. O app usa
+  // dataExec só para EXIBIR ("Executado em 05/09/2026"), então a conversão pro
+  // formato de tela é feita aqui, na leitura — nunca gravando dd/mm/aaaa no
+  // banco, que é o que quebrava a sincronização inteira.
+  const execISO = r.data_exec_iso || r.data_exec || '';
+  const [ey,em,ed] = String(execISO).split('-');
   return {
     id: r.id, data: d?`${d}/${m}/${y}`:'', dataISO: r.data_prevista||'',
     mes: r.mes_ref, descricao: r.descricao, movimento: r.movimento,
     valorPlanejado: parseFloat(r.valor_planejado||0),
     valorReal: parseFloat(r.valor_real||0),
     tipo: r.tipo, categoria: r.categoria, classificacao: r.classificacao,
-    status: r.status, dataExec: r.data_exec||undefined,
-    dataExecISO: r.data_exec_iso||undefined, lancId: r.lanc_id||null,
+    status: r.status, dataExec: ed?`${ed}/${em}/${ey}`:undefined,
+    dataExecISO: execISO||undefined, lancId: r.lanc_id||null,
     recorrente: r.recorrente||false, grupoRec: r.grupo_rec||null,
     comentario: r.comentario||undefined,
     pagamentoDivida: r.pagamento_divida||false,
@@ -346,12 +365,28 @@ function sbPagToApp(r) {
    PERSISTÊNCIA — App → Supabase (tabelas relacionais)
 ══════════════════════════════════════════════ */
 
-/* Reporta erro de uma chamada Supabase. Retorna true se houve erro. */
+/* Reporta erro de uma chamada Supabase. Retorna true se houve erro.
+   Guarda a última mensagem em _sbUltimoErro: sem isso o único sinal de falha
+   era um console.error que ninguém vê no celular — e uma gravação recusada
+   pelo banco passava semanas despercebida. */
 function _sbErr(contexto, error) {
   if (!error) return false;
   console.error('_sbSync error em ' + contexto + ':', error);
+  window._sbUltimoErro = contexto + ': ' + (error.message || error.code || 'erro desconhecido');
   window._sbSetSyncStatus('error');
   return true;
+}
+
+/* Normaliza data para aaaa-mm-dd, que é o ÚNICO formato aceito pelas colunas
+   DATE do Postgres. Mandar dd/mm/aaaa faz o banco recusar a linha (erro 22008,
+   "date/time field value out of range") e, como os upserts são em LOTE, uma
+   única linha ruim derruba a gravação do conjunto inteiro. Devolve null no que
+   não reconhecer — nunca a string crua. */
+function _sbDataISO(v) {
+  const s = String(v||'').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }
 
 /* O delete-orphans só pode rodar depois que o estado local foi hidratado do remoto
@@ -444,18 +479,26 @@ window._sbSync = async function(patch) {
     }
 
     if (patch.plan) {
-      const rows = (patch.plan).map(p => ({
-        id: p.id, uid,
-        data_prevista: p.dataISO, mes_ref: p.mes,
-        descricao: p.descricao, movimento: p.movimento,
-        valor_planejado: p.valorPlanejado, valor_real: p.valorReal||0,
-        tipo: p.tipo, categoria: p.categoria, classificacao: p.classificacao,
-        status: p.status, data_exec: p.dataExec||null,
-        data_exec_iso: p.dataExecISO||null, lanc_id: p.lancId||null,
-        recorrente: p.recorrente||false, grupo_rec: p.grupoRec||null,
-        comentario: p.comentario||null,
-        pagamento_divida: p.pagamentoDivida||false
-      }));
+      const rows = (patch.plan).map(p => {
+        // data_exec E data_exec_iso são colunas DATE no banco — as duas só
+        // aceitam aaaa-mm-dd. O app guardava em data_exec o dd/mm/aaaa que
+        // aparece na tela, o Postgres recusava a linha e, como o upsert é em
+        // lote, TODOS os planejamentos deixavam de ser gravados: a baixa ficava
+        // certa na tela e voltava a pendente/vencido no próximo carregamento.
+        const execISO = _sbDataISO(p.dataExecISO) || _sbDataISO(p.dataExec);
+        return {
+          id: p.id, uid,
+          data_prevista: p.dataISO, mes_ref: p.mes,
+          descricao: p.descricao, movimento: p.movimento,
+          valor_planejado: p.valorPlanejado, valor_real: p.valorReal||0,
+          tipo: p.tipo, categoria: p.categoria, classificacao: p.classificacao,
+          status: p.status, data_exec: execISO,
+          data_exec_iso: execISO, lanc_id: p.lancId||null,
+          recorrente: p.recorrente||false, grupo_rec: p.grupoRec||null,
+          comentario: p.comentario||null,
+          pagamento_divida: p.pagamentoDivida||false
+        };
+      });
       if (rows.length > 0) {
         const { error } = await _supa.from('planejamentos').upsert(rows, { onConflict: 'id' });
         houveErro = _sbErr('planejamentos.upsert', error) || houveErro;
@@ -1806,6 +1849,13 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   .dash-kpi-row{grid-template-columns:repeat(4,1fr)}  /* 4 KPIs numa linha */
   .bolsos-grid {grid-template-columns:repeat(4,1fr)}  /* cards de bolso */
   .meses-grid  {grid-template-columns:repeat(6,1fr)}  /* 12 meses em 2 linhas */
+
+  /* O .safe-spacer existe só pro empilhamento vertical do mobile (notch do
+     iPhone). Aqui #auth-screen é uma LINHA e #appRoot é um grid com posições
+     explícitas: um filho `width:100%;flex-shrink:0` empurrava o hero e o card
+     de login pra fora da tela (barra de rolagem horizontal, formulário
+     cortado). No desktop não existe notch, então ele simplesmente sai. */
+  .safe-spacer{display:none}
 
   /* ─── TELA DE LOGIN / CADASTRO: 2 COLUNAS ───
      Hero à esquerda, card do formulário à direita.
@@ -6493,6 +6543,9 @@ function init(){
   buildMesesGrid();
   // Espelha em Registros os pagamentos de dívida antigos (idempotente).
   migrarPagamentosDividaParaRegistros();
+  // Idem para as baixas do Planejar perdidas quando o banco recusava a
+  // gravação — aqui vale para quem abre offline, só com o localStorage.
+  if(repararBaixasPerdidasDoPlano()>0)salvarPlan();
   renderLista();renderPlan();renderOrcamentos();atualizarStats();atualizarStatsPlan();
   renderInvestimentos();renderDividas();
   // Dashboard abre já filtrado no mês corrente (mesmo comportamento do select antigo).
@@ -7050,7 +7103,9 @@ function confirmarExec(){
   const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','cartao':'💳 Cartão','manual':'✋ Manual'}[origem]||'';
   toast(`✅ Executado! [${origemLabel}]`,false,true);
   Promise.resolve(syncPromise).then(falhou=>{
-    if(falhou) toast('⚠️ O pagamento foi registrado, mas houve um problema ao salvar no plano. Confira em Planejar e, se ainda aparecer pendente, tente confirmar de novo.',true);
+    // O motivo REAL da recusa vai junto: uma mensagem genérica já custou
+    // semanas de baixa sumindo sem ninguém saber o que o banco reclamava.
+    if(falhou) toast('⚠️ O pagamento foi registrado, mas o plano não salvou no servidor: '+String(window._sbUltimoErro||'erro desconhecido').slice(0,120),true);
   });
 }
 
@@ -8532,6 +8587,48 @@ function resetLancDivida(){
   const dW=document.getElementById('lanc-destino-bolso-wrap');if(dW)dW.style.display='none';
   atualizarVisibilidadeOrigemLanc();
   atualizarVisibilidadeContaLanc();
+}
+
+/* ── Reparo: baixas do Planejar que se perderam na nuvem ──
+   Houve um período em que o upsert de `planejamentos` era recusado pelo banco
+   (data_exec ia em dd/mm/aaaa numa coluna DATE), então confirmar um pagamento
+   mudava o status só na tela: no carregamento seguinte o plano voltava a
+   aparecer como pendente/vencido, mesmo com o lançamento certo em Registros.
+   Os LANÇAMENTOS foram gravados normalmente — e um lançamento com dePlan=true
+   só nasce de confirmarExec(). Logo, se existe um desses casando com um plano
+   que está pendente, aquele plano FOI executado: é isso que este reparo
+   devolve. Idempotente — depois do conserto o plano vira 'executado' e não
+   casa mais com nada. Execução 'manual' não gera lançamento, então não tem
+   como ser reparada (e também nunca é casada por engano). */
+function repararBaixasPerdidasDoPlano(){
+  if(!APP.plan?.length||!APP.dados?.length)return 0;
+  const chave=(desc,mes,mov)=>`${String(desc||'').toUpperCase()}|${mes}|${mov}`;
+  // Lançamentos já reivindicados por algum plano não entram no pool.
+  const usados=new Set(APP.plan.filter(p=>p.lancId).map(p=>p.lancId));
+  const pool=new Map();
+  APP.dados.forEach(d=>{
+    if(!d.dePlan||usados.has(d.id))return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d.dataISO||'')))return;
+    const k=chave(d.descricao,d.mes,d.movimento);
+    if(!pool.has(k))pool.set(k,[]);
+    pool.get(k).push(d);
+  });
+  if(!pool.size)return 0;
+  let consertou=0;
+  APP.plan.forEach(p=>{
+    if(p.status==='executado')return;
+    const cand=pool.get(chave(p.descricao,p.mes,p.movimento));
+    if(!cand||!cand.length)return;
+    const d=cand.shift();   // consome: um lançamento conserta um plano só
+    const[y,m,dia]=String(d.dataISO).split('-');
+    p.status='executado';
+    p.valorReal=Math.abs(Number(d.valorAbs)||0);
+    p.dataExec=`${dia}/${m}/${y}`;
+    p.dataExecISO=d.dataISO;
+    p.lancId=d.id;
+    consertou++;
+  });
+  return consertou;
 }
 
 /* ── Migração: todo pagamento do ledger aparece em Registros ──
