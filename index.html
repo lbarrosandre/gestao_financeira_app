@@ -5435,7 +5435,10 @@ const APP_LIBERADO_NO_ANDROID = true;
    propósito do teste), e alguém precisa conseguir testar a compra de verdade
    — o que é impossível para quem já entra como Premium.
    Sai junto com APP_LIBERADO_NO_ANDROID quando o Billing valer para todos. */
-const UIDS_FORA_DA_LIBERACAO = ['0b792fcf-d561-4dfb-987a-20e6b63a6e47'];
+const UIDS_FORA_DA_LIBERACAO = [
+  'c86f083e-a79e-4cb6-b4dc-cc4714b6da90',
+  '3d34f4a4-8ef7-4c25-9364-9bbdb102950d'
+];
 
 function planoEfetivo(){
   if(APP_LIBERADO_NO_ANDROID && window.Capacitor?.isNativePlatform?.()
