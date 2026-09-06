@@ -3201,9 +3201,15 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <!-- Os dois botões abaixo são mutuamente exclusivos: abrirAssinaturaSheet()
          mostra um OU outro (ou nenhum) conforme `r.acao` do assinaturaResumo(). -->
     <button class="sh-cancel" id="assin-btn-cancelar" style="display:none;color:var(--danger);border-color:var(--danger)" onclick="assinaturaConfirmarCancelamento()">Cancelar assinatura</button>
-    <!-- Não vai direto pro checkout: abre a tela de escolha de plano
-         (#form-assinatura), que é quem sabe qual plano mandar pro MP. -->
-    <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaAbrirPlanos()">💳 Assinar agora</button>
+    <!-- Não vai direto pra compra: abre a tela de escolha de plano
+         (#form-assinatura), que é de onde sai o fluxo do Play Billing. -->
+    <button class="sh-ok" id="assin-btn-assinar" style="display:none" onclick="assinaturaAbrirPlanos()">💎 Assinar agora</button>
+  </div>
+  <!-- Restaurar: só aparece dentro do app Android (ver abrirAssinaturaSheet).
+       Quem já pagou e reinstalou, trocou de aparelho, ou teve a confirmação
+       interrompida no meio precisa de uma saída sem pagar de novo. -->
+  <div id="assin-restaurar-wrap" style="display:none;text-align:center;margin-top:10px">
+    <button class="auth-link" onclick="restaurarCompraPremium()">Já assinei — restaurar compra</button>
   </div>
 </div>
 
@@ -5627,6 +5633,13 @@ async function abrirAssinaturaSheet(){
     if(btn)     btn.style.display     = 'none';
     if(btnCanc) btnCanc.style.display = 'none';
   }
+
+  /* "Restaurar compra": só dentro do app e só pra quem AINDA não está com o
+     Premium ativo — é exatamente o caso de quem pagou e, por reinstalação ou
+     falha de confirmação, está vendo a tela como se não tivesse assinado. */
+  const wrapRest = document.getElementById('assin-restaurar-wrap');
+  if(wrapRest) wrapRest.style.display =
+    (playBilling() && r.acao !== 'cancelar') ? 'block' : 'none';
 }
 
 function fecharAssinaturaSheet(){
@@ -5664,6 +5677,35 @@ function assinaturaRenderAcoesPlanos(){
 /* Link do app na Play Store — a assinatura só é vendida por lá. */
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=br.com.bussolafinance.app';
 
+/* ═══ GOOGLE PLAY BILLING ═══════════════════════════════════════════
+   Identificadores criados no Play Console. Os dois são PERMANENTES lá —
+   se mudarem aqui sem existir do lado do Google, a compra simplesmente
+   não abre. */
+const PLAY_PRODUTO = 'premium_mensal';
+const PLAY_PLANO   = 'mensal';
+
+/* O plugin só existe dentro do app Android. Na web devolve null, e é isso
+   que separa os dois caminhos em todas as funções abaixo. */
+function playBilling(){
+  if(!window.Capacitor?.isNativePlatform?.()) return null;
+  return window.Capacitor?.Plugins?.NativePurchases || null;
+}
+
+/* Manda o comprovante da compra pro servidor, que pergunta ao Google se
+   ela é real e grava o acesso. O app NUNCA libera Premium por conta
+   própria: quem decide é a resposta do servidor. */
+async function playRegistrarCompra(purchaseToken){
+  const resp = await fetch('/.netlify/functions/verificar-compra-play', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ uid: window._sbUID, purchaseToken, productId: PLAY_PRODUTO })
+  });
+  let data=null;
+  try{ data = await resp.json(); }catch(e){ data=null; }
+  if(!resp.ok || !data?.ok) throw new Error(data?.erro || 'Não foi possível confirmar a compra.');
+  return data;
+}
+
 /* ── Assinar o Premium ──
    A cobrança acontece EXCLUSIVAMENTE pelo Google Play Billing, dentro do app
    Android: é exigência da política do Google (assinatura digital consumida no
@@ -5672,28 +5714,127 @@ const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=br.com.bus
 
    Na WEB não existe compra: o site manda a pessoa instalar o app. Depois de
    assinar por lá, a assinatura fica gravada na conta (tabela `assinaturas`),
-   e é essa linha que libera o Premium aqui também.
+   e é essa linha que libera o Premium aqui também. */
+async function assinarPremium(){
+  const billing = playBilling();
 
-   TODO: quando o Play Billing entrar, o ramo nativo abre o fluxo de compra
-   em vez do aviso provisório. */
-function assinarPremium(){
-  if(window.Capacitor?.isNativePlatform?.()){
-    toast('⏳ A assinatura pelo app está sendo finalizada. Enquanto isso, seu acesso está liberado.', false, true);
+  if(!billing){
+    confirmar({
+      icone:'📲',
+      titulo:'Assine pelo app',
+      msg:'O Premium é assinado dentro do app Bússola, no Android — é lá que a cobrança acontece. Depois de assinar, o Premium vale também aqui na web, na mesma conta.',
+      btnTxt:'Abrir na Play Store',
+      cor:'var(--teal)',
+      fn:()=>{ window.open(PLAY_STORE_URL,'_blank','noopener'); }
+    });
     return;
   }
-  confirmar({
-    icone:'📲',
-    titulo:'Assine pelo app',
-    msg:'O Premium é assinado dentro do app Bússola, no Android — é lá que a cobrança acontece. Depois de assinar, o Premium vale também aqui na web, na mesma conta.',
-    btnTxt:'Abrir na Play Store',
-    cor:'var(--teal)',
-    fn:()=>{ window.open(PLAY_STORE_URL,'_blank','noopener'); }
-  });
+
+  if(!window._sbUID) return toast('⚠️ Faça login antes de assinar.', true);
+
+  try{
+    const sup = await billing.isBillingSupported();
+    if(!sup?.isBillingSupported)
+      return toast('⚠️ Este aparelho não tem o Google Play disponível para pagamentos.', true);
+
+    toast('⏳ Abrindo o pagamento...');
+
+    /* autoAcknowledgePurchases:false de propósito — quem confirma a compra
+       é o servidor, e só DEPOIS de gravar o acesso. Enquanto não confirma,
+       o Google reembolsa sozinho em 3 dias: é essa janela que protege o
+       cliente se algo falhar do nosso lado.
+       appAccountToken amarra a compra à conta no registro do Google, o que
+       ajuda no suporte e a detectar uso da mesma assinatura em contas
+       diferentes. É o uid (identificador opaco), nunca e-mail. */
+    const tx = await billing.purchaseProduct({
+      productIdentifier: PLAY_PRODUTO,
+      planIdentifier:    PLAY_PLANO,
+      productType:       'subs',
+      appAccountToken:   window._sbUID,
+      autoAcknowledgePurchases: false
+    });
+
+    if(!tx?.purchaseToken) throw new Error('O Google não devolveu o comprovante da compra.');
+
+    toast('⏳ Confirmando o pagamento...');
+    await playRegistrarCompra(tx.purchaseToken);
+
+    /* Recarrega a assinatura do banco: é ela que planoEfetivo() lê. */
+    if(typeof verificarStatusAssinatura === 'function') await verificarStatusAssinatura();
+    if(typeof assinaturaRenderAcoesPlanos === 'function') assinaturaRenderAcoesPlanos();
+
+    toast('✅ Premium ativado! Aproveite.', false, true);
+    setTimeout(()=>location.reload(), 1400);
+
+  }catch(e){
+    const msg = String(e?.message || e || '');
+    /* Desistir da compra não é erro: o Google devolve "cancel"/"canceled"
+       quando a pessoa fecha a tela de pagamento. Mostrar erro aí só assusta. */
+    if(/cancel/i.test(msg)) return;
+    console.error('assinarPremium:', e);
+    toast('⚠️ ' + (msg || 'Não foi possível concluir a assinatura.'), true);
+  }
+}
+
+/* ── Restaurar compra ──
+   Reinstalou o app, trocou de aparelho ou a confirmação falhou no meio do
+   caminho: a compra continua existindo no Google. Aqui a gente pergunta a
+   ele o que essa conta já comprou e reenvia pro servidor. Sem isto, quem
+   já pagou ficaria sem acesso e sem saída dentro do app. */
+async function restaurarCompraPremium(){
+  const billing = playBilling();
+  if(!billing) return toast('⚠️ A restauração só funciona dentro do app Android.', true);
+  if(!window._sbUID) return toast('⚠️ Faça login antes de restaurar.', true);
+
+  try{
+    toast('⏳ Procurando sua assinatura...');
+    const res = await billing.getPurchases({ productType:'subs' });
+    const compras = Array.isArray(res?.purchases) ? res.purchases : [];
+    const premium = compras.find(p => p?.productIdentifier === PLAY_PRODUTO && p?.purchaseToken);
+
+    if(!premium) return toast('Nenhuma assinatura encontrada nesta conta do Google.', true);
+
+    await playRegistrarCompra(premium.purchaseToken);
+    if(typeof verificarStatusAssinatura === 'function') await verificarStatusAssinatura();
+
+    toast('✅ Assinatura restaurada!', false, true);
+    setTimeout(()=>location.reload(), 1400);
+
+  }catch(e){
+    console.error('restaurarCompraPremium:', e);
+    toast('⚠️ ' + (e?.message || 'Não foi possível restaurar agora.'), true);
+  }
+}
+
+/* Cancelamento e troca de forma de pagamento são responsabilidade do
+   Google — abrimos a tela nativa dele em vez de tentar fazer por fora. */
+async function abrirAssinaturasGooglePlay(){
+  const billing = playBilling();
+  if(billing){
+    try{ await billing.manageSubscriptions(); return; }
+    catch(e){ console.error('manageSubscriptions:', e); }
+  }
+  window.open('https://play.google.com/store/account/subscriptions','_blank','noopener');
 }
 
 /* ── Cancelamento de assinatura (confirmação + execução) ──
    Etapa 1: confirma com o usuário (reaproveita o dialog universal). */
 function assinaturaConfirmarCancelamento(){
+  /* Assinatura comprada no Google Play só pode ser cancelada pelo próprio
+     Google — não existe API nossa que cancele por fora. Levar a pessoa pro
+     lugar certo evita o pior desfecho possível aqui: ela achar que cancelou
+     no app e continuar sendo cobrada todo mês pelo Google. */
+  if(window._assinaturaAtual?.play_purchase_token){
+    confirmar({
+      icone:'📲',
+      titulo:'Cancelar no Google Play',
+      msg:'Sua assinatura foi feita pelo Google Play, então o cancelamento acontece lá — é o único lugar que interrompe a cobrança. Vamos abrir as assinaturas da sua conta Google. Você continua com o Premium até o fim do período já pago.',
+      btnTxt:'Abrir assinaturas',
+      cor:'var(--teal)',
+      fn: abrirAssinaturasGooglePlay
+    });
+    return;
+  }
   confirmar({
     icone:'⚠️',
     titulo:'Cancelar assinatura?',

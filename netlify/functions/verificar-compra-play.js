@@ -282,30 +282,7 @@ exports.handler = async (event) => {
     console.log('[verificar-compra-play] uid:', uid, '| estado Google:', estado,
                 '| status gravado:', status, '| expira:', expiraEm);
 
-    /* ── 7. Acknowledge — sem isto o Google reembolsa em 3 dias ── */
-    if (assin.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING') {
-      const urlAck = `${ANDROID_API}/applications/${encodeURIComponent(pacote)}`
-                   + `/purchases/subscriptions/${encodeURIComponent(produto)}`
-                   + `/tokens/${encodeURIComponent(token)}:acknowledge`;
-      const rAck = await fetch(urlAck, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: '{}'
-      });
-      if (rAck.ok) {
-        console.log('[verificar-compra-play] compra confirmada (acknowledge) — uid:', uid);
-      } else {
-        /* Já confirmada por outra chamada é resultado bom, não erro: o
-           plugin do app também pode ter confirmado antes de chegar aqui. */
-        const txtAck = await rAck.text();
-        const jaFeito = rAck.status === 400 && txtAck.includes('already acknowledged');
-        if (jaFeito) console.log('[verificar-compra-play] compra já estava confirmada — uid:', uid);
-        else console.error('[verificar-compra-play] FALHA no acknowledge — uid:', uid,
-                           'status:', rAck.status, 'resp:', txtAck.slice(0, 300));
-      }
-    }
-
-    /* ── 8. Grava em `assinaturas` (upsert pelo uid) ──
+    /* ── 7. Grava em `assinaturas` (upsert pelo uid) ──
        Falha aqui NÃO pode virar sucesso na resposta: foi exatamente esse
        tipo de gravação silenciosamente recusada que fez baixas sumirem no
        Planejar. Se o banco recusar, o app fica sabendo. */
@@ -338,6 +315,38 @@ exports.handler = async (event) => {
         return json(500, { erro: 'Banco desatualizado: rode a migração das colunas play_* em assinaturas.' });
       }
       return json(502, { erro: 'A compra foi confirmada, mas não conseguimos liberar o acesso agora. Tente novamente em instantes.' });
+    }
+
+    /* ── 8. Acknowledge — DEPOIS de gravar o acesso, nunca antes ──
+       O Google reembolsa automaticamente toda compra não confirmada em 3
+       dias. Esse prazo é a nossa rede de segurança: enquanto o acesso não
+       estiver gravado, a compra fica sem confirmar de propósito, para que
+       uma falha nossa devolva o dinheiro ao cliente em vez de deixá-lo
+       pagando por um Premium que não recebeu. Confirmar antes de gravar
+       inverteria isso — cobrado, sem reembolso e sem acesso.
+       Por isso também o app compra com autoAcknowledgePurchases:false. */
+    if (assin.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING') {
+      const urlAck = `${ANDROID_API}/applications/${encodeURIComponent(pacote)}`
+                   + `/purchases/subscriptions/${encodeURIComponent(produto)}`
+                   + `/tokens/${encodeURIComponent(token)}:acknowledge`;
+      const rAck = await fetch(urlAck, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      if (rAck.ok) {
+        console.log('[verificar-compra-play] compra confirmada (acknowledge) — uid:', uid);
+      } else {
+        /* Já confirmada é resultado bom, não erro. Qualquer outra falha fica
+           registrada: o acesso já foi concedido, mas o Google pode reembolsar
+           em 3 dias — a revalidação periódica derruba o Premium se isso
+           acontecer, então não há acesso pago indevidamente por muito tempo. */
+        const txtAck = await rAck.text();
+        const jaFeito = rAck.status === 400 && txtAck.includes('already acknowledged');
+        if (jaFeito) console.log('[verificar-compra-play] compra já estava confirmada — uid:', uid);
+        else console.error('[verificar-compra-play] FALHA no acknowledge — uid:', uid,
+                           'status:', rAck.status, 'resp:', txtAck.slice(0, 300));
+      }
     }
 
     console.log('[verificar-compra-play] OK — uid:', uid, 'status:', status);
