@@ -3947,6 +3947,12 @@ async function authLiberarApp(user, revelarUI){
   const assinRow = await assinaturaBuscar();
   window._assinaturaAtual = assinRow;
 
+  /* Confere no Google se a assinatura do Play continua valendo (renovou,
+     cancelou, venceu). Solta, sem await: não pode atrasar a entrada no app. */
+  if (typeof revalidarAssinaturaPlay === 'function') {
+    revalidarAssinaturaPlay().catch(e => console.error('revalidarAssinaturaPlay:', e));
+  }
+
   /* Aviso de assinatura (banner discreto, só 'atrasado'/'cancelado').
      Não bloqueia nem atrasa o login: roda solto e falha em silêncio. */
   if (typeof verificarStatusAssinatura === 'function') {
@@ -5794,6 +5800,59 @@ async function assinarPremium(){
     if(/cancel/i.test(msg)) return;
     console.error('assinarPremium:', e);
     toast('⚠️ ' + (msg || 'Não foi possível concluir a assinatura.'), true);
+  }
+}
+
+/* ── Revalidação da assinatura ──
+   A compra grava o acesso uma vez; nada garante que ele continue válido.
+   Sem reperguntar ao Google, quem cancelasse ou tivesse a cobrança recusada
+   manteria o Premium para sempre — e quem renovasse normalmente veria a data
+   de cobrança congelada.
+
+   QUANDO revalidar é o ponto: reperguntar a cada abertura desperdiçaria
+   chamada, e um intervalo fixo longo demoraria a perceber a mudança. Então
+   revalida quando a data da próxima cobrança JÁ PASSOU (é exatamente aí que
+   o estado mudou: renovou, falhou ou expirou), com um teto de 12h como rede
+   de segurança para o resto.
+
+   Vale na web também, de propósito: a assinatura é a mesma conta, e quem só
+   usa o site precisa igualmente perder o acesso ao cancelar.
+
+   Silencioso por natureza — falha de rede aqui não pode atrapalhar o uso do
+   app; na próxima abertura tenta de novo. */
+const REVALIDA_KEY = 'bussola_ultima_revalidacao_play';
+
+async function revalidarAssinaturaPlay(){
+  const r = window._assinaturaAtual;
+  if(!r?.play_purchase_token || !window._sbUID) return;
+
+  const agora   = Date.now();
+  const proxima = r.proxima_cobranca ? new Date(r.proxima_cobranca).getTime() : 0;
+  const venceu  = !!proxima && proxima < agora;
+
+  let ultima = 0;
+  try{ ultima = Number(localStorage.getItem(REVALIDA_KEY)||0) || 0; }catch(e){}
+  if(!venceu && (agora - ultima) < 12*60*60*1000) return;
+
+  try{
+    await playRegistrarCompra(r.play_purchase_token);
+    try{ localStorage.setItem(REVALIDA_KEY, String(agora)); }catch(e){}
+    const rowNova = await assinaturaBuscar();
+    if(rowNova){
+      const mudou = rowNova.status !== r.status;
+      window._assinaturaAtual = rowNova;
+      /* Só avisa quando o acesso REALMENTE mudou de estado — repintar a tela
+         a cada revalidação silenciosa seria ruído. */
+      if(mudou && typeof renderLista === 'function'){
+        try{ atualizarStats(); }catch(e){}
+        if(typeof assinaturaRenderAcoesPlanos === 'function') assinaturaRenderAcoesPlanos();
+      }
+    }
+  }catch(e){
+    /* Inclui o caso "compra não encontrada no Google" (assinatura removida).
+       Não derruba o acesso por conta própria: quem decide é o servidor, e ele
+       só grava o que o Google confirmar. */
+    console.error('revalidarAssinaturaPlay:', e);
   }
 }
 
