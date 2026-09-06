@@ -5772,8 +5772,16 @@ async function assinarPremium(){
     toast('⏳ Confirmando o pagamento...');
     await playRegistrarCompra(tx.purchaseToken);
 
-    /* Recarrega a assinatura do banco: é ela que planoEfetivo() lê. */
-    if(typeof verificarStatusAssinatura === 'function') await verificarStatusAssinatura();
+    /* Relê a linha JÁ gravada e atualiza o cache que planoEfetivo() consulta.
+       Sem isto o Premium só valeria depois de um novo login: esse cache é
+       preenchido no revelarApp() e nada mais o atualiza — foi exatamente o
+       que aconteceu no primeiro teste real (banco certo, tela ainda no
+       Grátis). O reload abaixo é só conveniência; o estado correto não pode
+       depender dele. */
+    if(typeof assinaturaBuscar === 'function'){
+      const rowNova = await assinaturaBuscar();
+      if(rowNova) window._assinaturaAtual = rowNova;
+    }
     if(typeof assinaturaRenderAcoesPlanos === 'function') assinaturaRenderAcoesPlanos();
 
     toast('✅ Premium ativado! Aproveite.', false, true);
@@ -5808,7 +5816,13 @@ async function restaurarCompraPremium(){
     if(!premium) return toast('Nenhuma assinatura encontrada nesta conta do Google.', true);
 
     await playRegistrarCompra(premium.purchaseToken);
-    if(typeof verificarStatusAssinatura === 'function') await verificarStatusAssinatura();
+    /* Mesmo motivo de assinarPremium(): atualizar o cache lido por
+       planoEfetivo(), senão o acesso só valeria no próximo login. */
+    if(typeof assinaturaBuscar === 'function'){
+      const rowNova = await assinaturaBuscar();
+      if(rowNova) window._assinaturaAtual = rowNova;
+    }
+    if(typeof assinaturaRenderAcoesPlanos === 'function') assinaturaRenderAcoesPlanos();
 
     toast('✅ Assinatura restaurada!', false, true);
     setTimeout(()=>location.reload(), 1400);
