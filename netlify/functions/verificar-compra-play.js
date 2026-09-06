@@ -260,7 +260,14 @@ exports.handler = async (event) => {
     }
     if (!rAssin.ok) {
       console.error('[verificar-compra-play] Google recusou a consulta:', rAssin.status, txtAssin.slice(0, 300));
-      return json(502, { erro: 'Não foi possível confirmar a compra com o Google agora.' });
+      /* O status do Google vai junto na resposta. É só um código HTTP, não
+         expõe nada sensível, e evita ter que caçar log toda vez que algo
+         falhar: 401/403 é permissão da conta de serviço, 400 é token
+         inválido, 5xx é instabilidade do lado deles. */
+      return json(502, {
+        erro: 'Não foi possível confirmar a compra com o Google agora.',
+        googleStatus: rAssin.status
+      });
     }
 
     let assin = null;
