@@ -3052,6 +3052,41 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </div>
 </div>
 
+<!-- EDIT SHEET DO PLANEJAMENTO
+     Só abre para agendamento AINDA NÃO executado: depois da baixa quem manda
+     é o valor real, que vive no lançamento em Registros. -->
+<div class="sh-edit-ov" id="sh-plan-edit-ov" onclick="fecharEditPlanSh()"></div>
+<div class="sh-edit" id="sh-plan-edit">
+  <div class="sh-h"></div>
+  <div class="sh-edit-title">✏️ Editar agendamento</div>
+  <div class="r2">
+    <div class="fi"><label>Data prevista</label><input type="date" id="plan-edit-data" oninput="syncMesFromData('plan-edit-data','plan-edit-mes')"></div>
+    <div class="fi"><label>Mês Ref.</label><div class="sw"><select id="plan-edit-mes"></select></div></div>
+  </div>
+  <div class="fi"><label>Valor planejado R$</label><input type="text" id="plan-edit-valor" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this)" style="font-family:var(--mono);font-size:1.1rem;color:var(--purple)"></div>
+  <div class="fi"><label>Descrição</label><input type="text" id="plan-edit-desc" autocomplete="off"></div>
+  <div class="fi"><label>Tipo</label><div class="sw"><select id="plan-edit-tipo" onchange="atualizarCats('plan-edit-tipo','plan-edit-cat','e')">
+    <option value="">Selecione o tipo</option>
+    <option>Receita</option>
+    <option value="Despesas fixas">Despesas fixas</option>
+    <option value="Despesas variaveis">Despesas variáveis</option>
+    <option value="Despesas eventuais">Despesas eventuais</option>
+  </select></div></div>
+  <div class="fi"><label>Categoria</label><div class="sw"><select id="plan-edit-cat"></select></div></div>
+  <div class="fi"><label>Comentário (opcional)</label><textarea id="plan-edit-comment" placeholder="Observações..." maxlength="280" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.85rem;padding:9px 12px;outline:none;width:100%;resize:none;min-height:60px"></textarea></div>
+  <div class="rec-box" id="plan-edit-rec-wrap" style="display:none">
+    <label class="rec-lbl" style="cursor:pointer">
+      <input type="checkbox" id="plan-edit-rec-chk" style="width:15px;height:15px;accent-color:var(--purple)">
+      <span id="plan-edit-rec-label"></span>
+    </label>
+    <div class="rec-hint" style="margin-top:8px">Corrige de uma vez todos os meses que ainda não foram pagos, sem precisar refazer o agendamento. Os que já tiveram baixa não são tocados.</div>
+  </div>
+  <div class="sh-btns">
+    <button class="sh-cancel" onclick="fecharEditPlanSh()">Cancelar</button>
+    <button class="sh-ok" style="background:var(--gold)" onclick="salvarEdicaoPlan()">💾 Salvar</button>
+  </div>
+</div>
+
 <!-- PERFIL SHEET (edição opcional dentro do app) -->
 <div class="sh-edit-ov" id="sh-perfil-ov" onclick="fecharPerfilEdicao()"></div>
 <div class="sh-edit" id="sh-perfil">
@@ -6412,7 +6447,7 @@ function iniciarApp(){
 function init(){
   const hoje=new Date(),hISO=hoje.toISOString().split('T')[0];
   // 'pf-mes' saiu daqui: virou botão + sheet de múltiplos meses (planMesesSel).
-  ['inp-mes','plan-mes','f-mes-l','edit-mes'].forEach(id=>{
+  ['inp-mes','plan-mes','f-mes-l','edit-mes','plan-edit-mes'].forEach(id=>{
     const el=document.getElementById(id);
     // Limpa antes de popular para evitar duplicatas no segundo login
     while(el.options.length > (el.options[0]?.value==='' ? 1 : 0)) el.remove(el.options.length-1);
@@ -6820,9 +6855,131 @@ function planCard(p){
   const rTag=p.recorrente?'<span class="tag tag-r">🔁 Rec.</span>':'';
   const commentBadge=p.comentario?`<span class="has-comment" title="${escHtml(p.comentario)}" onclick="showCommentTooltip(event,'plan',${p.id})" style="margin-left:4px"></span>`:'';
   const btnExec=!isE?`<button class="btn-exec-ic" onclick="abrirSh(${p.id})" title="Confirmar pagamento">▶</button>`:'';
+  /* Editar só antes da baixa: depois dela o valor que vale é o real, e ele
+     mora no lançamento em Registros. */
+  const btnEdit=!isE?`<button class="btn-del-ic" onclick="abrirEditPlan(${p.id})" title="Editar" style="color:var(--text3)">✏️</button>`:'';
   const btnDel=`<button class="btn-del-ic" onclick="removerPlan(${p.id})" title="Excluir">🗑</button>`;
   const acts=isE?`<div class="pca"><div style="font-size:.68rem;color:var(--text3)">✅ Executado em ${p.dataExec}</div></div>`:'';
-  return`<div class="pc ${p.status}"><div class="pct"><div class="pi ${ic2}">${ic}</div><div class="pb"><div class="pd" style="display:flex;align-items:center;gap:4px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(p.descricao)}">${escHtml(p.descricao)}</span>${commentBadge}</div><div class="pm"><span>${p.data}</span><span class="tag tag-p">${p.mes}</span>${rTag}<span>${p.categoria}</span></div></div><div class="pr"><div class="pr-top">${vH}${btnExec}${btnDel}</div><span class="bs ${p.status}">${{pendente:'Pendente',executado:'Executado',vencido:'Vencido'}[p.status]}</span></div></div>${acts}</div>`;
+  return`<div class="pc ${p.status}"><div class="pct"><div class="pi ${ic2}">${ic}</div><div class="pb"><div class="pd" style="display:flex;align-items:center;gap:4px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(p.descricao)}">${escHtml(p.descricao)}</span>${commentBadge}</div><div class="pm"><span>${p.data}</span><span class="tag tag-p">${p.mes}</span>${rTag}<span>${p.categoria}</span></div></div><div class="pr"><div class="pr-top">${vH}${btnExec}${btnEdit}${btnDel}</div><span class="bs ${p.status}">${{pendente:'Pendente',executado:'Executado',vencido:'Vencido'}[p.status]}</span></div></div>${acts}</div>`;
+}
+
+/* ── Editar um agendamento ──
+   Existe para o caso mais banal: errou o valor, a data ou a categoria ao
+   agendar. Antes só havia excluir e refazer — e num agendamento recorrente
+   isso significava refazer os 12 meses. */
+let editPlanId = null;
+
+function abrirEditPlan(id){
+  const p = APP.plan.find(x=>x.id===id);
+  if(!p) return;
+  if(p.status==='executado')
+    return toast('⚠️ Este agendamento já foi pago. Edite o lançamento em Registros.', true);
+
+  editPlanId = id;
+  document.getElementById('plan-edit-data').value  = p.dataISO || '';
+  document.getElementById('plan-edit-mes').value   = p.mes || '';
+  document.getElementById('plan-edit-valor').value = (Number(p.valorPlanejado)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('plan-edit-desc').value  = p.descricao || '';
+  document.getElementById('plan-edit-tipo').value  = p.tipo || '';
+  atualizarCats('plan-edit-tipo','plan-edit-cat','e');
+  setTimeout(()=>{ document.getElementById('plan-edit-cat').value = p.categoria || ''; }, 50);
+  document.getElementById('plan-edit-comment').value = p.comentario || '';
+
+  /* "Aplicar aos outros meses" só aparece quando há irmãos AINDA NÃO pagos no
+     mesmo grupo recorrente — os que já tiveram baixa nunca são tocados, para
+     não reescrever histórico. */
+  const irmaos = p.grupoRec
+    ? APP.plan.filter(x=>x.grupoRec===p.grupoRec && x.id!==p.id && x.status!=='executado')
+    : [];
+  const wrap = document.getElementById('plan-edit-rec-wrap');
+  const chk  = document.getElementById('plan-edit-rec-chk');
+  if(chk) chk.checked = false;
+  if(wrap){
+    wrap.style.display = irmaos.length ? 'block' : 'none';
+    const lbl = document.getElementById('plan-edit-rec-label');
+    if(lbl) lbl.textContent = `🔁 Aplicar também aos outros ${irmaos.length} mês${irmaos.length>1?'es':''} pendente${irmaos.length>1?'s':''}`;
+  }
+
+  document.getElementById('sh-plan-edit-ov').classList.add('show');
+  setTimeout(()=>document.getElementById('sh-plan-edit').classList.add('show'),10);
+}
+
+function fecharEditPlanSh(){
+  document.getElementById('sh-plan-edit').classList.remove('show');
+  document.getElementById('sh-plan-edit-ov').classList.remove('show');
+  editPlanId = null;
+}
+
+function salvarEdicaoPlan(){
+  if(editPlanId === null) return;
+  const p = APP.plan.find(x=>x.id===editPlanId);
+  if(!p) return;
+
+  const novaData = document.getElementById('plan-edit-data').value;
+  const novoMes  = document.getElementById('plan-edit-mes').value;
+  const novoVal  = parseCurrency(document.getElementById('plan-edit-valor').value);
+  const novaDesc = document.getElementById('plan-edit-desc').value.trim();
+  const novoTipo = document.getElementById('plan-edit-tipo').value;
+  const novaCat  = document.getElementById('plan-edit-cat').value;
+  const novaCom  = document.getElementById('plan-edit-comment').value.trim();
+
+  if(!novaData)             return toast('⚠️ Informe a data prevista',true);
+  if(!novoMes)              return toast('⚠️ Selecione o mês',true);
+  if(!novoVal||novoVal<=0)  return toast('⚠️ Valor inválido',true);
+  if(!novaDesc)             return toast('⚠️ Informe a descrição',true);
+  if(!novoTipo)             return toast('⚠️ Selecione o tipo',true);
+  if(!novaCat)              return toast('⚠️ Selecione a categoria',true);
+
+  const diaEscolhido = parseInt(String(novaData).split('-')[2],10) || 1;
+  const anoFallback  = parseInt(String(novaData).split('-')[0],10) || _ANO;
+  const mov = novoTipo==='Receita' ? 'Credito' : 'Debito';
+
+  /* Mesma regra de addPlanejamento: a data efetiva vem do MÊS escolhido mais
+     o dia informado — não do mês do campo de data. Deixar os dois divergirem
+     criaria um plano que aparece num mês e vence em outro, porque `mes` decide
+     onde ele é listado e `dataISO` decide se está vencido. */
+  const aplicar = (alvo, mesAlvo) => {
+    const miRef = mesIndexDoMesRef(mesAlvo);
+    const mi    = miRef>=0 ? miRef : MESES.indexOf(mesAlvo);
+    const ano   = anoDoMesRef(mesAlvo, anoFallback);
+    /* Dia 31 em mês de 30 geraria uma data inexistente ('2026-09-31'), que o
+       resto do app leria como o mês seguinte. Trava no último dia real — o
+       risco cresce ao aplicar numa série inteira, que passa por fevereiro. */
+    const ultimoDia = new Date(ano, mi+1, 0).getDate();
+    const dia = String(Math.min(diaEscolhido, ultimoDia)).padStart(2,'0');
+    const mm  = String(mi+1).padStart(2,'0');
+
+    alvo.dataISO        = `${ano}-${mm}-${dia}`;
+    alvo.data           = `${dia}/${mm}/${ano}`;
+    alvo.mes            = mesAlvo;
+    alvo.descricao      = novaDesc.toUpperCase();
+    alvo.valorPlanejado = Math.abs(novoVal);
+    alvo.tipo           = novoTipo;
+    alvo.categoria      = novaCat;
+    alvo.movimento      = mov;
+    alvo.classificacao  = mov==='Credito' ? 'Receita' : 'Despesas';
+    alvo.comentario     = novaCom || undefined;
+    /* Volta pra 'pendente': se a correção jogou a data pra frente, manter
+       'vencido' seria alarme falso. renderPlan() reavalia e remarca como
+       vencido sozinho se a data nova também já passou. */
+    alvo.status = 'pendente';
+  };
+
+  aplicar(p, novoMes);
+
+  let qtd = 1;
+  const chk = document.getElementById('plan-edit-rec-chk');
+  if(chk?.checked && p.grupoRec){
+    APP.plan.forEach(x=>{
+      if(x.grupoRec===p.grupoRec && x.id!==p.id && x.status!=='executado'){
+        aplicar(x, x.mes);   // cada ocorrência mantém o mês dela
+        qtd++;
+      }
+    });
+  }
+
+  salvarPlan(); renderPlan(); atualizarStatsPlan(); fecharEditPlanSh();
+  toast(qtd>1 ? `✅ ${qtd} agendamentos atualizados!` : '✅ Agendamento atualizado!');
 }
 
 function atualizarStatsPlan(){
