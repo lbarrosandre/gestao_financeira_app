@@ -198,7 +198,7 @@ async function sbCarregarDados() {
       localStorage.setItem('bussola_bolsos', JSON.stringify(APP.bolsos));
     }
     if (rContas.data) {
-      APP.contas = rContas.data.map(c => ({ id: c.id, nome: c.nome }));
+      APP.contas = rContas.data.map(c => ({ id: c.id, nome: c.nome, saldoInicial: Number(c.saldo_inicial) || 0 }));
       localStorage.setItem('bussola_contas', JSON.stringify(APP.contas));
     }
     if (rDiv.data) {
@@ -400,9 +400,22 @@ window._sbSync = async function(patch) {
     if (patch.contas) {
       for (const c of patch.contas) {
         if (!c || !c.id) continue;
-        const { error: errC } = await _supa.from('contas_correntes').upsert({
-          id: c.id, uid, nome: c.nome
+        let { error: errC } = await _supa.from('contas_correntes').upsert({
+          id: c.id, uid, nome: c.nome, saldo_inicial: Number(c.saldoInicial) || 0
         }, { onConflict: 'id' });
+        /* Rede de segurança pra ordem de deploy: se o código novo subir ANTES
+           de alguém rodar a migração da coluna saldo_inicial, o banco recusaria
+           a conta inteira — e renomear conta pararia de salvar pra todo mundo.
+           Foi exatamente uma coluna inexistente que derrubou a gravação dos
+           planejamentos por semanas. Aqui, na falta da coluna, grava o resto e
+           avisa alto no console; o saldo de abertura passa a valer assim que a
+           migração rodar. */
+        if (errC && /saldo_inicial/i.test(errC.message || '')) {
+          console.error('contas_correntes: coluna saldo_inicial ausente — rode a migração. Gravando sem ela.');
+          ({ error: errC } = await _supa.from('contas_correntes').upsert({
+            id: c.id, uid, nome: c.nome
+          }, { onConflict: 'id' }));
+        }
         houveErro = _sbErr('contas_correntes.upsert', errC) || houveErro;
       }
     }
@@ -1008,6 +1021,26 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .sh-edit-ov.show{display:block}
 .sh-edit{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border2);border-radius:20px 20px 0 0;padding:0 18px calc(var(--safe-bot)+28px);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:303;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh-edit.show{transform:none}
+
+/* ─── PRIMEIROS PASSOS (assistente pós-cadastro) ─────
+   Reaproveita a moldura do .sh-edit; aqui só o que é próprio do passo a
+   passo: barra de progresso, linhas repetíveis e atalhos de nome. */
+.pp-prog{display:flex;gap:6px;margin:4px 0 16px}
+.pp-prog span{flex:1;height:4px;border-radius:4px;background:var(--border2);transition:background .25s}
+.pp-prog span.on{background:var(--teal)}
+.pp-ico{font-size:2.3rem;text-align:center;margin:4px 0 6px}
+.pp-tit{font-size:1.02rem;font-weight:700;text-align:center;margin-bottom:6px}
+.pp-sub{font-size:.8rem;color:var(--text2);text-align:center;line-height:1.55;margin-bottom:18px}
+.pp-linha{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 12px 4px;margin-bottom:10px;position:relative}
+.pp-linha .fi{margin-bottom:8px}
+.pp-rem{position:absolute;top:6px;right:8px;background:none;border:none;color:var(--danger);font-size:.95rem;cursor:pointer;padding:4px}
+.pp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.pp-chip{background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:6px 11px;font-size:.75rem;color:var(--text2);cursor:pointer;font-family:var(--sans)}
+.pp-chip:disabled{opacity:.45;cursor:not-allowed}
+.pp-add{width:100%;background:none;border:1px dashed var(--border2);border-radius:var(--r);padding:10px;color:var(--text2);font-size:.8rem;cursor:pointer;font-family:var(--sans);margin-bottom:10px}
+.pp-add:disabled{opacity:.45;cursor:not-allowed}
+.pp-limite{font-size:.7rem;color:var(--text3);text-align:center;margin:0 0 12px}
+.pp-pular{display:block;margin:12px auto 0;background:none;border:none;color:var(--text3);font-size:.75rem;cursor:pointer;font-family:var(--sans);text-decoration:underline}
 .sh-edit-title{font-size:.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 
 /* ─── PAINEL ADMIN (sheet #sh-admin) ───────────────
@@ -2234,8 +2267,8 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 
 <div class="tabs">
   <div class="tab" id="tab-inv" onclick="trocarTab('inv')" style="color:var(--text3)"><span class="ti">👜</span><span class="tl">Carteira</span></div>
-  <div class="tab plan-tab" id="tab-plan" onclick="trocarTab('plan')"><span class="ti">📅</span><span class="tl">Planejar</span></div>
   <div class="tab" id="tab-div" onclick="trocarTab('div')" style="color:var(--text3)"><span class="ti">💳</span><span class="tl">Passivos</span></div>
+  <div class="tab plan-tab" id="tab-plan" onclick="trocarTab('plan')"><span class="ti">📅</span><span class="tl">Planejar</span></div>
   <div class="tab ativo" id="tab-form" onclick="trocarTab('form')"><span class="ti">＋</span><span class="tl">Lançar</span></div>
   <div class="tab" id="tab-lista" onclick="trocarTab('lista')"><span class="ti">📋</span><span class="tl">Registros</span></div>
   <div class="tab" id="tab-dash" onclick="trocarTab('dash')"><span class="ti">📊</span><span class="tl">Dashboard</span></div>
@@ -2670,6 +2703,7 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="r2">
         <div class="fi"><label>Nome do bolso</label><input type="text" id="inv-nome" placeholder="Ex: Poupança, CDB..." autocomplete="off"></div>
         <div class="fi"><label>Meta (opcional)</label><input type="text" id="inv-meta" placeholder="0,00" inputmode="decimal" oninput="maskCurrency(this)"></div>
+        <div class="fi"><label>Quanto já tem R$ (opcional)</label><input type="text" id="inv-saldo" placeholder="0,00" inputmode="decimal" oninput="maskCurrency(this)"></div>
       </div>
       <div class="r2">
         <div class="fi"><label>Ícone</label><div class="sw"><select id="inv-ico"><option value="💰">💰 Dinheiro</option><option value="🐷">🐷 Cofrinho</option><option value="📈">📈 Investimento</option><option value="🏠">🏠 Imóvel</option><option value="🚗">🚗 Carro</option><option value="✈️">✈️ Viagem</option><option value="🎓">🎓 Educação</option><option value="🏥">🏥 Saúde</option></select></div></div>
@@ -3026,6 +3060,15 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
 </div>
 
 
+<!-- PRIMEIROS PASSOS — assistente logo depois do cadastro do perfil.
+     O overlay NÃO fecha ao tocar fora de propósito: é fácil tocar sem querer
+     e perder tudo que já foi digitado. A saída é explícita ("Pular"). -->
+<div class="sh-edit-ov" id="pp-ov"></div>
+<div class="sh-edit" id="pp-sheet">
+  <div class="sh-h"></div>
+  <div id="pp-conteudo"></div>
+</div>
+
 <!-- EDIT SHEET -->
 <div class="sh-edit-ov" id="sh-edit-ov" onclick="fecharEditSh()"></div>
 <div class="sh-edit" id="sh-edit">
@@ -3290,6 +3333,8 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <div class="empty" style="grid-column:1/-1;padding:20px 0"><div class="empty-v">🏦</div><h4>Só a conta padrão</h4><p style="font-size:.75rem">Cadastre outra abaixo se tiver mais de uma conta bancária.</p></div>
   </div>
   <div class="fi"><label>Nome da nova conta</label><input type="text" id="inv-conta-nome" placeholder="Ex: Santander, Banco do Brasil..." autocomplete="off"></div>
+  <div class="fi"><label>Saldo inicial R$ (opcional)</label><input type="text" id="inv-conta-saldo" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this)" style="font-family:var(--mono)"></div>
+  <div class="rec-hint" style="margin:-4px 0 10px">Quanto já havia na conta antes dos lançamentos que você registra no app. Não conta como receita.</div>
   <button class="btn-add azul" id="inv-conta-btn" onclick="criarConta()"><span>+</span> Criar conta corrente</button>
   <button id="inv-conta-cancelar" onclick="cancelarEdicaoConta()" style="display:none;width:100%;margin-top:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:9px;color:var(--text2);font-family:var(--sans);font-size:.8rem;cursor:pointer">Cancelar edição</button>
   <div class="sh-btns">
@@ -4524,13 +4569,316 @@ async function salvarCompletarPerfil(){
     atualizarSaudacaoTopbar(p.nome, p.apelido);
     authOk('✅ Perfil salvo! Entrando...');
     await revelarApp(user, true);
-    setTimeout(onbAbrir, 600);
+    // Primeiro monta carteira e passivos; o tour abre no fim do assistente.
+    setTimeout(primeirosPassosAbrir, 600);
   } catch(e){
     console.error('salvarCompletarPerfil error:', e);
     authErro('Erro de conexão. Verifique sua internet.');
   } finally {
     authSetLoading(false);
   }
+}
+
+/* ═══ PRIMEIROS PASSOS ═══════════════════════════════════════════════
+   Assistente que roda logo depois do cadastro do perfil e monta, na
+   largada, a carteira (contas correntes e bolsos) e os passivos (cartões e
+   dívidas) da pessoa — cada um com o valor de HOJE. Sem isso a pessoa cai
+   num app vazio, com saldos zerados que não batem com a realidade, e o
+   primeiro contato vira dúvida em vez de controle.
+
+   Nada é gravado passo a passo: tudo fica em memória (PP) e só vai pro banco
+   no "Concluir". Assim, desistir no meio não deixa metade criada, e as
+   gravações saem num bloco só — em vez de espalhadas enquanto a pessoa
+   digita, competindo com a recarga que o app faz ao receber eventos do banco.
+═══════════════════════════════════════════════════════════════════════ */
+const PP_PASSOS=[
+  {chave:'contas',  ico:'🏦', tit:'Suas contas correntes', add:'+ Adicionar conta',
+   perg:'Quer cadastrar suas contas correntes?',
+   sub:'Informe o nome de cada banco e <strong>quanto tem nele agora</strong>. Assim o app já começa com o seu saldo real.'},
+  {chave:'bolsos',  ico:'🐷', tit:'Seus bolsos', add:'+ Outro bolso (nome livre)',
+   perg:'Você tem dinheiro separado em algum lugar?',
+   sub:'Poupança, investimentos, vale-alimentação, vale-combustível… Cada um vira um <strong>bolso</strong>, com o valor que tem hoje.'},
+  {chave:'cartoes', ico:'💳', tit:'Seus cartões de crédito', add:'+ Adicionar cartão',
+   perg:'Quer cadastrar seus cartões de crédito?',
+   sub:'Com o dia de fechamento e de vencimento, o app já sabe em qual fatura cai cada compra.'},
+  {chave:'dividas', ico:'📉', tit:'Suas dívidas', add:'+ Adicionar dívida',
+   perg:'Você tem alguma dívida para acompanhar?',
+   sub:'Empréstimo, financiamento, acordo… Informe <strong>quanto ainda deve</strong> e o app acompanha cada pagamento até zerar.'}
+];
+
+/* Atalhos de bolso: um toque cria a linha já com nome e ícone. */
+const PP_ATALHOS_BOLSO=[
+  {nome:'Poupança',              ico:'🐷', cor:'bc-teal'},
+  {nome:'Investimentos',         ico:'📈', cor:'bc-blue'},
+  {nome:'Reserva de emergência', ico:'💰', cor:'bc-gold'},
+  {nome:'Vale-alimentação',      ico:'🍽️', cor:'bc-purple'},
+  {nome:'Vale-combustível',      ico:'⛽', cor:'bc-blue'}
+];
+
+let PP=null;
+
+/* Mesmos limites que o app já aplica fora daqui — o assistente não pode
+   virar porta dos fundos pra passar do plano Grátis. */
+function ppLimite(chave){
+  if(chave==='contas')  return planoEfetivo()==='basico' ? LIMITE_CONTAS_BASICO : Infinity;
+  if(chave==='bolsos')  return planoEfetivo()==='basico' ? LIMITE_BOLSOS_BASICO : Infinity;
+  if(chave==='cartoes') return planoEfetivo()!=='premium' ? LIMITE_CARTOES_GRATIS : Infinity;
+  return Infinity;
+}
+
+function primeirosPassosAbrir(){
+  /* Só pra quem está realmente começando. Quem já tem qualquer dado (caso
+     raro de perfil completado depois de usar o app) vai direto pro tour:
+     somar um saldo de abertura em cima de lançamentos que já existem
+     contaria o mesmo dinheiro duas vezes. */
+  const jaTemDados=(APP.dados?.length||0)+(APP.bolsos?.length||0)
+    +(APP.cartoes?.length||0)+(APP.dividas?.length||0)>0;
+  if(jaTemDados) return onbAbrir();
+
+  PP={passo:0, resposta:{}, linhas:{contas:[],bolsos:[],cartoes:[],dividas:[]}};
+  ppRender();
+  document.getElementById('pp-ov')?.classList.add('show');
+  setTimeout(()=>document.getElementById('pp-sheet')?.classList.add('show'),10);
+}
+
+function ppFechar(){
+  document.getElementById('pp-sheet')?.classList.remove('show');
+  document.getElementById('pp-ov')?.classList.remove('show');
+}
+
+function ppMoeda(v){
+  return Number(v)>0 ? Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+}
+
+/* Uma linha editável por tipo. Os data-campo são lidos de volta em
+   ppLerLinhas(): enquanto a pessoa digita, a verdade está no DOM, e só é
+   copiada pro estado antes de qualquer re-render — senão adicionar ou
+   remover uma linha apagaria o que já foi digitado nas outras. */
+function ppLinhaHtml(chave,l,i){
+  const texto=(rot,campo,val,ph)=>`<div class="fi"><label>${rot}</label><input type="text" data-campo="${campo}" value="${escHtml(val||'')}" placeholder="${ph}" autocomplete="off"></div>`;
+  const moeda=(rot,campo,val)=>`<div class="fi"><label>${rot}</label><input type="text" data-campo="${campo}" value="${ppMoeda(val)}" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this)" style="font-family:var(--mono)"></div>`;
+  const dia=(rot,campo,val,ph)=>`<div class="fi"><label>${rot}</label><input type="number" data-campo="${campo}" value="${val||''}" min="1" max="31" inputmode="numeric" placeholder="${ph}"></div>`;
+
+  let corpo;
+  if(chave==='contas')
+    corpo=texto('Banco','nome',l.nome,'Ex: Nubank, Itaú, Santander…')+moeda('Saldo hoje R$','saldo',l.saldo);
+  else if(chave==='bolsos')
+    corpo=texto(`${l.ico||'💰'} Nome do bolso`,'nome',l.nome,'Ex: Poupança')+moeda('Quanto tem hoje R$','saldo',l.saldo);
+  else if(chave==='cartoes')
+    corpo=texto('Nome do cartão','nome',l.nome,'Ex: Nubank, Inter…')
+      +moeda('Limite R$ (opcional)','limite',l.limite)
+      +`<div class="r2">${dia('Dia que fecha','fech',l.fech,'Ex: 4')}${dia('Dia que vence','venc',l.venc,'Ex: 9')}</div>`;
+  else
+    corpo=texto('Nome da dívida','nome',l.nome,'Ex: Financiamento do carro')+moeda('Quanto ainda deve R$','valor',l.valor);
+
+  return `<div class="pp-linha" data-idx="${i}"><button class="pp-rem" onclick="ppRemoverLinha(${i})" title="Remover">✕</button>${corpo}</div>`;
+}
+
+function ppLerLinhas(){
+  if(!PP) return;
+  const chave=PP_PASSOS[PP.passo].chave;
+  if(PP.resposta[chave]!=='sim') return;
+  document.querySelectorAll('#pp-conteudo .pp-linha').forEach(el=>{
+    const l=PP.linhas[chave][Number(el.dataset.idx)];
+    if(!l) return;
+    el.querySelectorAll('[data-campo]').forEach(inp=>{
+      const c=inp.dataset.campo;
+      if(c==='nome') l.nome=inp.value.trim();
+      else if(c==='fech'||c==='venc') l[c]=parseInt(inp.value,10)||0;
+      else l[c]=parseCurrency(inp.value);
+    });
+  });
+}
+
+function ppRender(){
+  const cont=document.getElementById('pp-conteudo');
+  if(!cont||!PP) return;
+  const p=PP_PASSOS[PP.passo];
+  const chave=p.chave;
+  const prog=`<div class="pp-prog">${PP_PASSOS.map((_,i)=>`<span class="${i<=PP.passo?'on':''}"></span>`).join('')}</div>`;
+
+  if(PP.resposta[chave]!=='sim'){
+    cont.innerHTML=`${prog}<div class="pp-ico">${p.ico}</div>
+      <div class="pp-tit">${p.perg}</div>
+      <div class="pp-sub">${p.sub}</div>
+      <div class="sh-btns">
+        <button class="sh-cancel" onclick="ppResponder('nao')">Agora não</button>
+        <button class="sh-ok" style="background:var(--teal)" onclick="ppResponder('sim')">Sim, cadastrar</button>
+      </div>
+      ${PP.passo>0?'<button class="pp-pular" onclick="ppVoltar()">← Voltar ao passo anterior</button>':''}
+      <button class="pp-pular" onclick="ppPularTudo()">Pular tudo e configurar depois</button>`;
+    return;
+  }
+
+  const linhas=PP.linhas[chave];
+  const lim=ppLimite(chave);
+  const noLimite=linhas.length>=lim;
+  const atalhos=chave==='bolsos'
+    ? `<div class="pp-chips">${PP_ATALHOS_BOLSO.map((a,i)=>`<button class="pp-chip" onclick="ppAtalhoBolso(${i})" ${noLimite?'disabled':''}>${a.ico} ${a.nome}</button>`).join('')}</div>`
+    : '';
+  const nomeLimite={contas:lim===1?'conta corrente':'contas correntes',bolsos:'bolsos',cartoes:'cartões'}[chave];
+  const aviso=Number.isFinite(lim)
+    ? `<div class="pp-limite">No plano Grátis: até ${lim} ${nomeLimite}. No Premium, sem limite.</div>`
+    : '';
+  const ultimo=PP.passo===PP_PASSOS.length-1;
+
+  cont.innerHTML=`${prog}<div class="pp-ico">${p.ico}</div>
+    <div class="pp-tit">${p.tit}</div>
+    <div class="pp-sub">${p.sub}</div>
+    ${atalhos}
+    ${linhas.map((l,i)=>ppLinhaHtml(chave,l,i)).join('')}
+    <button class="pp-add" onclick="ppAdicionarLinha()" ${noLimite?'disabled':''}>${p.add}</button>
+    ${aviso}
+    <div class="sh-btns">
+      <button class="sh-cancel" onclick="ppVoltar()">← Voltar</button>
+      <button class="sh-ok" style="background:var(--teal)" onclick="ppAvancar()">${ultimo?'Concluir ✓':'Continuar →'}</button>
+    </div>`;
+}
+
+function ppResponder(r){
+  const chave=PP_PASSOS[PP.passo].chave;
+  if(r==='nao'){
+    PP.resposta[chave]='nao';
+    PP.linhas[chave]=[];
+    return ppProximo();
+  }
+  PP.resposta[chave]='sim';
+  /* Bolsos começam só com os atalhos; os demais já abrem uma linha pronta. */
+  if(!PP.linhas[chave].length && chave!=='bolsos') PP.linhas[chave].push({});
+  ppRender();
+}
+
+function ppAdicionarLinha(extra){
+  ppLerLinhas();
+  const chave=PP_PASSOS[PP.passo].chave;
+  if(PP.linhas[chave].length>=ppLimite(chave)) return;
+  PP.linhas[chave].push(Object.assign({},extra||{}));
+  ppRender();
+}
+function ppAtalhoBolso(i){
+  const a=PP_ATALHOS_BOLSO[i];
+  if(a) ppAdicionarLinha({nome:a.nome,ico:a.ico,cor:a.cor});
+}
+function ppRemoverLinha(i){
+  ppLerLinhas();
+  PP.linhas[PP_PASSOS[PP.passo].chave].splice(i,1);
+  ppRender();
+}
+
+/* Linha totalmente vazia é ignorada (abriu e não usou). Linha começada
+   precisa estar completa: conta sem nome é inútil, e cartão sem dia de
+   fechamento faria cada compra cair na fatura errada. */
+function ppValidarPasso(){
+  const chave=PP_PASSOS[PP.passo].chave;
+  if(PP.resposta[chave]!=='sim') return true;
+  const vazia=l=>!l.nome&&!(l.saldo>0)&&!(l.valor>0)&&!(l.limite>0)&&!l.fech&&!l.venc;
+  PP.linhas[chave]=PP.linhas[chave].filter(l=>!vazia(l));
+  for(const l of PP.linhas[chave]){
+    if(!l.nome){ toast('⚠️ Dê um nome a cada item, ou remova a linha.',true); return false; }
+    if(chave==='cartoes'){
+      if(!(l.fech>=1&&l.fech<=31)){ toast(`⚠️ Informe o dia de fechamento do cartão ${l.nome} (1 a 31).`,true); return false; }
+      if(!(l.venc>=1&&l.venc<=31)){ toast(`⚠️ Informe o dia de vencimento do cartão ${l.nome} (1 a 31).`,true); return false; }
+    }
+    if(chave==='dividas'&&!(l.valor>0)){ toast(`⚠️ Informe quanto ainda deve em ${l.nome}.`,true); return false; }
+  }
+  if(PP.linhas[chave].length>ppLimite(chave)){ toast('⚠️ Acima do limite do seu plano.',true); return false; }
+  return true;
+}
+
+function ppAvancar(){
+  ppLerLinhas();
+  if(!ppValidarPasso()){ ppRender(); return; }
+  ppProximo();
+}
+
+function ppProximo(){
+  if(PP.passo<PP_PASSOS.length-1){
+    PP.passo++;
+    ppRender();
+    const sh=document.getElementById('pp-sheet');
+    if(sh) sh.scrollTop=0;
+    return;
+  }
+  ppConcluir();
+}
+
+/* Voltar do formulário leva à pergunta do mesmo passo (o que foi digitado
+   fica guardado); voltar da pergunta leva ao passo anterior. */
+function ppVoltar(){
+  ppLerLinhas();
+  const chave=PP_PASSOS[PP.passo].chave;
+  if(PP.resposta[chave]==='sim'){ PP.resposta[chave]=undefined; ppRender(); return; }
+  if(PP.passo>0){ PP.passo--; ppRender(); }
+}
+
+function ppPularTudo(){
+  PP=null;
+  ppFechar();
+  setTimeout(()=>onbAbrir(),300);
+}
+
+function ppConcluir(){
+  const L=PP.linhas, R=PP.resposta;
+  const contas =R.contas ==='sim'?L.contas :[];
+  const bolsos =R.bolsos ==='sim'?L.bolsos :[];
+  const cartoes=R.cartoes==='sim'?L.cartoes:[];
+  const dividas=R.dividas==='sim'?L.dividas:[];
+  const agoraISO=new Date().toISOString();
+  const partes=[];
+  const plural=(n,s,p)=>`${n} ${n===1?s:p}`;
+
+  /* A 1ª conta informada VIRA a conta padrão em vez de nascer ao lado dela:
+     no plano Grátis só cabe uma, e todo lançamento sem conta escolhida cai
+     na padrão. Criada antes de gerar os demais ids, pra entrar na checagem
+     de colisão logo abaixo. */
+  const padrao=contas.length?garantirContaPadrao():null;
+
+  /* novoId() usa milissegundo + sorteio de 0 a 999: vários ids no mesmo
+     instante podem colidir. Aqui cada id novo é conferido contra os que já
+     existem e contra os que acabaram de ser gerados. */
+  const usados=new Set([...APP.contas,...APP.cartoes,...APP.dividas].map(x=>x.id));
+  let prox=novoId();
+  const idUnico=()=>{ while(usados.has(prox)) prox++; usados.add(prox); return prox++; };
+
+  if(contas.length){
+    padrao.nome=contas[0].nome;
+    padrao.saldoInicial=Number(contas[0].saldo)||0;
+    contas.slice(1).forEach(l=>APP.contas.push({id:idUnico(),nome:l.nome,saldoInicial:Number(l.saldo)||0}));
+    salvarContas();
+    partes.push(plural(contas.length,'conta corrente','contas correntes'));
+  }
+
+  if(bolsos.length){
+    // Mesma escala de id do criarBolso(), que usa Date.now().
+    const baseB=Date.now();
+    bolsos.forEach((l,i)=>APP.bolsos.push({id:baseB+i,nome:l.nome,meta:0,ico:l.ico||'💰',cor:l.cor||'bc-teal',saldo:Number(l.saldo)||0,rendimento:0,movimentos:[]}));
+    salvarBolsos();
+    partes.push(plural(bolsos.length,'bolso','bolsos'));
+  }
+
+  if(cartoes.length){
+    cartoes.forEach(l=>APP.cartoes.push({id:idUnico(),nome:l.nome,limite:Number(l.limite)||0,diaFechamento:l.fech,diaVencimento:l.venc,criado:agoraISO}));
+    salvarCartoes();
+    partes.push(plural(cartoes.length,'cartão','cartões'));
+  }
+
+  if(dividas.length){
+    dividas.forEach(l=>APP.dividas.push({id:idUnico(),nome:l.nome,total:Number(l.valor)||0,saldo:Number(l.valor)||0,criado:agoraISO}));
+    salvarDivida();
+    partes.push(plural(dividas.length,'dívida','dívidas'));
+  }
+
+  PP=null;
+  ppFechar();
+
+  if(partes.length){
+    [renderInvestimentos,renderDividas,atualizarStats,atualizarVisibilidadeCartaoLanc,atualizarVisibilidadeCheckboxDivida]
+      .forEach(fn=>{ try{ fn(); }catch(e){ console.error('primeiros passos — render:', e); } });
+  }
+  const resumo=partes.length
+    ? (partes.length>1 ? partes.slice(0,-1).join(', ')+' e '+partes[partes.length-1] : partes[0])
+    : null;
+  setTimeout(()=>onbAbrir(resumo),300);
 }
 
 /* ═══ ONBOARDING — TOUR INTERATIVO (spotlight) ═══
@@ -4541,8 +4889,8 @@ async function salvarCompletarPerfil(){
    destaque — nunca quebra, só perde o efeito visual daquele passo. */
 const ONB_PASSOS=[
   {aba:'inv',  sel:'[onclick="criarBolso()"]',      ico:'👜',tab:'Carteira', txt:'Veja seu patrimônio total (conta corrente + bolsos) e crie "bolsos" — um cofrinho com nome e meta próprios, tipo "Viagem" ou "Reserva de emergência". Preencha o nome (a meta é opcional) e toque em <strong>+ Criar bolso</strong>, aqui embaixo.'},
-  {aba:'plan', sel:'[onclick="addPlanejamento()"]', ico:'📅',tab:'Planejar', txt:'Agende pagamentos e recebimentos futuros preenchendo data, valor e categoria, e toque em <strong>Agendar Pagamento</strong>. Depois, quando for pago, toque no ▶ do card pra confirmar. Mais abaixo, em "🎯 Orçamento por categoria", defina tetos mensais pra gastos variáveis.'},
   {aba:'div',  sel:'[onclick="novaDivida()"]',      ico:'💳',tab:'Passivos', txt:'Controle dívidas e cartão de crédito. Toque em <strong>+ Nova dívida</strong> (ou "+ Novo cartão", ao lado) pra cadastrar. Compras no cartão só descontam quando você paga a fatura. No plano Grátis dá pra cadastrar até 2 cartões; no Premium, ilimitados.'},
+  {aba:'plan', sel:'[onclick="addPlanejamento()"]', ico:'📅',tab:'Planejar', txt:'Agende pagamentos e recebimentos futuros preenchendo data, valor e categoria, e toque em <strong>Agendar Pagamento</strong>. Depois, quando for pago, toque no ▶ do card pra confirmar. Mais abaixo, em "🎯 Orçamento por categoria", defina tetos mensais pra gastos variáveis.'},
   {aba:'form', sel:'[onclick="addLancamento()"]',   ico:'➕',tab:'Lançar',   txt:'É aqui que você registra o dia a dia. Escolha Débito ou Crédito, preencha valor, descrição e categoria, e toque em <strong>Adicionar Lançamento</strong>.'},
   {aba:'lista',sel:'#busca',                        ico:'📋',tab:'Registros',txt:'Todo o seu histórico, organizado por mês (toque no mês pra abrir/fechar). Use esta <strong>busca</strong> pra encontrar um lançamento específico pela descrição.'},
   {aba:'dash', sel:'#df-mes-btn',                   ico:'📊',tab:'Dashboard',txt:'Gráficos e insights automáticos sobre sua vida financeira. Toque no <strong>filtro de mês</strong> pra escolher um ou vários meses de uma vez. Disponível no plano Premium.'},
@@ -4553,7 +4901,14 @@ let onbPasso=0;
    outros passos — só não tem alvo pra destacar, então o balão fica centrado. */
 let onbNaIntro=false;
 
-function onbAbrir(){
+/* Resumo do que o assistente de primeiros passos criou ("2 contas correntes
+   e 1 cartão"). Só vem preenchido quando o tour abre logo depois dele — pelo
+   menu o tour abre sem, e a intro fica a de sempre. */
+let onbResumoCriado=null;
+
+function onbAbrir(resumo){
+  // typeof: se um dia alguém ligar onbAbrir direto num evento, o Event não vira resumo.
+  onbResumoCriado=(typeof resumo==='string'&&resumo)?resumo:null;
   onbPasso=0;
   onbNaIntro=true;
   const block=document.getElementById('onb-block');
@@ -4562,7 +4917,14 @@ function onbAbrir(){
 }
 function onbRenderIntro(){
   const cont=document.getElementById('onb-tip-content');
-  if(cont) cont.innerHTML=`
+  /* Vindo do assistente com algo criado: confirma antes do tour, pra pessoa
+     saber que o que ela digitou foi salvo e já está nas abas certas. */
+  const criado=onbResumoCriado
+    ? `<div style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.35);border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:.8rem;color:var(--text);line-height:1.5;text-align:center;animation:sFadeUp .5s ease both">
+         ✅ <strong>Pronto! Sua carteira e seus passivos já foram criados:</strong><br>${escHtml(onbResumoCriado)}.
+       </div>`
+    : '';
+  if(cont) cont.innerHTML=`${criado}
     <div style="text-align:center;margin-bottom:10px">
       <div style="font-size:2.6rem;margin-bottom:8px;animation:sDrop .6s cubic-bezier(.22,1,.36,1) both">🧭</div>
       <h3 style="font-size:1.08rem;animation:sFadeUp .5s ease both .12s">Bem-vindo ao Bús<em style="color:var(--teal);font-style:normal">sola</em>!</h3>
@@ -7698,7 +8060,21 @@ function calcSaldoCC(){
   // Com múltiplas contas correntes este valor é o TOTAL agregado (soma de
   // todas): o filtro não olha contaId, então cobre as contas nomeadas e os
   // lançamentos sem contaId (= conta padrão) de uma vez só.
-  return somaRecDesp(APP.dados.filter(d=>!d.pagoDoBolso&&!d.recebidoNoBolso&&!(d.cartaoId&&!d.faturaPagamento)),true).saldo;
+  // + saldo de abertura de cada conta: o dinheiro que já estava lá antes do
+  // primeiro lançamento no app (ver saldoInicialDasContas).
+  return somaRecDesp(APP.dados.filter(d=>!d.pagoDoBolso&&!d.recebidoNoBolso&&!(d.cartaoId&&!d.faturaPagamento)),true).saldo
+    + saldoInicialDasContas();
+}
+
+/* Saldo de abertura das contas correntes.
+   Por que NÃO é um lançamento "SALDO INICIAL": lançamento de crédito entra
+   como RECEITA nas somas do mês, no Dashboard e na barra de totais. O
+   dinheiro que a pessoa já tinha no dia em que começou a usar o app
+   apareceria como renda daquele mês — distorcendo justamente os números que
+   o app existe pra mostrar. Saldo de abertura é propriedade da conta, não
+   movimento: por isso mora nela e só entra no cálculo de saldo. */
+function saldoInicialDasContas(){
+  return (APP.contas||[]).reduce((s,c)=>s+(Number(c.saldoInicial)||0),0);
 }
 
 /* ── Múltiplas contas correntes ──
@@ -7734,7 +8110,8 @@ function calcSaldoConta(contaId){
   return somaRecDesp(APP.dados.filter(d=>
     !d.pagoDoBolso&&!d.recebidoNoBolso&&!(d.cartaoId&&!d.faturaPagamento)
     &&String(contaDoLanc(d))===alvo
-  ),true).saldo;
+  ),true).saldo
+    + (Number(getConta(contaId)?.saldoInicial)||0);
 }
 
 function contaTemLancamentos(id){
@@ -7746,13 +8123,16 @@ function criarConta(){
   const inp=document.getElementById('inv-conta-nome');
   const nome=(inp?.value||'').trim();
   if(!nome)return toast('⚠️ Informe o nome da conta',true);
+  const inpSaldo=document.getElementById('inv-conta-saldo');
+  const saldoInicial=parseCurrency(inpSaldo?.value||'');
   if(contaEmEdicaoId){
     const alvo=getConta(contaEmEdicaoId);
     if(alvo){
       alvo.nome=nome;
+      alvo.saldoInicial=saldoInicial;
       salvarContas();renderInvestimentos();
       cancelarEdicaoConta();
-      toast('✅ Conta renomeada!');
+      toast('✅ Conta atualizada!');
     }
     return;
   }
@@ -7766,10 +8146,23 @@ function criarConta(){
   // A padrão precisa existir ANTES da nova: é ela que passa a receber todos os
   // lançamentos antigos, que continuam sem contaId.
   garantirContaPadrao();
-  APP.contas.push({id:novoId(),nome});
+  APP.contas.push({id:novoId(),nome,saldoInicial});
   salvarContas();renderInvestimentos();
   if(inp)inp.value='';
+  if(inpSaldo)inpSaldo.value='';
   toast('🏦 Conta corrente criada!');
+}
+
+/* A conta padrão existe só implicitamente enquanto APP.contas está vazio —
+   e aí não aparece na lista, não tem botão de editar, e no plano Grátis
+   também não dá pra criar outra. Quem pulou os primeiros passos ficaria sem
+   NENHUM jeito de dar nome ou informar o saldo dela. Isto a torna explícita
+   e abre direto na edição. */
+function editarContaPadrao(){
+  const c=garantirContaPadrao();
+  salvarContas();
+  atualizarContasGrid();
+  editarConta(c.id);
 }
 
 function editarConta(id){
@@ -7777,8 +8170,11 @@ function editarConta(id){
   contaEmEdicaoId=c.id;
   const inp=document.getElementById('inv-conta-nome');
   if(inp){inp.value=c.nome;inp.focus();}
+  const inpSaldo=document.getElementById('inv-conta-saldo');
+  if(inpSaldo)inpSaldo.value=Number(c.saldoInicial)>0
+    ?Number(c.saldoInicial).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
   const btn=document.getElementById('inv-conta-btn');
-  if(btn)btn.innerHTML='<span>✓</span> Salvar nome';
+  if(btn)btn.innerHTML='<span>✓</span> Salvar alterações';
   const cancel=document.getElementById('inv-conta-cancelar');
   if(cancel)cancel.style.display='block';
 }
@@ -7787,6 +8183,8 @@ function cancelarEdicaoConta(){
   contaEmEdicaoId=null;
   const inp=document.getElementById('inv-conta-nome');
   if(inp)inp.value='';
+  const inpSaldo=document.getElementById('inv-conta-saldo');
+  if(inpSaldo)inpSaldo.value='';
   const btn=document.getElementById('inv-conta-btn');
   if(btn)btn.innerHTML='<span>+</span> Criar conta corrente';
   const cancel=document.getElementById('inv-conta-cancelar');
@@ -7823,7 +8221,7 @@ function atualizarContasGrid(){
   const g=document.getElementById('contas-grid');
   if(!g)return;
   if(!APP.contas.length){
-    g.innerHTML='<div class="empty" style="grid-column:1/-1;padding:20px 0"><div class="empty-v">🏦</div><h4>Só a conta padrão</h4><p style="font-size:.75rem">Cadastre outra abaixo se tiver mais de uma conta bancária.</p></div>';
+    g.innerHTML='<div class="empty" style="grid-column:1/-1;padding:20px 0"><div class="empty-v">🏦</div><h4>Só a conta padrão</h4><p style="font-size:.75rem">Cadastre outra abaixo se tiver mais de uma conta bancária.</p><button onclick="editarContaPadrao()" style="margin-top:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:8px 14px;color:var(--text2);font-size:.75rem;cursor:pointer;font-family:var(--sans)">✏️ Dar nome e informar saldo</button></div>';
     return;
   }
   g.innerHTML=APP.contas.map(c=>{
@@ -7835,7 +8233,7 @@ function atualizarContasGrid(){
           <div class="s-val" style="font-family:var(--mono);font-size:.95rem;font-weight:500;color:${s>=0?'var(--teal)':'var(--danger)'}"><span class="val-txt">R$ ${Math.abs(s).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
-          <button onclick="editarConta(${c.id})" title="Renomear" style="width:26px;height:26px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-size:.7rem;cursor:pointer;flex-shrink:0">✏️</button>
+          <button onclick="editarConta(${c.id})" title="Editar nome e saldo inicial" style="width:26px;height:26px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-size:.7rem;cursor:pointer;flex-shrink:0">✏️</button>
           <button onclick="removerConta(${c.id})" title="Excluir" style="width:26px;height:26px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:7px;color:var(--danger);font-size:.7rem;cursor:pointer;flex-shrink:0">🗑</button>
         </div>
       </div>
@@ -7945,10 +8343,14 @@ function criarBolso(){
   const meta=parseCurrency(document.getElementById('inv-meta').value)||0;
   const ico=document.getElementById('inv-ico').value;
   const cor=document.getElementById('inv-cor').value;
-  APP.bolsos.push({id:Date.now(),nome,meta,ico,cor,saldo:0,rendimento:0,movimentos:[]});
+  /* Dinheiro que já estava no bolso antes do app. Entra direto no saldo, sem
+     passar pela conta corrente: não é transferência nem receita. */
+  const saldo=parseCurrency(document.getElementById('inv-saldo')?.value||'');
+  APP.bolsos.push({id:Date.now(),nome,meta,ico,cor,saldo,rendimento:0,movimentos:[]});
   salvarBolsos();renderInvestimentos();
   document.getElementById('inv-nome').value='';
   document.getElementById('inv-meta').value='';
+  const inpSaldoB=document.getElementById('inv-saldo');if(inpSaldoB)inpSaldoB.value='';
   toast('🏦 Bolso criado!');
 }
 
