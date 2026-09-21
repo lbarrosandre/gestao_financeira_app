@@ -2660,8 +2660,8 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <!-- Mercado Cripto -->
     <div class="info-section-title">🪙 Mercado Cripto</div>
     <div class="info-crypto-tabs">
-      <div class="info-crypto-tab ativo" id="crypto-tab-alta" onclick="setCryptoTab('alta')">🚀 Em alta</div>
-      <div class="info-crypto-tab baixa" id="crypto-tab-baixa" onclick="setCryptoTab('baixa')">📉 Em baixa</div>
+      <div class="info-crypto-tab ativo" id="crypto-tab-alta" onclick="setCryptoTab('alta')">🚀 Maiores altas</div>
+      <div class="info-crypto-tab baixa" id="crypto-tab-baixa" onclick="setCryptoTab('baixa')">📉 Maiores baixas</div>
     </div>
     <div id="info-crypto-market">
       <div class="info-loading-pill">Carregando mercado</div>
@@ -7518,6 +7518,8 @@ function confirmarExec(){
   // o único sinal era um ícone discreto dentro do menu.
   const syncPromise=salvarPlan();
   atualizarStatsPlan();renderPlan();fecharSh();
+  // Conta paga não deve continuar aparecendo no aviso de "pagamento amanhã".
+  try{ verificarNotificacoesPlan(); }catch(e){ console.error('verificarNotificacoesPlan:', e); }
   const origemLabel={cc:'💳 CC','bolso':'🐷 Bolso','cartao':'💳 Cartão','manual':'✋ Manual'}[origem]||'';
   toast(`✅ Executado! [${origemLabel}]`,false,true);
   Promise.resolve(syncPromise).then(falhou=>{
@@ -10164,15 +10166,20 @@ function carregarTema(){
 function verificarNotificacoesPlan(){
   const amanha=new Date();
   amanha.setDate(amanha.getDate()+1);
-  amanha.setHours(0,0,0,0);
-  const amanhaISO=amanha.toISOString().split('T')[0];
+  /* Data montada em horário LOCAL. toISOString() converte pra UTC e, no
+     Brasil (UTC-3), a partir das 21h já devolve o dia seguinte — o aviso
+     pulava um dia e cobrava uma conta que ainda nem estava perto. Mesmo
+     cuidado já tomado em faturaAbertaRef() e renderPlan(). */
+  const amanhaISO=`${amanha.getFullYear()}-${String(amanha.getMonth()+1).padStart(2,'0')}-${String(amanha.getDate()).padStart(2,'0')}`;
 
-  const itens=APP.plan.filter(p=>p.status==='pendente'&&p.dataISO===amanhaISO);
-  if(!itens.length)return;
-
-  // Banner na tela
   const banner=document.getElementById('notif-banner');
   const lista=document.getElementById('notif-banner-list');
+
+  /* Só o que continua pendente. 'executado' nunca entra — e esconder o
+     banner explicitamente importa porque esta função também roda depois de
+     uma baixa: sem isso o aviso de uma conta recém-paga ficava na tela. */
+  const itens=APP.plan.filter(p=>p.status==='pendente'&&p.dataISO===amanhaISO);
+  if(!itens.length){ banner?.classList.remove('show'); return; }
   if(banner&&lista){
     lista.innerHTML=itens.map(p=>`
       <div class="notif-banner-item">
@@ -10263,7 +10270,6 @@ let infoInitialized=false;
 let cryptoMarketData=[];
 let cryptoTab='alta';
 
-const INFO_HIST_KEY='bussola_info_hist';
 
 function infoInit(){
   if(!infoInitialized){
@@ -10291,7 +10297,6 @@ async function buscarCotacoes(){
     infoRates.EUR={bid:parseFloat(eur.bid),ask:parseFloat(eur.ask),pctChange:parseFloat(eur.pctChange),varBid:parseFloat(eur.varBid)};
     if(btc){infoRates.BTC={bid:parseFloat(btc.bid),ask:parseFloat(btc.ask),pctChange:parseFloat(btc.pctChange),low:parseFloat(btc.low),high:parseFloat(btc.high),vol:parseFloat(btc.vol||0)};}
     renderCotacoes();
-    salvarHistorico();
     renderHistorico();
     calcConv();
   }catch(e){
@@ -10356,14 +10361,18 @@ function renderCotacoes(){
     'Atualizado '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 
-function renderMiniBar(containerId,moeda){
-  const hist=carregarHistorico();
+async function renderMiniBar(containerId,moeda){
   const key=moeda.toUpperCase();
-  const entries=hist.filter(h=>h[key]).slice(-7);
-  const vals=entries.map(h=>h[key]);
+  let entries=[];
+  try{ entries=await buscarHistoricoMercado(key); }catch(e){ entries=[]; }
+  // A API vem do mais recente pro mais antigo; as barras leem da esquerda
+  // (mais antigo) pra direita (hoje), então inverte.
+  const vals=entries.slice(0,7).map(e=>e.val).reverse();
   if(vals.length<2){
-    vals.push(infoRates[key]?infoRates[key].bid:0);
+    const atual=infoRates[key]?infoRates[key].bid:0;
+    if(atual)vals.push(atual);
   }
+  if(!vals.length)return;
   const min=Math.min(...vals)*0.998;
   const max=Math.max(...vals)*1.002;
   const range=max-min||1;
@@ -10377,37 +10386,54 @@ function renderMiniBar(containerId,moeda){
   }).join('');
 }
 
-function salvarHistorico(){
-  const hist=carregarHistorico();
-  const hoje=new Date().toISOString().split('T')[0];
-  const idx=hist.findIndex(h=>h.date===hoje);
-  const entry={date:hoje,USD:infoRates.USD?.bid||null,EUR:infoRates.EUR?.bid||null,BTC:infoRates.BTC?.bid||null};
-  if(idx>=0)hist[idx]=entry;
-  else hist.push(entry);
-  const trimmed=hist.slice(-30);
-  localStorage.setItem(INFO_HIST_KEY,JSON.stringify(trimmed));
+
+/* Histórico REAL de mercado, não o registro das suas visitas.
+   Antes esta lista vinha do localStorage, gravando uma linha por DIA EM QUE
+   A PESSOA ABRIU a aba. Quem consultava dia 28, 30, 03 e 16 via exatamente
+   essas datas, com buracos de semanas, e a "variação diária" na verdade
+   comparava duas consultas distantes. Agora vem do fechamento diário da
+   AwesomeAPI (mesma fonte já usada na cotação do topo), então são pregões de
+   verdade — sem fim de semana, iguais em qualquer aparelho. */
+const INFO_PARES={USD:'USD-BRL',EUR:'EUR-BRL',BTC:'BTC-BRL'};
+let infoHistMercado={};
+
+async function buscarHistoricoMercado(moeda){
+  if(infoHistMercado[moeda]) return infoHistMercado[moeda];
+  const par=INFO_PARES[moeda];
+  if(!par) return [];
+  const r=await fetch(`https://economia.awesomeapi.com.br/json/daily/${par}/8`);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  const lista=(Array.isArray(d)?d:[])
+    .map(x=>({ts:Number(x.timestamp)*1000, val:parseFloat(x.bid)}))
+    .filter(x=>x.ts&&!isNaN(x.val));
+  infoHistMercado[moeda]=lista;
+  return lista;
 }
 
-function carregarHistorico(){
-  try{return JSON.parse(localStorage.getItem(INFO_HIST_KEY)||'[]');}catch(e){return[];}
-}
-
-function renderHistorico(){
-  const hist=carregarHistorico();
+async function renderHistorico(){
   const wrap=document.getElementById('info-hist-wrap');
   if(!wrap)return;
   const moeda=convMoeda==='BRL'?'USD':convMoeda;
-  const entries=[...hist].reverse().slice(0,7);
+
+  let entries=[];
+  try{
+    entries=await buscarHistoricoMercado(moeda);
+  }catch(e){
+    console.error('buscarHistoricoMercado:', e);
+    wrap.innerHTML='<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:14px 0">Não foi possível carregar o histórico agora.</div>';
+    return;
+  }
   if(!entries.length){wrap.innerHTML='<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:14px 0">Sem dados históricos ainda.</div>';return;}
 
-  // Adiciona variação diária
-  const rows=entries.map((e,i)=>{
-    const val=e[moeda];
+  // A API devolve do mais recente para o mais antigo: o anterior é o próximo da lista.
+  const rows=entries.slice(0,7).map((e,i)=>{
+    const val=e.val;
     if(!val)return null;
-    const prev=entries[i+1]?entries[i+1][moeda]:null;
+    const prev=entries[i+1]?entries[i+1].val:null;
     const diff=prev?(val-prev):null;
     const pct=diff&&prev?(diff/prev*100):null;
-    const d=new Date(e.date+'T12:00:00');
+    const d=new Date(e.ts);
     const dlbl=d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
     const cls=pct===null?'neutral':pct>0?'up':'down';
     const arrow=pct===null?'':pct>0?'▲':'▼';
@@ -10419,8 +10445,8 @@ function renderHistorico(){
   }).filter(Boolean);
 
   wrap.innerHTML=rows.length
-    ?`<div style="font-size:.62rem;font-weight:700;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px">${moeda}/BRL</div>`+rows.join('')
-    :'<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:14px 0">Volte nos próximos dias para ver o histórico.</div>';
+    ?`<div style="font-size:.62rem;font-weight:700;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px">${moeda}/BRL · últimos pregões</div>`+rows.join('')
+    :'<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:14px 0">Sem dados históricos ainda.</div>';
 }
 
 function setConvMoeda(m){
@@ -10514,7 +10540,23 @@ function renderCryptoMarket(){
     if(v>=1e6)return'R$'+(v/1e6).toFixed(0)+'M';
     return'R$'+v.toLocaleString('pt-BR');
   };
-  wrap.innerHTML='<div class="info-market-list">'+top5.map((c,i)=>{
+  /* A lista é sempre "as 5 de maior variação" na direção escolhida — não "as
+     que estão caindo". Em fim de semana calmo o mercado inteiro fica verde, a
+     aba "Maiores baixas" mostra as que MENOS subiram, e a seta verde parece
+     erro. Não é: é o mercado sem ninguém no vermelho. O aviso abaixo torna
+     isso explícito em vez de deixar a pessoa desconfiando do número. */
+  const todasSubindo =cryptoTab==='baixa'&&top5.every(c=>(c.price_change_percentage_24h||0)>=0);
+  const todasCaindo  =cryptoTab==='alta' &&top5.every(c=>(c.price_change_percentage_24h||0)<=0);
+  const nota=todasSubindo
+    ?'Nenhuma das 20 maiores está em queda nas últimas 24h — abaixo, as que menos subiram.'
+    :todasCaindo
+    ?'Nenhuma das 20 maiores está em alta nas últimas 24h — abaixo, as que menos caíram.'
+    :'';
+  const notaHtml=nota
+    ?`<div style="font-size:.68rem;color:var(--text3);line-height:1.5;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;margin-bottom:10px">ℹ️ ${nota}</div>`
+    :'';
+
+  wrap.innerHTML=notaHtml+'<div class="info-market-list">'+top5.map((c,i)=>{
     const pct=c.price_change_percentage_24h||0;
     const cls=pct>=0?'up':'down';
     const arrow=pct>=0?'▲':'▼';
