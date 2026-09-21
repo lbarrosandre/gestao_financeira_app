@@ -5852,31 +5852,12 @@ const BASICO_AD_BANNER_KEY = 'bussola_basico_ad_fechado';
    Qualquer outro status (trial, atrasado, cancelado, ou sem linha nenhuma)
    cai pro Básico — é o comportamento correto: pagamento atrasado ou
    cancelado não deve manter acesso pago indefinidamente. */
-/* ⚠️ TEMPORÁRIO — o Google Play Billing é o ÚNICO meio de pagamento do app,
-   e ainda não está implementado: hoje ninguém tem como assinar de verdade.
-   Enquanto isso, dentro do app nativo todo mundo é tratado como Premium —
-   sem isso os testadores do Teste Fechado cairiam no Grátis e não teriam
-   como avaliar o que é pago, que é justamente o propósito do teste.
-   Não afeta a web: lá planoEfetivo() continua olhando a assinatura real, e
-   quem não assinou vê o convite pra assinar pelo app.
-   REMOVER esta condição assim que o Play Billing entrar no ar. */
-const APP_LIBERADO_NO_ANDROID = true;
-
-/* Exceção à liberação acima: quem está nesta lista passa pelo fluxo REAL de
-   compra dentro do app, em vez de ganhar Premium de graça.
-   Existe porque as duas coisas são necessárias ao mesmo tempo: os testadores
-   do Teste Fechado precisam ver os recursos pagos para poder avaliá-los (é o
-   propósito do teste), e alguém precisa conseguir testar a compra de verdade
-   — o que é impossível para quem já entra como Premium.
-   Sai junto com APP_LIBERADO_NO_ANDROID quando o Billing valer para todos. */
-const UIDS_FORA_DA_LIBERACAO = [
-  'c86f083e-a79e-4cb6-b4dc-cc4714b6da90',
-  '3d34f4a4-8ef7-4c25-9364-9bbdb102950d'
-];
-
+/* Premium só com assinatura de verdade no banco — no Android e na web, sem
+   exceção. Durante o teste fechado havia uma liberação que dava Premium a
+   todo mundo no app nativo (os testadores precisavam avaliar o que é pago);
+   ela saiu quando o app foi para produção, porque em produção significaria
+   entregar de graça o que se vende. */
 function planoEfetivo(){
-  if(APP_LIBERADO_NO_ANDROID && window.Capacitor?.isNativePlatform?.()
-     && !UIDS_FORA_DA_LIBERACAO.includes(window._sbUID)) return 'premium';
   const r = window._assinaturaAtual;
   if(!r) return 'basico';
   if(r.status==='ativo' || r.status==='cortesia'){
