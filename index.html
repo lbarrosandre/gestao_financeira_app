@@ -2556,6 +2556,37 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="dash-chart-wrap"><canvas id="chart-planreal"></canvas></div>
     </div>
 
+    <!-- 8. Crescimento da reserva financeira (dinheiro guardado nos bolsos) -->
+    <div class="dash-card">
+      <div class="dash-card-header">
+        <span class="dash-card-title">🐷 Crescimento da Reserva</span>
+        <span class="dash-card-badge" style="background:rgba(234,179,8,.15);color:var(--gold)">Bolsos</span>
+      </div>
+      <div class="dash-chart-wrap"><canvas id="chart-reserva"></canvas></div>
+      <div id="dash-reserva-resumo" style="font-size:.72rem;color:var(--text3);line-height:1.5;margin-top:8px"></div>
+    </div>
+
+    <!-- 9. Projeção da reserva -->
+    <div class="dash-card">
+      <div class="dash-card-header">
+        <span class="dash-card-title">🔮 Projeção da Reserva</span>
+        <span class="dash-card-badge" style="background:rgba(59,130,246,.15);color:var(--accent)">Longo prazo</span>
+      </div>
+      <div class="r2" style="margin-bottom:10px">
+        <div class="fi" style="margin-bottom:0"><label>Período</label><div class="sw">
+          <select id="dash-proj-horizonte" onchange="dashProjecao()">
+            <option value="6">6 meses</option>
+            <option value="12" selected>1 ano</option>
+            <option value="24">2 anos</option>
+            <option value="60">5 anos</option>
+          </select></div></div>
+        <div class="fi" style="margin-bottom:0"><label>Meta por mês R$ (opcional)</label>
+          <input type="text" id="dash-proj-meta" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this);dashProjecao()" style="font-family:var(--mono)"></div>
+      </div>
+      <div class="dash-chart-wrap"><canvas id="chart-projecao"></canvas></div>
+      <div id="dash-proj-resumo" style="font-size:.72rem;color:var(--text3);line-height:1.5;margin-top:8px"></div>
+    </div>
+
     <!-- Insights automáticos -->
     <div class="dash-insight" id="dash-insights"></div>
 
@@ -9801,6 +9832,10 @@ function renderDash(){
       '<div class="dash-empty" style="grid-column:1/-1"><div class="dash-empty-v">📊</div><h4>Sem dados ainda</h4><p>Lance receitas e despesas<br>para ver seus gráficos aqui.</p></div>';
     ['chart-recdesp','chart-saldo','chart-categ','chart-receita-cat','chart-planreal']
       .forEach(id=>{dashDestroyChart(id);const c=document.getElementById(id);if(c){const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);}});
+    /* Reserva e projeção continuam: elas vêm do saldo dos bolsos, então quem
+       já guardou dinheiro mas ainda não lançou nada tem o que ver aqui. */
+    dashReserva();
+    dashProjecao();
     return;
   }
   dashKPIs(base);
@@ -9811,6 +9846,10 @@ function renderDash(){
   dashGauge(base);
   dashReceitaCat(base);
   dashPlanReal();
+  /* Reserva e projeção não usam `base`: olham o saldo dos BOLSOS, que não
+     depende do filtro de mês/tipo dos lançamentos. */
+  dashReserva();
+  dashProjecao();
   dashInsights(base);
 }
 
@@ -9905,6 +9944,162 @@ function dashSaldo(base){
 }
 
 /* ── Despesas por categoria (donut) ── */
+/* ═══ RESERVA FINANCEIRA ═══════════════════════════════════════════
+   "Reserva" aqui é o dinheiro guardado nos BOLSOS (poupança, investimentos,
+   reserva de emergência…) — diferente da "Evolução do Saldo", que acumula
+   receitas menos despesas. Uma coisa é quanto sobrou; outra é quanto você
+   de fato separou.
+
+   A série é reconstruída PARA TRÁS, a partir do saldo de hoje, subtraindo os
+   movimentos posteriores a cada mês. O caminho oposto (somar movimentos
+   desde zero) perderia todo dinheiro que já existia antes do app — inclusive
+   o informado nos primeiros passos, que entra como saldo e não gera
+   movimento. */
+function dashReservaSerie(){
+  const atual=(APP.bolsos||[]).reduce((s,b)=>s+(Number(b.saldo)||0),0);
+
+  const movs=[];
+  (APP.bolsos||[]).forEach(b=>(b.movimentos||[]).forEach(m=>{
+    const iso=String(m.data||m.dataISO||'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return;
+    const delta=Number(m.delta);
+    const v=(!isNaN(delta)&&delta!==0)
+      ? delta
+      : (m.tipo==='retirada'?-Math.abs(Number(m.valor)||0):Math.abs(Number(m.valor)||0));
+    movs.push({iso,v});
+  }));
+
+  const hoje=new Date();
+  const labels=[],valores=[];
+  MESES.forEach(m=>{
+    const mi=mesIndexDoMesRef(m);
+    if(mi<0)return;
+    const ano=anoDoMesRef(m,_ANO);
+    // Só até o mês corrente: daqui pra frente é projeção, não histórico.
+    if(ano>hoje.getFullYear()||(ano===hoje.getFullYear()&&mi>hoje.getMonth()))return;
+    const ultimoDia=new Date(ano,mi+1,0).getDate();
+    const fimISO=`${ano}-${String(mi+1).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
+    const depois=movs.filter(x=>x.iso>fimISO).reduce((s,x)=>s+x.v,0);
+    labels.push(m);
+    valores.push(atual-depois);
+  });
+  return {labels,valores,atual};
+}
+
+function dashReserva(){
+  const cv=document.getElementById('chart-reserva');
+  const resumoEl=document.getElementById('dash-reserva-resumo');
+  dashDestroyChart('chart-reserva');
+  if(!cv)return;
+  const {labels,valores}=dashReservaSerie();
+  const temAlgo=labels.length&&valores.some(v=>Math.abs(v)>0.005);
+  if(!temAlgo){
+    const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
+    if(resumoEl)resumoEl.textContent='Crie um bolso na Carteira e guarde algum valor para acompanhar sua reserva aqui.';
+    return;
+  }
+  const ctx=cv.getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,'rgba(234,179,8,.35)');grad.addColorStop(1,'rgba(234,179,8,.01)');
+  dashCharts['chart-reserva']=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{
+      label:'Reserva',data:valores,
+      borderColor:'#EAB308',backgroundColor:grad,
+      borderWidth:2.5,pointBackgroundColor:'#EAB308',pointRadius:4,fill:true,tension:.4
+    }]},
+    options:{...CHART_BASE,plugins:{...CHART_BASE.plugins,
+      tooltip:{...CHART_BASE.plugins.tooltip,callbacks:{label:c=>' R$ '+c.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2})}}
+    }}
+  });
+
+  if(resumoEl){
+    const dif=valores[valores.length-1]-valores[0];
+    const meses=Math.max(1,valores.length-1);
+    const media=dif/meses;
+    const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+    resumoEl.innerHTML=valores.length<2
+      ? `Hoje você tem <strong>${f(valores[valores.length-1])}</strong> guardado. Com mais alguns meses dá pra ver o ritmo.`
+      : dif>=0
+        ? `Cresceu <strong style="color:var(--teal)">${f(dif)}</strong> no período — média de <strong>${f(media)}/mês</strong>.`
+        : `Diminuiu <strong style="color:var(--danger)">${f(dif)}</strong> no período — média de <strong>${f(media)}/mês</strong> a menos.`;
+  }
+}
+
+/* Projeção: onde a reserva chega mantendo o ritmo atual, e onde chegaria
+   guardando um valor-alvo por mês. As duas linhas juntas de propósito — é a
+   comparação que responde "meu ritmo de hoje me leva aonde eu quero?". */
+function dashProjecao(){
+  const cv=document.getElementById('chart-projecao');
+  const resumoEl=document.getElementById('dash-proj-resumo');
+  dashDestroyChart('chart-projecao');
+  if(!cv)return;
+  const {labels,valores}=dashReservaSerie();
+  if(!labels.length||!valores.some(v=>Math.abs(v)>0.005)){
+    const ctx0=cv.getContext('2d');ctx0.clearRect(0,0,cv.width,cv.height);
+    if(resumoEl)resumoEl.textContent='Sem reserva registrada ainda — a projeção aparece quando houver saldo em algum bolso.';
+    return;
+  }
+
+  const H=parseInt(document.getElementById('dash-proj-horizonte')?.value||'12',10)||12;
+  const meta=parseCurrency(document.getElementById('dash-proj-meta')?.value||'');
+  const atual=valores[valores.length-1];
+  const mesesHist=Math.max(1,valores.length-1);
+  const ritmo=(valores[valores.length-1]-valores[0])/mesesHist;
+
+  // Rótulos futuros a partir do último mês com histórico.
+  const ultimoMi=mesIndexDoMesRef(labels[labels.length-1]);
+  const ultimoAno=anoDoMesRef(labels[labels.length-1],_ANO);
+  const futuros=[];
+  for(let i=1;i<=H;i++){
+    const d=new Date(ultimoAno,ultimoMi+i,1);
+    futuros.push(_MESES_BASE[d.getMonth()]+'/'+String(d.getFullYear()).slice(2));
+  }
+
+  const nulls=n=>Array(n).fill(null);
+  const serieProj=(passo)=>{
+    const out=nulls(valores.length-1);
+    out.push(atual);                       // liga a projeção ao último ponto real
+    let v=atual;
+    for(let i=0;i<H;i++){ v+=passo; out.push(v); }
+    return out;
+  };
+
+  const datasets=[
+    {label:'Real',data:valores.concat(nulls(H)),borderColor:'#EAB308',backgroundColor:'rgba(234,179,8,.12)',borderWidth:2.5,pointRadius:3,fill:true,tension:.4},
+    {label:'Ritmo atual',data:serieProj(ritmo),borderColor:'#3B82F6',borderWidth:2,borderDash:[6,4],pointRadius:0,fill:false,tension:.3}
+  ];
+  if(meta>0) datasets.push(
+    {label:'Meta',data:serieProj(meta),borderColor:'#10B981',borderWidth:2,borderDash:[2,3],pointRadius:0,fill:false,tension:.3}
+  );
+
+  dashCharts['chart-projecao']=new Chart(cv.getContext('2d'),{
+    type:'line',
+    data:{labels:labels.concat(futuros),datasets},
+    options:{...CHART_BASE,plugins:{...CHART_BASE.plugins,
+      legend:{display:true,labels:{color:'#94A3B8',boxWidth:10,font:{size:10}}},
+      tooltip:{...CHART_BASE.plugins.tooltip,callbacks:{label:c=>' '+c.dataset.label+': R$ '+(c.parsed.y||0).toLocaleString('pt-BR',{maximumFractionDigits:0})}}
+    }}
+  });
+
+  if(resumoEl){
+    const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+    const periodo=H===12?'1 ano':H===24?'2 anos':H===60?'5 anos':H+' meses';
+    let txt;
+    if(valores.length<2){
+      txt=`Ainda não dá para calcular seu ritmo (só há um mês de histórico). Informe uma meta mensal para ver a projeção.`;
+    }else if(ritmo>0){
+      txt=`No seu ritmo atual (<strong>${f(ritmo)}/mês</strong>), em ${periodo} sua reserva chega a <strong style="color:var(--accent)">${f(atual+ritmo*H)}</strong>.`;
+    }else if(ritmo<0){
+      txt=`Atenção: nos últimos meses sua reserva <strong style="color:var(--danger)">caiu ${f(ritmo)}/mês</strong> em média. Mantido esse ritmo, ela zera antes do fim do período.`;
+    }else{
+      txt=`Sua reserva está estável — sem crescer nem diminuir nos últimos meses.`;
+    }
+    if(meta>0) txt+=` Guardando <strong>${f(meta)}/mês</strong>, chegaria a <strong style="color:var(--teal)">${f(atual+meta*H)}</strong>.`;
+    resumoEl.innerHTML=txt;
+  }
+}
+
 function dashCategDonut(base){
   const byCateg={};
   base.filter(d=>d.movimento==='Debito').forEach(d=>{byCateg[d.categoria]=(byCateg[d.categoria]||0)+d.valorAbs;});
