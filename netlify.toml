@@ -6,6 +6,31 @@
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
+    # Impede o navegador de "adivinhar" o tipo de um arquivo: um upload que finge
+    # ser imagem não é executado como script.
+    X-Content-Type-Options = "nosniff"
+    # Ao sair do app por um link, o outro site recebe só o domínio, nunca a página
+    # (que pode conter identificador na URL).
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # O app não usa câmera, microfone, localização, pagamento do navegador nem USB.
+    # Desligar explicitamente evita que um script injetado peça qualquer um deles.
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+    # HSTS: só HTTPS neste domínio, por um ano. O Netlify já serve TLS; isto fecha
+    # a primeira visita em http. Sem "preload" de propósito — preload é difícil de desfazer.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    # ── Content-Security-Policy ────────────────────────────────────────────────
+    # Em modo SOMENTE RELATÓRIO enquanto a versão 5 está em análise na Play Store:
+    # o app Android carrega este site pelo WebView do Capacitor, e uma diretiva
+    # errada quebraria a ponte nativa (login, Play Billing) na semana em que o
+    # revisor do Google abre o app. Report-Only aplica nada e reporta no console.
+    # Quando o app estiver publicado: testar no celular (login Google, gráficos do
+    # Dashboard, Cotações, tela de planos e compra) e, sem violação no console,
+    # renomear para Content-Security-Policy.
+    #   'unsafe-inline' é necessário: o index.html é arquivo único, com script e
+    #   estilo embutidos. Mesmo assim a política tem valor — ela fecha a origem de
+    #   script externo, de conexão e de imagem, que é por onde um XSS mandaria dado
+    #   para fora.
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://*.googleusercontent.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://economia.awesomeapi.com.br https://viacep.com.br https://brapi.dev https://api.coingecko.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 # index.html não pode ser cacheado por CDN/navegador: é o único arquivo que
 # muda a cada deploy sem trocar de nome, e PWAs instalados no iOS já
