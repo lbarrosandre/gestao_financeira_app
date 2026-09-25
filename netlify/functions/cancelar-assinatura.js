@@ -60,7 +60,13 @@ exports.handler = async (event) => {
   const SUPABASE_URL              = process.env.SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!MP_ACCESS_TOKEN || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  /* MP_ACCESS_TOKEN deixou de ser obrigatório em 25/09/2026: o Mercado Pago não
+     vende mais nada aqui (só Google Play Billing), e as funções dele foram
+     removidas. A chave só é consultada abaixo se a linha da assinatura ainda
+     tiver um `mp_subscription_id` de antes da mudança — caso que não deve mais
+     existir. Exigir a chave aqui quebraria o cancelamento no dia em que ela
+     saísse do Netlify. */
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error('[cancelar-assinatura] variáveis de ambiente ausentes:', {
       MP_ACCESS_TOKEN: !!MP_ACCESS_TOKEN,
       SUPABASE_URL: !!SUPABASE_URL,
@@ -169,6 +175,13 @@ exports.handler = async (event) => {
     console.warn('[cancelar-assinatura] assinatura sem mp_subscription_id — uid:', uid,
                  'status:', statusAtual || '(vazio)');
     return json(400, { erro: 'Nenhuma assinatura ativa encontrada para cancelar.' });
+  }
+
+  /* ── 5d. Linha antiga do Mercado Pago sem a chave configurada ── */
+  if (!MP_ACCESS_TOKEN) {
+    console.error('[cancelar-assinatura] assinatura com mp_subscription_id, mas MP_ACCESS_TOKEN',
+                  'não está configurada — uid:', uid);
+    return json(500, { erro: 'Esta assinatura precisa ser cancelada pelo suporte. Escreva para contato@bussolafinance.com.br.' });
   }
 
   /* ── 6. Cancela a preapproval no Mercado Pago ── */
