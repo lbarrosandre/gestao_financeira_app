@@ -2,6 +2,22 @@
   publish = "."
   functions = "netlify/functions"
 
+# Atalhos de divulgação: bussolafinance.com.br/app leva direto à ficha da Play.
+# Servem para bio de rede social, QR code e mensagem — endereço curto, do nosso
+# domínio, e que a gente pode apontar para outro lugar sem pedir para ninguém
+# trocar o link (por exemplo, se um dia houver versão iOS).
+[[redirects]]
+  from = "/app"
+  to = "https://play.google.com/store/apps/details?id=br.com.bussolafinance.app"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/baixar"
+  to = "https://play.google.com/store/apps/details?id=br.com.bussolafinance.app"
+  status = 302
+  force = true
+
 [[headers]]
   for = "/*"
   [headers.values]
