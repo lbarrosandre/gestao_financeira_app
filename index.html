@@ -3125,6 +3125,24 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
   </select></div></div>
   <div class="fi"><label>Categoria</label><div class="sw"><select id="edit-cat"></select></div></div>
   <div class="fi"><label>Comentário (opcional)</label><textarea id="edit-comment" placeholder="Observações..." maxlength="280" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:.85rem;padding:9px 12px;outline:none;width:100%;resize:none;min-height:60px"></textarea></div>
+
+  <!-- CORREÇÃO DE ORIGEM
+       Errar a origem do pagamento é o engano mais comum do app: marcar conta
+       corrente quando foi no cartão deixa o saldo errado e a fatura vazia, e
+       até set/2026 não havia como consertar sem apagar e lançar de novo.
+       Trocar a origem aqui desfaz o efeito da origem antiga (devolve o dinheiro
+       ao bolso, tira a compra da fatura) e aplica o da nova. -->
+  <div class="rec-box" id="edit-origem-box" style="display:none">
+    <div class="fi" style="margin-bottom:0"><label>💳 Origem do pagamento</label><div class="sw"><select id="edit-origem" onchange="toggleEditOrigem()">
+      <option value="cc">🏦 Conta corrente</option>
+      <option value="bolso">🐷 Bolso da carteira</option>
+      <option value="cartao">💳 Cartão de crédito</option>
+    </select></div></div>
+    <div class="fi" id="edit-origem-bolso-wrap" style="display:none;margin:10px 0 0"><label id="edit-origem-bolso-label">Bolso</label><div class="sw"><select id="edit-origem-bolso"><option value="">Selecione o bolso</option></select></div></div>
+    <div class="fi" id="edit-origem-cartao-wrap" style="display:none;margin:10px 0 0"><label>Cartão</label><div class="sw"><select id="edit-origem-cartao"><option value="">Selecione o cartão</option></select></div></div>
+    <div class="rec-hint" style="margin:8px 0 0" id="edit-origem-hint"></div>
+  </div>
+
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharEditSh()">Cancelar</button>
     <button class="sh-ok" style="background:var(--gold)" onclick="salvarEdicao()">💾 Salvar</button>
@@ -10952,6 +10970,83 @@ function dashInsights(base){
 /* ═══ EDIÇÃO DE LANÇAMENTOS ════════════ */
 let editId = null;
 
+/* ═══ CORREÇÃO DE ORIGEM DE UM LANÇAMENTO ════════════════
+   De onde o dinheiro saiu não é um rótulo: muda o saldo da conta, o saldo do
+   bolso e o valor da fatura. Por isso a troca aqui é feita em duas etapas —
+   desfazer a origem antiga e aplicar a nova —, nunca editando o campo solto. */
+function origemDoLanc(d){
+  if(d.cartaoId && !d.faturaPagamento) return 'cartao';
+  if(d.pagoDoBolso || d.recebidoNoBolso) return 'bolso';
+  return 'cc';
+}
+function toggleEditOrigem(){
+  const v    = document.getElementById('edit-origem').value;
+  const bw   = document.getElementById('edit-origem-bolso-wrap');
+  const cw   = document.getElementById('edit-origem-cartao-wrap');
+  const hint = document.getElementById('edit-origem-hint');
+  const d    = APP.dados.find(x => x.id === editId);
+  const ehReceita = d && d.movimento === 'Credito';
+  bw.style.display = v === 'bolso'  ? '' : 'none';
+  cw.style.display = v === 'cartao' ? '' : 'none';
+  document.getElementById('edit-origem-bolso-label').textContent = ehReceita ? 'Bolso de destino' : 'Bolso de origem';
+  hint.textContent =
+    v === 'cc'     ? (ehReceita ? '💡 O valor entra na conta corrente.' : '💡 O valor é debitado da conta corrente.')
+  : v === 'bolso'  ? (ehReceita ? '💡 O valor entra direto no bolso, sem passar pela conta corrente.' : '💡 O valor sai do bolso, sem passar pela conta corrente.')
+  : '💡 Vira uma compra no cartão: entra na fatura do ciclo da data e só sai da conta quando você pagar a fatura.';
+}
+/* Desfaz o efeito da origem antiga e aplica o da nova. Recebe o estado de
+   ANTES (capturado no início de salvarEdicao) porque o valor já pode ter
+   mudado — devolver ao bolso o valor novo deixaria o saldo errado. */
+function trocarOrigemLanc(d, antigo, novaOrigem, novoBolsoId, novoCartaoId){
+  const ehReceita = d.movimento === 'Credito';
+  let mexeuBolso = false;
+
+  /* 1 ─ desfaz a origem antiga */
+  if(antigo.origem === 'bolso'){
+    const bOld = APP.bolsos.find(b => (b.movimentos||[]).some(m => m.id === d.id))
+              || APP.bolsos.find(b => b.id === antigo.bolsoId);
+    if(bOld){
+      const mv = (bOld.movimentos||[]).find(m => m.id === d.id);
+      const vOld = Math.abs(mv ? Number(mv.valor)||0 : antigo.valorAbs);
+      bOld.saldo += ehReceita ? -vOld : vOld;   // receita: tira o que entrou; despesa: devolve
+      bOld.movimentos = (bOld.movimentos||[]).filter(m => m.id !== d.id);
+      mexeuBolso = true;
+    }
+  }
+  d.pagoDoBolso = undefined; d.recebidoNoBolso = undefined; d.bolsoId = null;
+  if(antigo.origem === 'cartao'){ d.cartaoId = null; d.faturaRef = null; }
+
+  /* 2 ─ aplica a nova */
+  if(novaOrigem === 'bolso'){
+    const b = APP.bolsos.find(x => x.id === novoBolsoId);
+    if(!b) return { ok:false, erro:'Bolso não encontrado' };
+    const v = Math.abs(d.valorAbs);
+    if(!ehReceita && v > b.saldo) return { ok:false, erro:`Saldo insuficiente no bolso "${b.nome}"` };
+    if(!b.movimentos) b.movimentos = [];
+    b.saldo += ehReceita ? v : -v;
+    b.movimentos.unshift({
+      id:d.id, tipo: ehReceita ? 'deposito' : 'retirada', valor:v, desc:d.descricao,
+      data:d.dataISO, delta: ehReceita ? v : -v, origemCC:false, dePlan:d.dePlan||false
+    });
+    d.bolsoId = b.id;
+    if(ehReceita) d.recebidoNoBolso = true; else d.pagoDoBolso = true;
+    mexeuBolso = true;
+  } else if(novaOrigem === 'cartao'){
+    const c = getCartao(novoCartaoId);
+    if(!c) return { ok:false, erro:'Cartão não encontrado' };
+    d.cartaoId  = c.id;
+    d.faturaRef = calcularFaturaRef(d.dataISO, c);
+  }
+
+  /* 3 ─ mantém coerentes quem referencia este lançamento */
+  const pl = APP.plan.find(p => p.lancId === d.id);
+  if(pl){ pl.origem = novaOrigem; pl.bolsoId = novaOrigem === 'bolso' ? d.bolsoId : null; }
+  const pg = APP.pagamentos.find(p => p.id === d.id);
+  if(pg){ pg.origem = novaOrigem; pg.bolsoId = novaOrigem === 'bolso' ? d.bolsoId : null; }
+
+  return { ok:true, mexeuBolso };
+}
+
 function abrirEditSh(id){
   const d = APP.dados.find(x => x.id === id);
   if(!d) return;
@@ -10966,6 +11061,43 @@ function abrirEditSh(id){
   atualizarCats('edit-tipo','edit-cat','e');
   setTimeout(()=>{ document.getElementById('edit-cat').value = d.categoria || ''; }, 50);
   document.getElementById('edit-comment').value = d.comentario || '';
+
+  /* Origem: só para lançamento comum. Pagamento de fatura e compra parcelada
+     têm fluxo próprio (a parcela pertence a uma fatura específica), e mudar a
+     origem por fora deixaria os dois incoerentes. */
+  const box = document.getElementById('edit-origem-box');
+  const podeTrocar = !d.faturaPagamento && !d.parcelaGrupoId;
+  box.style.display = podeTrocar ? '' : 'none';
+  if(podeTrocar){
+    const sel = document.getElementById('edit-origem');
+    const ehReceita = d.movimento === 'Credito';
+    // Receita não entra em cartão de crédito.
+    sel.querySelector('option[value="cartao"]').hidden = ehReceita;
+    // Nome de bolso e de cartão é texto escrito pela pessoa: montado com
+    // textContent, nunca concatenado em HTML.
+    const encher = (sel, itens, rotulo) => {
+      sel.innerHTML = '';
+      const o0 = document.createElement('option'); o0.value = ''; o0.textContent = rotulo; sel.appendChild(o0);
+      itens.forEach(it => { const o = document.createElement('option'); o.value = it.v; o.textContent = it.t; sel.appendChild(o); });
+    };
+    encher(document.getElementById('edit-origem-bolso'),
+      APP.bolsos.map(b => ({ v:b.id, t:`${b.nome} · R$ ${Number(b.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}` })),
+      'Selecione o bolso');
+    encher(document.getElementById('edit-origem-cartao'),
+      APP.cartoes.map(c => ({ v:c.id, t:c.nome })),
+      'Selecione o cartão');
+    const bs = document.getElementById('edit-origem-bolso');
+    const cs = document.getElementById('edit-origem-cartao');
+    const org = origemDoLanc(d);
+    sel.value = org;
+    if(org === 'bolso'){
+      const bAtual = APP.bolsos.find(b => (b.movimentos||[]).some(m => m.id === d.id)) || APP.bolsos.find(b => b.id === d.bolsoId);
+      if(bAtual) bs.value = String(bAtual.id);
+    }
+    if(org === 'cartao') cs.value = String(d.cartaoId);
+    toggleEditOrigem();
+  }
+
   document.getElementById('sh-edit-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh-edit').classList.add('show'),10);
 }
@@ -10980,6 +11112,9 @@ function salvarEdicao(){
   if(editId === null) return;
   const d = APP.dados.find(x => x.id === editId);
   if(!d) return;
+  // Estado de ANTES da edição: é com ele que se desfaz o efeito da origem
+  // antiga (o valor já pode mudar logo abaixo).
+  const antigo = { origem: origemDoLanc(d), bolsoId: d.bolsoId, valorAbs: d.valorAbs };
   const novaData = document.getElementById('edit-data').value;
   const novoVal  = parseCurrency(document.getElementById('edit-valor').value);
   const novaDesc = document.getElementById('edit-desc').value.trim();
@@ -11003,13 +11138,28 @@ function salvarEdicao(){
   d.categoria = novaCat;
   d.classificacao = d.movimento === 'Credito' ? 'Receita' : 'Despesas';
   d.comentario = novaCom || undefined;
+  // Origem do pagamento: aplicada depois de os campos novos já estarem em `d`,
+  // porque o bolso e a fatura usam o valor e a data novos.
+  let mexeuBolso = false;
+  const boxOrigem = document.getElementById('edit-origem-box');
+  if(boxOrigem && boxOrigem.style.display !== 'none'){
+    const novaOrigem = document.getElementById('edit-origem').value;
+    const bId = parseInt(document.getElementById('edit-origem-bolso').value||'0');
+    const cId = parseInt(document.getElementById('edit-origem-cartao').value||'0');
+    if(novaOrigem === 'bolso' && !bId) return toast('⚠️ Selecione o bolso',true);
+    if(novaOrigem === 'cartao' && !cId) return toast('⚠️ Selecione o cartão',true);
+    const r = trocarOrigemLanc(d, antigo, novaOrigem, bId, cId);
+    if(!r.ok) return toast('⚠️ '+r.erro, true);
+    mexeuBolso = r.mexeuBolso;
+  }
   // Compra no cartão: mudar a data pode mudar a fatura a que ela pertence
   // (antes/depois do fechamento), então a referência é sempre recalculada.
   if(d.cartaoId&&!d.faturaPagamento){
     const ct=getCartao(d.cartaoId);
     if(ct)d.faturaRef=calcularFaturaRef(novaData,ct);
   }
-  if(d.cartaoId&&document.getElementById('pane-div')?.classList.contains('ativo'))renderCartoesUI();
+  if(mexeuBolso){ salvarBolsos(); try{ renderInvestimentos(); }catch(e){} }
+  if((d.cartaoId||antigo.origem==='cartao')&&document.getElementById('pane-div')?.classList.contains('ativo'))renderCartoesUI();
   // Pagamento de dívida: o ledger APP.pagamentos compartilha o id do lançamento.
   // Sem isto, editar o valor aqui deixaria a aba Dívidas divergindo de Registros.
   const pagEdit = APP.pagamentos.find(p => p.id === d.id);
@@ -11023,8 +11173,13 @@ function salvarEdicao(){
     salvarDivida();
     if(document.getElementById('pane-div')?.classList.contains('ativo')) renderDividasUI();
   }
+  // Plano que gerou este lançamento: a origem dele mudou junto (é ela que
+  // manda no estorno se o agendamento for desfeito depois).
+  if(APP.plan.some(p => p.lancId === d.id)) salvarPlan();
   salvar(); atualizarStats(); renderLista(); fecharEditSh();
-  toast('✅ Lançamento atualizado!');
+  const novaOrg = origemDoLanc(d);
+  const rotuloOrg = { cc:'conta corrente', bolso:'bolso', cartao:'cartão de crédito' }[novaOrg];
+  toast(novaOrg !== antigo.origem ? `✅ Corrigido: agora está como ${rotuloOrg}.` : '✅ Lançamento atualizado!');
 }
 
 // Estende atualizarCats para contexto 'e' (edição)
