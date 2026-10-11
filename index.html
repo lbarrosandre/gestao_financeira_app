@@ -2538,15 +2538,6 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div class="dash-chart-wrap"><canvas id="chart-recdesp"></canvas></div>
     </div>
 
-    <!-- 2. Evolução do saldo -->
-    <div class="dash-card">
-      <div class="dash-card-header">
-        <span class="dash-card-title">📈 Evolução do Saldo</span>
-        <span class="dash-card-badge" style="background:rgba(16,185,129,.15);color:var(--teal)">Acumulado</span>
-      </div>
-      <div class="dash-chart-wrap"><canvas id="chart-saldo"></canvas></div>
-    </div>
-
     <!-- 3. Despesas por categoria (donut) -->
     <div class="dash-card">
       <div class="dash-card-header">
@@ -10015,7 +10006,7 @@ function renderDash(){
   if(!base.length){
     document.getElementById('dash-kpi-row').innerHTML=
       '<div class="dash-empty" style="grid-column:1/-1"><div class="dash-empty-v">📊</div><h4>Sem dados ainda</h4><p>Lance receitas e despesas<br>para ver seus gráficos aqui.</p></div>';
-    ['chart-recdesp','chart-saldo','chart-categ','chart-receita-cat','chart-planreal']
+    ['chart-recdesp','chart-categ','chart-receita-cat','chart-planreal']
       .forEach(id=>{dashDestroyChart(id);const c=document.getElementById(id);if(c){const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);}});
     /* Reserva e projeção continuam: elas vêm do saldo dos bolsos, então quem
        já guardou dinheiro mas ainda não lançou nada tem o que ver aqui. */
@@ -10030,7 +10021,6 @@ function renderDash(){
   }
   dashKPIs(base);
   dashRecDesp(base);
-  dashSaldo(base);
   dashCategDonut(base);
   dashTopCat(base);
   dashGauge(base);
@@ -10108,33 +10098,6 @@ function dashRecDesp(base){
   });
 }
 
-/* ── Evolução do saldo ── */
-function dashSaldo(base){
-  const byMes={};
-  MESES.forEach(m=>{byMes[m]={rec:0,desp:0};});
-  base.forEach(d=>{if(byMes[d.mes])d.movimento==='Credito'?byMes[d.mes].rec+=d.valorAbs:byMes[d.mes].desp+=d.valorAbs;});
-  let acc=0;
-  const mesesComDados=MESES.filter(m=>byMes[m].rec>0||byMes[m].desp>0);
-  if(!mesesComDados.length)return;
-  const labels=mesesComDados;
-  const saldos=labels.map(m=>{acc+=byMes[m].rec-byMes[m].desp;return acc;});
-  dashDestroyChart('chart-saldo');
-  const ctx=document.getElementById('chart-saldo').getContext('2d');
-  const grad=ctx.createLinearGradient(0,0,0,200);
-  grad.addColorStop(0,'rgba(16,185,129,.35)');grad.addColorStop(1,'rgba(16,185,129,.01)');
-  dashCharts['chart-saldo']=new Chart(ctx,{
-    type:'line',
-    data:{labels,datasets:[{
-      label:'Saldo Acumulado',data:saldos,
-      borderColor:'#10B981',backgroundColor:grad,
-      borderWidth:2.5,pointBackgroundColor:'#10B981',pointRadius:4,
-      fill:true,tension:.4
-    }]},
-    options:{...CHART_BASE,plugins:{...CHART_BASE.plugins,
-      tooltip:{...CHART_BASE.plugins.tooltip,callbacks:{label:ctx=>' R$ '+ctx.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2})}}
-    }}
-  });
-}
 
 /* ═══ EVOLUÇÃO FINANCEIRA: O PONTO DA VIRADA ══════════════════════
    Três séries no mesmo gráfico: o que entra, o que sai e o que sobra
@@ -10379,7 +10342,7 @@ function dashMetasSalario(base){
 /* ── Despesas por categoria (donut) ── */
 /* ═══ RESERVA FINANCEIRA ═══════════════════════════════════════════
    "Reserva" aqui é o dinheiro guardado nos BOLSOS (poupança, investimentos,
-   reserva de emergência…) — diferente da "Evolução do Saldo", que acumula
+   reserva de emergência…) — diferente do acumulado de
    receitas menos despesas. Uma coisa é quanto sobrou; outra é quanto você
    de fato separou.
 
