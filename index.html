@@ -10224,6 +10224,60 @@ function dashVirada(){
      30% estilo de vida → Despesas variáveis + eventuais
      20% guardar        → o que sobrou da renda depois das duas
    É uma aproximação: quem classifica cada gasto é a pessoa, no lançamento. */
+/* ═══ O QUE ENTRA EM CADA BLOCO DAS REGRAS ════════════════════════
+   Uma fonte só para os dois cartões (50/30/20 e 5 Multiplicadores), senão
+   eles divergem na primeira mudança.
+
+   Essenciais  → despesas fixas + pagamento de dívida. Parcela de dívida é
+                 obrigação, não estilo de vida: deixá-la no bloco dos 30%
+                 fazia o lazer parecer descontrolado em quem só está pagando
+                 o que já deve.
+   Estilo      → despesas variáveis e eventuais.
+   Guardado    → aporte líquido nos bolsos (depósitos menos retiradas) no
+                 período. Era aqui o erro: o cálculo usava "renda menos
+                 despesas", que dá zero em todo mês em que os gastos
+                 lançados alcançam a renda — mesmo tendo dinheiro entrado no
+                 bolso. Transferência entre bolsos se anula sozinha, porque
+                 os dois lados estão na soma. */
+function dashAportesNoPeriodo(mesesSel){
+  const meses=(mesesSel&&mesesSel.length)?mesesSel:MESES;
+  const prefixos=new Set();
+  meses.forEach(m=>{
+    const mi=mesIndexDoMesRef(m);
+    if(mi<0)return;
+    prefixos.add(`${anoDoMesRef(m,_ANO)}-${String(mi+1).padStart(2,'0')}`);
+  });
+  let total=0;
+  (APP.bolsos||[]).forEach(b=>(b.movimentos||[]).forEach(mv=>{
+    const iso=String(mv.data||mv.dataISO||'');
+    if(!/^\d{4}-\d{2}/.test(iso))return;
+    if(!prefixos.has(iso.slice(0,7)))return;
+    const delta=Number(mv.delta);
+    total+=(!isNaN(delta)&&delta!==0)
+      ? delta
+      : (mv.tipo==='retirada'?-Math.abs(Number(mv.valor)||0):Math.abs(Number(mv.valor)||0));
+  }));
+  return total;
+}
+function dashComposicaoRegra(base){
+  const meses=new Set((base||[]).map(d=>d.mes));
+  const n=Math.max(1,meses.size);
+  let essenciais=0, estilo=0;
+  (base||[]).forEach(d=>{
+    if(d.movimento!=='Debito') return;
+    if(d.tipo==='Despesas fixas'||d.pagamentoDivida) essenciais+=d.valorAbs;
+    else estilo+=d.valorAbs;
+  });
+  const guardado=dashAportesNoPeriodo(mesesFiltroAtivo('dash'))/n;
+  return {
+    n,
+    essenciais: essenciais/n,
+    estilo: estilo/n,
+    guardado,
+    sobra: rendaMensal-(essenciais/n)-(estilo/n)
+  };
+}
+
 function dashBarraRegra(nome, idealPct, realVal, idealVal, renda, inverter){
   const pctReal = renda>0 ? (realVal/renda*100) : 0;
   const dentro  = inverter ? pctReal>=idealPct : pctReal<=idealPct;
@@ -10254,20 +10308,26 @@ function dashRegra503020(base){
     return;
   }
   // Média por mês com lançamento, para não comparar um mês cheio com outro pela metade.
-  const meses=new Set((base||[]).map(d=>d.mes));
-  const n=Math.max(1,meses.size);
-  let fixas=0, variaveis=0;
-  (base||[]).forEach(d=>{
-    if(d.movimento!=='Debito') return;
-    if(d.tipo==='Despesas fixas') fixas+=d.valorAbs; else variaveis+=d.valorAbs;
-  });
-  fixas/=n; variaveis/=n;
-  const sobra=Math.max(0, rendaMensal-fixas-variaveis);
+  const {n,essenciais,estilo,guardado,sobra}=dashComposicaoRegra(base);
+  const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+  const legenda=t=>`<div style="font-size:.64rem;color:var(--text3);margin:-8px 0 14px">${t}</div>`;
+
+  let aviso='';
+  if(guardado<=0.005 && sobra>0){
+    aviso=`<div class="rec-hint" style="margin:10px 0 0">💡 Sobraram <strong>${f(sobra)}</strong> entre a sua renda e os gastos lançados, mas nada entrou num bolso no período. Para o app contar como guardado, mova o valor para um bolso da Carteira.</div>`;
+  }else if(guardado<0){
+    aviso=`<div class="rec-hint" style="margin:10px 0 0">⚠️ No período você <strong>tirou ${f(guardado)}</strong> a mais dos bolsos do que guardou.</div>`;
+  }
+
   el.innerHTML =
-    dashBarraRegra('🏠 Essenciais (moradia, contas, mercado)',50,fixas,rendaMensal*0.5,rendaMensal,false) +
-    dashBarraRegra('🎉 Estilo de vida (lazer, desejos)',30,variaveis,rendaMensal*0.3,rendaMensal,false) +
-    dashBarraRegra('💰 Guardar e investir',20,sobra,rendaMensal*0.2,rendaMensal,true) +
-    `<div style="font-size:.68rem;color:var(--text3);line-height:1.5;margin-top:4px">Média ${n===1?'do mês':'dos '+n+' meses'} com lançamento no período filtrado. A marca cinza em cada barra é o limite da regra. Essenciais e estilo de vida devem ficar <em>abaixo</em>; guardar, <em>acima</em>.</div>`;
+    dashBarraRegra('🏠 Essenciais',50,essenciais,rendaMensal*0.5,rendaMensal,false) +
+    legenda('despesas fixas e pagamento de dívidas') +
+    dashBarraRegra('🎉 Estilo de vida',30,estilo,rendaMensal*0.3,rendaMensal,false) +
+    legenda('despesas variáveis e eventuais') +
+    dashBarraRegra('💰 Guardar e investir',20,Math.max(0,guardado),rendaMensal*0.2,rendaMensal,true) +
+    legenda('o que entrou nos bolsos, menos o que saiu deles') +
+    aviso +
+    `<div style="font-size:.68rem;color:var(--text3);line-height:1.5;margin-top:10px">Média ${n===1?'do mês':'dos '+n+' meses'} com lançamento no período filtrado. A marca cinza em cada barra é o limite da regra: essenciais e estilo de vida devem ficar <em>abaixo</em>; guardar, <em>acima</em>.</div>`;
 }
 /* Regra dos 5 Multiplicadores: cinco contas sobre a mesma renda — três que
    limitam o mês (×0,5 sobreviver, ×0,3 aproveitar, ×0,2 investir) e duas que
@@ -10282,29 +10342,21 @@ function dashMetasSalario(base){
     return;
   }
   const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
-  const meses=new Set((base||[]).map(d=>d.mes));
-  const n=Math.max(1,meses.size);
-  let fixas=0, variaveis=0;
-  (base||[]).forEach(d=>{
-    if(d.movimento!=='Debito') return;
-    if(d.tipo==='Despesas fixas') fixas+=d.valorAbs; else variaveis+=d.valorAbs;
-  });
-  fixas/=n; variaveis/=n;
-  const sobra=Math.max(0, rendaMensal-fixas-variaveis);
-  const guardado=(APP.bolsos||[]).reduce((s,b)=>s+(Number(b.saldo)||0),0);
-  const patrimonio=guardado+calcSaldoCC();
+  const {n,essenciais,estilo,guardado,sobra}=dashComposicaoRegra(base);
+  const naCarteira=(APP.bolsos||[]).reduce((s,b)=>s+(Number(b.saldo)||0),0);
+  const patrimonio=naCarteira+calcSaldoCC();
 
   const regras=[
-    {mult:'× 0,5', ic:'🏠', nome:'Custo de sobrevivência', alvo:rendaMensal*0.5, atual:fixas, teto:true,
-     exp:'Moradia, contas e mercado não deveriam passar de metade da renda. Acima disso, o padrão de vida está caro para o que entra.',
-     rot:'seus gastos fixos'},
-    {mult:'× 0,3', ic:'🎉', nome:'Teto do estilo de vida', alvo:rendaMensal*0.3, atual:variaveis, teto:true,
-     exp:'Lazer, viagem, desejos e parcelas. Dentro desse teto, pode gastar sem culpa.',
+    {mult:'× 0,5', ic:'🏠', nome:'Custo de sobrevivência', alvo:rendaMensal*0.5, atual:essenciais, teto:true,
+     exp:'Despesas fixas e pagamento de dívidas não deveriam passar de metade da renda. Acima disso, o padrão de vida está caro para o que entra.',
+     rot:'seus gastos essenciais'},
+    {mult:'× 0,3', ic:'🎉', nome:'Teto do estilo de vida', alvo:rendaMensal*0.3, atual:estilo, teto:true,
+     exp:'Despesas variáveis e eventuais: lazer, viagem, desejos. Dentro desse teto, pode gastar sem culpa.',
      rot:'seus gastos variáveis'},
-    {mult:'× 0,2', ic:'🚀', nome:'O motor do futuro', alvo:rendaMensal*0.2, atual:sobra, teto:false,
-     exp:'O que você separa todo mês. É este valor que constrói a reserva e a independência logo abaixo.',
-     rot:'o que sobrou'},
-    {mult:'× 6', ic:'🛟', nome:'Reserva de emergência', alvo:rendaMensal*6, atual:guardado, teto:false,
+    {mult:'× 0,2', ic:'🚀', nome:'O motor do futuro', alvo:rendaMensal*0.2, atual:Math.max(0,guardado), teto:false,
+     exp:'O que de fato entrou nos bolsos no período, menos o que saiu deles. É este valor que constrói a reserva e a independência logo abaixo.',
+     rot:'você guardou'},
+    {mult:'× 6', ic:'🛟', nome:'Reserva de emergência', alvo:rendaMensal*6, atual:naCarteira, teto:false,
      exp:'Seis meses de renda em aplicação de resgate rápido. É a primeira meta, antes de qualquer investimento arriscado.',
      rot:'nos seus bolsos'},
     {mult:'× 93', ic:'🏖️', nome:'Independência financeira', alvo:rendaMensal*93, atual:patrimonio, teto:false,
@@ -10343,8 +10395,9 @@ function dashMetasSalario(base){
       As três primeiras são limites do mês; as duas últimas, patrimônio a acumular.
     </div>
     ${linhas}
+    ${(guardado<=0.005&&sobra>0)?`<div class="rec-hint" style="margin:12px 0 0">💡 Sobraram <strong>${f(sobra)}</strong> entre a renda e os gastos lançados no período, mas nada entrou num bolso. O app só conta como guardado o dinheiro que você move para a Carteira.</div>`:''}
     <div style="font-size:.66rem;color:var(--text3);line-height:1.5;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
-      Gastos são a média ${n===1?'do mês':'dos '+n+' meses'} do período filtrado; reserva e patrimônio são os saldos de hoje. São referências de planejamento, não recomendação de investimento.
+      Gastos e o que você guardou são a média ${n===1?'do mês':'dos '+n+' meses'} do período filtrado; reserva e patrimônio são os saldos de hoje. São referências de planejamento, não recomendação de investimento.
     </div>`;
 }
 
