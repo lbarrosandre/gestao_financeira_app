@@ -2612,6 +2612,15 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
         <div class="fi" style="margin-bottom:0"><label>Meta por mês R$ (opcional)</label>
           <input type="text" id="dash-proj-meta" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this);dashProjecao()" style="font-family:var(--mono)"></div>
       </div>
+      <div class="fi" style="margin-bottom:10px"><label>Rendimento do dinheiro guardado (% ao ano)</label><div class="sw">
+        <select id="dash-proj-rend" onchange="dashProjecao()">
+          <option value="0" selected>0% — só o que eu guardar</option>
+          <option value="6">6% ao ano — poupança</option>
+          <option value="10">10% ao ano — renda fixa conservadora</option>
+          <option value="13">13% ao ano — próximo do CDI em 2026</option>
+        </select></div>
+        <span style="display:block;margin-top:4px;font-size:.66rem;color:var(--text3)">Com rendimento, a projeção usa juros compostos sobre o saldo e sobre cada aporte.</span>
+      </div>
       <div class="dash-chart-wrap"><canvas id="chart-projecao"></canvas></div>
       <div id="dash-proj-resumo" style="font-size:.72rem;color:var(--text3);line-height:1.5;margin-top:8px"></div>
     </div>
@@ -10373,6 +10382,7 @@ function dashReservaSerie(filtrar){
 
   const hoje=new Date();
   const labels=[],valores=[];
+  let estimados=0;
   MESES.forEach(m=>{
     const mi=mesIndexDoMesRef(m);
     if(mi<0)return;
@@ -10383,10 +10393,20 @@ function dashReservaSerie(filtrar){
     const ultimoDia=new Date(ano,mi+1,0).getDate();
     const fimISO=`${ano}-${String(mi+1).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
     const depois=movs.filter(x=>x.iso>fimISO).reduce((s,x)=>s+x.v,0);
+    const bruto=atual-depois;
+    /* Reserva não existe negativa: ou tinha dinheiro guardado, ou tinha zero.
+       A reconstrução para trás só fecha quando TODA mudança de saldo virou
+       movimento — e isso nem sempre acontece: bolso criado já com saldo nos
+       primeiros passos, saldo corrigido na mão, movimento apagado junto com um
+       lançamento antigo. Quando os depósitos posteriores somam mais do que
+       existe hoje, a conta estoura para baixo e produzia meses negativos que
+       nunca existiram. Esses meses viram zero, e o resumo avisa que são
+       estimativa. */
+    if(bruto<-0.005) estimados++;
     labels.push(m);
-    valores.push(atual-depois);
+    valores.push(Math.max(0,bruto));
   });
-  return {labels,valores,atual};
+  return {labels,valores,atual,estimados};
 }
 
 function dashReserva(){
@@ -10437,7 +10457,11 @@ function dashProjecao(){
   const resumoEl=document.getElementById('dash-proj-resumo');
   dashDestroyChart('chart-projecao');
   if(!cv)return;
-  const {labels,valores}=dashReservaSerie(true);
+
+  /* Projeção usa SEMPRE o histórico inteiro, nunca o filtro de meses: tendência
+     calculada sobre poucos pontos é chute com cara de número. O filtro continua
+     valendo para os gráficos que descrevem um período; este prevê o futuro. */
+  const {labels,valores,estimados}=dashReservaSerie(false);
   if(!labels.length||!valores.some(v=>Math.abs(v)>0.005)){
     const ctx0=cv.getContext('2d');ctx0.clearRect(0,0,cv.width,cv.height);
     if(resumoEl)resumoEl.textContent='Sem reserva registrada ainda — a projeção aparece quando houver saldo em algum bolso.';
@@ -10446,26 +10470,62 @@ function dashProjecao(){
 
   const H=parseInt(document.getElementById('dash-proj-horizonte')?.value||'12',10)||12;
   const meta=parseCurrency(document.getElementById('dash-proj-meta')?.value||'');
+  const rendAno=parseFloat(document.getElementById('dash-proj-rend')?.value||'0')/100;
+  // Taxa mensal equivalente à anual (juro composto, não a anual dividida por 12).
+  const i=rendAno>0?Math.pow(1+rendAno,1/12)-1:0;
   const atual=valores[valores.length-1];
-  const mesesHist=Math.max(1,valores.length-1);
-  const ritmo=(valores[valores.length-1]-valores[0])/mesesHist;
+  const n=valores.length;
+
+  /* ── Tendência por regressão linear (mínimos quadrados) ──────────────
+     Antes o ritmo era (último − primeiro) ÷ meses: usa dois pontos e joga
+     fora todo o meio da série, então um mês atípico em qualquer das pontas
+     reescrevia a projeção inteira. A reta de mínimos quadrados usa todos os
+     pontos — é o método padrão de estimativa de tendência.
+
+       a (inclinação) = Σ(x−x̄)(y−ȳ) / Σ(x−x̄)²        → quanto cresce por mês
+       R² = 1 − SQres/SQtot                            → quanto da variação a
+                                                         reta explica (0 a 1)
+
+     O R² diz se dá para confiar: perto de 1, a reserva cresce de forma
+     regular; perto de 0, os meses são tão irregulares que a reta é só uma
+     média — e o texto do resumo precisa dizer isso em vez de fingir precisão. */
+  let ritmo=0, r2=null;
+  if(n>=2){
+    const xs=valores.map((_,k)=>k);
+    const mx=xs.reduce((s,v)=>s+v,0)/n;
+    const my=valores.reduce((s,v)=>s+v,0)/n;
+    let sxy=0,sxx=0,syy=0;
+    for(let k=0;k<n;k++){ const dx=xs[k]-mx, dy=valores[k]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
+    ritmo=sxx>0?sxy/sxx:0;
+    r2=syy>0?Math.max(0,Math.min(1,(sxy*sxy)/(sxx*syy))):null;
+  }
 
   // Rótulos futuros a partir do último mês com histórico.
   const ultimoMi=mesIndexDoMesRef(labels[labels.length-1]);
   const ultimoAno=anoDoMesRef(labels[labels.length-1],_ANO);
   const futuros=[];
-  for(let i=1;i<=H;i++){
-    const d=new Date(ultimoAno,ultimoMi+i,1);
+  for(let k=1;k<=H;k++){
+    const d=new Date(ultimoAno,ultimoMi+k,1);
     futuros.push(_MESES_BASE[d.getMonth()]+'/'+String(d.getFullYear()).slice(2));
   }
 
-  const nulls=n=>Array(n).fill(null);
-  const serieProj=(passo)=>{
-    const out=nulls(valores.length-1);
+  /* Valor futuro com aporte mensal e juro composto:
+       v(k) = v(k−1) × (1 + i) + aporte
+     Com i = 0 vira a soma simples de antes. A reserva é travada em zero:
+     ritmo negativo esvazia a reserva e para ali — não existe guardar menos
+     que nada. */
+  const nulls=q=>Array(q).fill(null);
+  const serieProj=(aporte)=>{
+    const out=nulls(n-1);
     out.push(atual);                       // liga a projeção ao último ponto real
     let v=atual;
-    for(let i=0;i<H;i++){ v+=passo; out.push(v); }
+    for(let k=0;k<H;k++){ v=Math.max(0, v*(1+i)+aporte); out.push(v); }
     return out;
+  };
+  const valorEm=(aporte,meses)=>{
+    let v=atual;
+    for(let k=0;k<meses;k++) v=Math.max(0, v*(1+i)+aporte);
+    return v;
   };
 
   const datasets=[
@@ -10489,17 +10549,32 @@ function dashProjecao(){
     const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
     const periodo=H===12?'1 ano':H===24?'2 anos':H===60?'5 anos':H+' meses';
     let txt;
-    if(valores.length<2){
-      txt=`Ainda não dá para calcular seu ritmo (só há um mês de histórico). Informe uma meta mensal para ver a projeção.`;
+    if(n<2){
+      txt='Ainda não dá para calcular tendência: há só um mês de histórico. Informe uma meta mensal para ver a projeção.';
     }else if(ritmo>0){
-      txt=`No seu ritmo atual (<strong>${f(ritmo)}/mês</strong>), em ${periodo} sua reserva chega a <strong style="color:var(--accent)">${f(atual+ritmo*H)}</strong>.`;
+      txt=`No seu ritmo atual (<strong>${f(ritmo)}/mês</strong>), em ${periodo} sua reserva chega a <strong style="color:var(--accent)">${f(valorEm(ritmo,H))}</strong>.`;
     }else if(ritmo<0){
-      txt=`Atenção: nos últimos meses sua reserva <strong style="color:var(--danger)">caiu ${f(ritmo)}/mês</strong> em média. Mantido esse ritmo, ela zera antes do fim do período.`;
+      txt=`Atenção: a tendência dos últimos ${n} meses é de <strong style="color:var(--danger)">queda de ${f(ritmo)}/mês</strong>. Mantido esse ritmo, a reserva se esgota antes do fim do período.`;
     }else{
-      txt=`Sua reserva está estável — sem crescer nem diminuir nos últimos meses.`;
+      txt='Sua reserva está estável — sem crescer nem diminuir de forma consistente.';
     }
-    if(meta>0) txt+=` Guardando <strong>${f(meta)}/mês</strong>, chegaria a <strong style="color:var(--teal)">${f(atual+meta*H)}</strong>.`;
-    resumoEl.innerHTML=txt;
+    if(meta>0) txt+=` Guardando <strong>${f(meta)}/mês</strong>, chegaria a <strong style="color:var(--teal)">${f(valorEm(meta,H))}</strong>.`;
+
+    const notas=[];
+    if(n>=2){
+      const base=`tendência por regressão linear sobre ${n} ${n===1?'mês':'meses'}`;
+      notas.push(r2===null?base
+        : r2>=0.8 ? `${base} — crescimento regular (R² ${r2.toFixed(2)}), projeção confiável`
+        : r2>=0.4 ? `${base} — meses irregulares (R² ${r2.toFixed(2)}), tome como ordem de grandeza`
+        : `${base} — muito irregular (R² ${r2.toFixed(2)}): a reta é só uma média, não uma previsão`);
+    }
+    if(rendAno>0) notas.push(`com ${(rendAno*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}% ao ano de rendimento, em juros compostos`);
+    else notas.push('sem rendimento: só o que você guardar');
+    if(estimados>0) notas.push(`${estimados} ${estimados===1?'mês antigo foi estimado':'meses antigos foram estimados'} em zero (o histórico de movimentos não cobre todo o saldo atual)`);
+    notas.push('valores em reais de hoje, sem inflação');
+    notas.push('usa todo o histórico, independente do filtro de meses');
+
+    resumoEl.innerHTML=txt+`<br><span style="opacity:.75">${notas.join(' · ')}.</span>`;
   }
 }
 
@@ -11605,5 +11680,4 @@ function atualizarCats(tId, cId, ctx) {
 
 </body>
 </html>
-
 
