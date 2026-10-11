@@ -1222,6 +1222,49 @@ body.light .plano-pill-card.premium{--pp-ink:#fff}
 .auth-title{font-size:1.05rem;font-weight:700;margin-bottom:4px}
 .auth-title em{color:var(--teal);font-style:normal}
 .auth-sub{font-size:.74rem;color:var(--text3);line-height:1.5}
+
+/* ── BLOQUEIO DO APP: teclado, pontos e avatar ──────────────────
+   Padrão de tela de bloqueio dos apps: avatar de quem está logado, pontos
+   que mostram o progresso do PIN, teclado numérico próprio (alvo de 44px+,
+   sem depender do teclado do sistema) e biometria dentro do próprio teclado.
+   Digitar é a ação principal — não há campo de texto nem botão a procurar. */
+.applock-ava{
+  width:64px;height:64px;border-radius:50%;margin:0 auto 12px;
+  background:var(--surface2);border:2px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.6rem;overflow:hidden;
+}
+.applock-ava img{width:100%;height:100%;object-fit:cover;display:block}
+.applock-dots{display:flex;gap:13px;justify-content:center;margin:20px 0 24px;min-height:15px}
+.applock-dot{
+  width:13px;height:13px;border-radius:50%;
+  background:var(--surface2);border:1.5px solid var(--border2);
+  transition:transform .15s,background .15s,border-color .15s;
+}
+.applock-dot.filled{background:var(--teal);border-color:var(--teal);transform:scale(1.12)}
+.applock-dot.error{background:var(--danger);border-color:var(--danger)}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;max-width:290px;margin:0 auto}
+.pin-btn{
+  height:62px;border-radius:16px;cursor:pointer;
+  background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+  font-family:var(--mono);font-size:1.45rem;font-weight:500;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .1s,background .12s;
+}
+.pin-btn:active{transform:scale(.94);background:var(--border2)}
+.pin-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pin-btn.pin-del{font-size:1.15rem;color:var(--text2);background:transparent;border-color:transparent}
+.pin-btn.pin-bio{font-size:1.3rem;background:transparent;border-color:transparent;color:var(--teal)}
+.pin-btn.pin-empty{visibility:hidden;pointer-events:none}
+@keyframes applock-shake{
+  0%,100%{transform:translateX(0)} 20%{transform:translateX(-7px)}
+  40%{transform:translateX(7px)}  60%{transform:translateX(-4px)} 80%{transform:translateX(4px)}
+}
+.applock-shake{animation:applock-shake .36s ease}
+@media (prefers-reduced-motion: reduce){
+  .applock-shake{animation:none}
+  .applock-dot{transition:none}
+}
 .btn-auth-next{
   width:100%;padding:13px;border:none;border-radius:var(--r);
   background:var(--teal);color:#fff;font-family:var(--sans);
@@ -2151,21 +2194,16 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
      único jeito de destravar sem lembrar o PIN. -->
 <div id="applock-screen" style="display:none">
   <div class="auth-bg-glow"></div>
-  <div class="auth-card">
+  <div class="auth-card" id="applock-card">
     <div class="auth-header">
-      <div style="font-size:2.2rem;margin-bottom:8px">🔒</div>
-      <div class="auth-title">App <em>bloqueado</em></div>
-      <div class="auth-sub">Digite seu PIN para continuar.</div>
+      <div class="applock-ava" id="applock-ava">🔒</div>
+      <div class="auth-title" id="applock-titulo">App <em>bloqueado</em></div>
+      <div class="auth-sub" id="applock-sub">Digite seu PIN para abrir o Bússola.</div>
     </div>
     <div class="auth-err" id="applock-err"></div>
-    <div class="fi">
-      <label>PIN</label>
-      <input type="password" id="applock-pin" inputmode="numeric" maxlength="6" autocomplete="off"
-             placeholder="••••" oninput="applockSoDigitos(this)"
-             onkeydown="if(event.key==='Enter')applockDesbloquear()">
-    </div>
-    <button class="btn-auth-next" id="applock-btn-ok" onclick="applockDesbloquear()">Desbloquear</button>
-    <button class="btn-google" id="applock-btn-bio" style="display:none;margin:12px 0 0" onclick="applockBiometria()">🫆 Usar biometria</button>
+    <div class="applock-dots" id="applock-dots" role="status" aria-live="polite" aria-label="dígitos do PIN"></div>
+    <div class="pin-grid" id="applock-pad"></div>
+    <button class="btn-auth-next" id="applock-btn-ok" style="margin-top:18px;display:none" onclick="applockDesbloquear()">Desbloquear</button>
     <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
       <button class="auth-link" onclick="applockEsqueciPin()">Esqueci meu PIN</button>
     </div>
@@ -5301,18 +5339,98 @@ function applockErro(msg){
   el.classList.add('show');
 }
 
+/* ═══ ENTRADA DO PIN (padrão de bloqueio dos apps) ════════════════
+   O PIN é digitado num teclado próprio, não num campo de texto: o teclado do
+   sistema cobre meia tela no celular, abre atrasado e às vezes nem aparece
+   dentro do WebView. Aqui os alvos são grandes, a biometria fica à mão no
+   próprio teclado e o desbloqueio dispara sozinho no 6º dígito — PIN de 4 ou
+   5 confirma no botão, porque o app guarda só o hash e não sabe o tamanho. */
+let _applockBuffer = '';
+
+function applockRenderDots(erro){
+  const box = document.getElementById('applock-dots');
+  if(!box) return;
+  box.innerHTML = '';
+  const total = Math.max(4, Math.min(6, _applockBuffer.length || 4));
+  for(let i = 0; i < total; i++){
+    const d = document.createElement('div');
+    d.className = 'applock-dot' + (i < _applockBuffer.length ? ' filled' : '') + (erro ? ' error' : '');
+    box.appendChild(d);
+  }
+  const btn = document.getElementById('applock-btn-ok');
+  if(btn) btn.style.display = _applockBuffer.length >= 4 && _applockBuffer.length < 6 ? 'flex' : 'none';
+}
+
+function applockDigito(n){
+  if(_applockBuffer.length >= 6) return;
+  _applockBuffer += n;
+  document.getElementById('applock-err')?.classList.remove('show');
+  applockRenderDots(false);
+  if(_applockBuffer.length === 6) setTimeout(applockDesbloquear, 90);
+}
+function applockApagar(){
+  _applockBuffer = _applockBuffer.slice(0, -1);
+  applockRenderDots(false);
+}
+function applockLimparEntrada(erro){
+  _applockBuffer = '';
+  applockRenderDots(!!erro);
+  if(erro){
+    const card = document.getElementById('applock-card');
+    if(card){ card.classList.remove('applock-shake'); void card.offsetWidth; card.classList.add('applock-shake'); }
+    setTimeout(()=>applockRenderDots(false), 900);
+  }
+}
+
+/* Teclado físico (uso no computador): só vale com a tela de bloqueio aberta. */
+document.addEventListener('keydown', e => {
+  const tela = document.getElementById('applock-screen');
+  if(!tela || tela.style.display === 'none') return;
+  if(/^\d$/.test(e.key)){ e.preventDefault(); applockDigito(e.key); }
+  else if(e.key === 'Backspace'){ e.preventDefault(); applockApagar(); }
+  else if(e.key === 'Enter' && _applockBuffer.length >= 4){ e.preventDefault(); applockDesbloquear(); }
+});
+
+function applockMontarPad(temBio){
+  const g = document.getElementById('applock-pad');
+  if(!g) return;
+  g.innerHTML = '';
+  const cria = (txt, cls, fn, rotulo) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pin-btn' + (cls ? ' ' + cls : ''); b.textContent = txt;
+    if(rotulo) b.setAttribute('aria-label', rotulo);
+    if(fn) b.addEventListener('click', fn); else b.disabled = true;
+    g.appendChild(b);
+  };
+  [1,2,3,4,5,6,7,8,9].forEach(n => cria(String(n), '', () => applockDigito(String(n))));
+  if(temBio) cria('🫆', 'pin-bio', applockBiometria, 'Usar biometria');
+  else cria('', 'pin-empty', null);
+  cria('0', '', () => applockDigito('0'));
+  cria('⌫', 'pin-del', applockApagar, 'Apagar');
+}
+
 async function applockMostrarTrava(user, revelarUI){
   _applockPendente = { user, revelarUI };
 
-  const pinEl = document.getElementById('applock-pin');
-  if(pinEl) pinEl.value = '';
+  _applockBuffer = '';
   document.getElementById('applock-err')?.classList.remove('show');
 
-  const btnBio = document.getElementById('applock-btn-bio');
-  if(btnBio){
-    const temBio = !!applockCredIdSalvo() && await applockBiometriaDisponivel();
-    btnBio.style.display = temBio ? 'flex' : 'none';
+  // Quem está logado, para a tela não parecer a de login de outra conta.
+  const perfil = window._perfilAtual || {};
+  const nome = (perfil.apelido || perfil.nome || '').split(' ')[0];
+  const tit = document.getElementById('applock-titulo');
+  if(tit) tit.innerHTML = nome ? `Olá, <em>${nome.replace(/[<>&]/g,'')}</em>` : 'App <em>bloqueado</em>';
+  const ava = document.getElementById('applock-ava');
+  if(ava){
+    if(perfil.avatar_url){ ava.innerHTML = ''; const im = document.createElement('img'); im.src = perfil.avatar_url; im.alt = ''; ava.appendChild(im); }
+    else ava.textContent = '🔒';
   }
+
+  const temBio = !!applockCredIdSalvo() && await applockBiometriaDisponivel();
+  const sub = document.getElementById('applock-sub');
+  if(sub) sub.textContent = temBio ? 'Use a digital ou digite seu PIN.' : 'Digite seu PIN para abrir o Bússola.';
+  applockMontarPad(temBio);
+  applockRenderDots(false);
 
   const tela = document.getElementById('applock-screen');
   if(tela) tela.style.display = 'flex';
@@ -5320,7 +5438,6 @@ async function applockMostrarTrava(user, revelarUI){
   /* revelarApp() é quem normalmente apaga o "Aguarde..." da tela de login —
      como ele não vai rodar agora, apagamos aqui, senão fica girando atrás. */
   authSetLoading(false);
-  setTimeout(()=>{ try{ pinEl?.focus(); }catch(e){} }, 120);
 }
 
 async function applockLiberar(){
@@ -5329,8 +5446,7 @@ async function applockLiberar(){
 
   const tela = document.getElementById('applock-screen');
   if(tela) tela.style.display = 'none';
-  const pinEl = document.getElementById('applock-pin');
-  if(pinEl) pinEl.value = '';
+  _applockBuffer = '';
   document.getElementById('applock-err')?.classList.remove('show');
 
   if(ctx) await revelarApp(ctx.user, ctx.revelarUI);
@@ -5338,27 +5454,30 @@ async function applockLiberar(){
 
 async function applockDesbloquear(){
   const uid = window._sbUID;
-  const pinEl = document.getElementById('applock-pin');
-  const pin = (pinEl?.value || '').trim();
-  if(!applockPinValido(pin)) return applockErro('Digite seu PIN (4 a 6 dígitos).');
+  const pin = _applockBuffer;
+  if(!applockPinValido(pin)){ applockLimparEntrada(true); return applockErro('Digite seu PIN (4 a 6 dígitos).'); }
 
+  const sub = document.getElementById('applock-sub');
+  const subTxt = sub ? sub.textContent : '';
+  if(sub) sub.textContent = '⏳ Verificando...';
   const btn = document.getElementById('applock-btn-ok');
-  const txtOriginal = btn ? btn.textContent : '';
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
+  if(btn) btn.disabled = true;
 
   try{
     const hash = await applockHashPin(pin, uid);
     if(hash !== (window._perfilAtual?.app_lock_pin_hash || '')){
-      if(pinEl) pinEl.value = '';
+      applockLimparEntrada(true);
       return applockErro('PIN incorreto. Tente de novo.');
     }
     document.getElementById('applock-err')?.classList.remove('show');
     await applockLiberar();
   }catch(e){
     console.error('applockDesbloquear error:', e);
+    applockLimparEntrada(true);
     applockErro('Não foi possível validar o PIN agora. Tente novamente.');
   }finally{
-    if(btn){ btn.disabled = false; btn.textContent = txtOriginal; }
+    if(sub && sub.textContent === '⏳ Verificando...') sub.textContent = subTxt;
+    if(btn) btn.disabled = false;
   }
 }
 
