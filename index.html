@@ -2587,6 +2587,34 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
       <div id="dash-proj-resumo" style="font-size:.72rem;color:var(--text3);line-height:1.5;margin-top:8px"></div>
     </div>
 
+    <!-- 10. Evolução financeira: o ponto da virada de chave -->
+    <div class="dash-card">
+      <div class="dash-card-header">
+        <span class="dash-card-title">🔑 Evolução Financeira</span>
+        <span class="dash-card-badge" style="background:rgba(139,92,246,.15);color:var(--purple)">Virada de chave</span>
+      </div>
+      <div class="dash-chart-wrap"><canvas id="chart-virada"></canvas></div>
+      <div id="dash-virada-resumo" style="font-size:.72rem;color:var(--text3);line-height:1.5;margin-top:8px"></div>
+    </div>
+
+    <!-- 11. Regra 50/30/20 -->
+    <div class="dash-card">
+      <div class="dash-card-header">
+        <span class="dash-card-title">⚖️ Regra 50/30/20</span>
+        <span class="dash-card-badge" style="background:rgba(16,185,129,.15);color:var(--teal)">Sobre a renda</span>
+      </div>
+      <div id="dash-503020"></div>
+    </div>
+
+    <!-- 12. Metas calculadas sobre o salário -->
+    <div class="dash-card">
+      <div class="dash-card-header">
+        <span class="dash-card-title">🎯 Metas do seu salário</span>
+        <span class="dash-card-badge" style="background:rgba(234,179,8,.15);color:var(--gold)">Referências</span>
+      </div>
+      <div id="dash-metas-salario"></div>
+    </div>
+
     <!-- Insights automáticos -->
     <div class="dash-insight" id="dash-insights"></div>
 
@@ -3208,6 +3236,11 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <input type="number" id="perfil-edit-meta" min="1" max="100" step="1" placeholder="20" inputmode="numeric" autocomplete="off">
     <span style="display:block;margin-top:4px;font-size:.68rem;opacity:.6">Usada nos gráficos e insights do Dashboard</span>
   </div>
+  <div class="fi">
+    <label>Renda mensal R$</label>
+    <input type="text" id="perfil-edit-renda" placeholder="0,00" inputmode="decimal" autocomplete="off" oninput="maskCurrency(this)" style="font-family:var(--mono)">
+    <span style="display:block;margin-top:4px;font-size:.68rem;opacity:.6">O que entra todo mês, de forma previsível. Base da regra 50/30/20 e das metas do Dashboard — fica só no seu cadastro.</span>
+  </div>
   <div class="sh-btns">
     <button class="sh-cancel" onclick="fecharPerfilEdicao()">Cancelar</button>
     <button class="sh-ok" onclick="salvarPerfilEdicao()">💾 Salvar</button>
@@ -3514,6 +3547,16 @@ function isMesValido(m){return MESES_ALL.includes(m)||MESES.includes(m);}
 /* Meta de economia (%) escolhida pelo usuário — carregada de profiles.meta_economia
    no login e editável no sheet "Meu Perfil". Usada no Dashboard (KPI, gauge, insights). */
 let metaEconomia = 20;
+
+/* Renda mensal informada no perfil (profiles.renda_mensal). Base da regra
+   50/30/20 e das metas do Dashboard.
+
+   Por que não usar a média das receitas: 13º, reembolso, venda de bolso e
+   transferência entram como receita e inflam a média — as metas sairiam
+   maiores do que a vida real sustenta, que é o erro clássico desse cálculo.
+   A cópia em localStorage é só para a tela já abrir certa antes de a rede
+   responder; quem manda é o banco. */
+let rendaMensal = (() => { try { return Number(localStorage.getItem('bussola_renda_mensal')) || 0; } catch(e) { return 0; } })();
 
 /* ═══════════════════════════════════════════
    UTILITÁRIOS DE ID / MÊS / CÁLCULO
@@ -4065,6 +4108,8 @@ async function authLiberarApp(user, revelarUI){
   atualizarSaudacaoTopbar(perfil?.nome || dn, perfil?.apelido);
   aplicarAvatar(perfil?.avatar_url || '');
   metaEconomia = perfil?.meta_economia ?? 20;
+  rendaMensal  = Number(perfil?.renda_mensal ?? rendaMensal) || 0;
+  try{ localStorage.setItem('bussola_renda_mensal', String(rendaMensal)); }catch(e){}
 
   if (perfilLido && !perfilEstaCompleto(perfil)) {
     authMostrarCompletarPerfil(user, perfil);
@@ -5097,6 +5142,12 @@ async function abrirPerfilEdicao(){
   // Meta de economia: campo isolado, fora do sistema compartilhado de perfil.
   const metaEl = document.getElementById('perfil-edit-meta');
   if(metaEl) metaEl.value = perfil?.meta_economia ?? 20;
+  // Renda mensal: mesma ideia. Mostrada formatada, guardada como número.
+  const rendaEl = document.getElementById('perfil-edit-renda');
+  if(rendaEl){
+    const r = Number(perfil?.renda_mensal ?? rendaMensal ?? 0);
+    rendaEl.value = r > 0 ? r.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+  }
   document.getElementById('sh-perfil-ov').classList.add('show');
   setTimeout(()=>document.getElementById('sh-perfil').classList.add('show'),10);
 }
@@ -5115,13 +5166,24 @@ async function salvarPerfilEdicao(){
   // Meta de economia: lida/validada à parte (não faz parte de PERFIL_CAMPOS).
   const metaVal = parseFloat(document.getElementById('perfil-edit-meta')?.value);
   const meta = (!isNaN(metaVal) && metaVal >= 1 && metaVal <= 100) ? metaVal : 20;
+  const renda = Math.max(0, parseCurrency(document.getElementById('perfil-edit-renda')?.value || '') || 0);
   try{
-    const { error } = await _supa.from('profiles')
-      .upsert({ uid, ...p, meta_economia: meta }, { onConflict: 'uid' });
+    let { error } = await _supa.from('profiles')
+      .upsert({ uid, ...p, meta_economia: meta, renda_mensal: renda }, { onConflict: 'uid' });
+    // Coluna renda_mensal ainda não criada no banco: salva o resto em vez de
+    // perder a edição inteira. Mesmo padrão do saldo_inicial das contas.
+    if(error && /renda_mensal/i.test(error.message||'')){
+      console.warn('profiles.renda_mensal ausente — salvando sem ela.');
+      ({ error } = await _supa.from('profiles')
+        .upsert({ uid, ...p, meta_economia: meta }, { onConflict: 'uid' }));
+    }
     if(error){
       console.error('salvarPerfilEdicao upsert error:', error);
       return toast('⚠️ '+(mensagemErroPerfil(error) || 'Não foi possível salvar o perfil.'), true);
     }
+    rendaMensal = renda;
+    try{ localStorage.setItem('bussola_renda_mensal', String(renda)); }catch(e){}
+    try{ if(document.getElementById('pane-dash')?.classList.contains('ativo')) renderDash(); }catch(e){}
     const nameEl = document.getElementById('menu-user-name');
     if(nameEl) nameEl.textContent = p.nome;
     atualizarSaudacaoTopbar(p.nome, p.apelido);
@@ -9840,6 +9902,11 @@ function renderDash(){
        já guardou dinheiro mas ainda não lançou nada tem o que ver aqui. */
     dashReserva();
     dashProjecao();
+    // Metas e regra vêm da renda do perfil, não dos lançamentos: aparecem
+    // mesmo para quem ainda não lançou nada (e convidam a informar a renda).
+    dashVirada([]);
+    dashRegra503020([]);
+    dashMetasSalario([]);
     return;
   }
   dashKPIs(base);
@@ -9854,6 +9921,9 @@ function renderDash(){
      depende do filtro de mês/tipo dos lançamentos. */
   dashReserva();
   dashProjecao();
+  dashVirada(base);
+  dashRegra503020(base);
+  dashMetasSalario(base);
   dashInsights(base);
 }
 
@@ -9945,6 +10015,178 @@ function dashSaldo(base){
       tooltip:{...CHART_BASE.plugins.tooltip,callbacks:{label:ctx=>' R$ '+ctx.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2})}}
     }}
   });
+}
+
+/* ═══ EVOLUÇÃO FINANCEIRA: O PONTO DA VIRADA ══════════════════════
+   Três séries no mesmo gráfico: o que entra, o que sai e o que sobra
+   acumulado. O ponto da virada é o mês em que a linha de despesas passa
+   abaixo da de receitas e não volta a cruzar — é dali em diante que o
+   dinheiro começa a sobrar de verdade, e é esse mês que o resumo nomeia. */
+function dashVirada(base){
+  const cv=document.getElementById('chart-virada');
+  if(!cv) return;
+  const resumoEl=document.getElementById('dash-virada-resumo');
+  const byMes={};
+  MESES.forEach(m=>{byMes[m]={rec:0,desp:0};});
+  (base||[]).forEach(d=>{ if(byMes[d.mes]) d.movimento==='Credito'?byMes[d.mes].rec+=d.valorAbs:byMes[d.mes].desp+=d.valorAbs; });
+  const labels=MESES.filter(m=>byMes[m].rec>0||byMes[m].desp>0);
+  dashDestroyChart('chart-virada');
+  if(labels.length<2){
+    const ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height);
+    if(resumoEl) resumoEl.innerHTML='Com dois meses de lançamentos este gráfico já mostra se o seu dinheiro começou a sobrar.';
+    return;
+  }
+  const rec=labels.map(m=>byMes[m].rec);
+  const desp=labels.map(m=>byMes[m].desp);
+  let acc=0; const reserva=labels.map((m,i)=>{acc+=rec[i]-desp[i];return acc;});
+
+  // Virada: primeiro mês em que as despesas ficam abaixo das receitas e
+  // assim permanecem até o fim do período.
+  let virada=-1;
+  for(let i=0;i<labels.length;i++){
+    if(desp[i]<rec[i] && desp.slice(i).every((v,k)=>v<rec[i+k])){ virada=i; break; }
+  }
+
+  const ctx=cv.getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,'rgba(139,92,246,.30)'); grad.addColorStop(1,'rgba(139,92,246,.01)');
+  dashCharts['chart-virada']=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Receitas',data:rec,borderColor:'#10B981',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#10B981',fill:false,tension:.35},
+      {label:'Despesas',data:desp,borderColor:'#EF4444',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#EF4444',fill:false,tension:.35},
+      {label:'Reserva acumulada',data:reserva,borderColor:'#8B5CF6',backgroundColor:grad,borderWidth:2.5,
+       pointRadius:labels.map((_,i)=>i===virada?6:3),
+       pointBackgroundColor:labels.map((_,i)=>i===virada?'#FACC15':'#8B5CF6'),
+       fill:true,tension:.35}
+    ]},
+    options:{...CHART_BASE,plugins:{...CHART_BASE.plugins,
+      legend:{display:true,position:'top',labels:{color:'#94A3B8',font:{size:10,family:'Sora'},boxWidth:10,padding:12}},
+      tooltip:{...CHART_BASE.plugins.tooltip,callbacks:{
+        label:c=>' '+c.dataset.label+': R$ '+(c.parsed.y||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),
+        afterLabel:c=>(c.dataIndex===virada&&c.datasetIndex===2)?'⭐ ponto da virada':''
+      }}
+    }}
+  });
+
+  if(resumoEl){
+    const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+    const ultimo=labels.length-1;
+    if(virada<0){
+      resumoEl.innerHTML=`Ainda não houve virada: as despesas seguem alcançando ou passando as receitas. O caminho é derrubar a linha vermelha — hoje ela está em <strong style="color:var(--danger)">${f(desp[ultimo])}</strong> contra <strong style="color:var(--teal)">${f(rec[ultimo])}</strong> de receita.`;
+    }else if(virada===0){
+      resumoEl.innerHTML=`Suas despesas estão abaixo das receitas desde o primeiro mês do período. Reserva acumulada: <strong style="color:var(--purple)">${f(reserva[ultimo])}</strong>.`;
+    }else{
+      resumoEl.innerHTML=`⭐ Ponto da virada em <strong>${labels[virada]}</strong>: foi quando o dinheiro começou a sobrar. De lá para cá a reserva acumulou <strong style="color:var(--purple)">${f(reserva[ultimo]-reserva[virada-1])}</strong>.`;
+    }
+  }
+}
+
+/* ═══ REGRA 50/30/20 E METAS DO SALÁRIO ═══════════════════════════
+   Os dois blocos partem da renda informada no perfil, nunca da média das
+   receitas lançadas (ver o comentário de `rendaMensal`).
+
+   O que entra em cada bolso da regra:
+     50% essenciais     → Despesas fixas
+     30% estilo de vida → Despesas variáveis + eventuais
+     20% guardar        → o que sobrou da renda depois das duas
+   É uma aproximação: quem classifica cada gasto é a pessoa, no lançamento. */
+function dashBarraRegra(nome, idealPct, realVal, idealVal, renda, inverter){
+  const pctReal = renda>0 ? (realVal/renda*100) : 0;
+  const dentro  = inverter ? pctReal>=idealPct : pctReal<=idealPct;
+  const cor     = dentro ? 'var(--teal)' : (pctReal<=idealPct*1.2 && !inverter ? 'var(--gold)' : 'var(--danger)');
+  const larg    = Math.max(2, Math.min(100, pctReal));
+  const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+  return `
+  <div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.76rem;margin-bottom:5px">
+      <span style="color:var(--text);font-weight:600">${nome}</span>
+      <span style="font-family:var(--mono);color:${cor}">${pctReal.toFixed(0)}%</span>
+    </div>
+    <div style="height:9px;border-radius:999px;background:var(--surface2);overflow:hidden;position:relative">
+      <div style="height:100%;width:${larg}%;background:${cor};border-radius:999px"></div>
+      <div style="position:absolute;top:-2px;bottom:-2px;left:${idealPct}%;width:2px;background:var(--text3)"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:.66rem;color:var(--text3);margin-top:4px">
+      <span>real ${f(realVal)}</span>
+      <span>ideal ${idealPct}% · ${f(idealVal)}</span>
+    </div>
+  </div>`;
+}
+function dashRegra503020(base){
+  const el=document.getElementById('dash-503020');
+  if(!el) return;
+  if(!(rendaMensal>0)){
+    el.innerHTML='<div style="font-size:.76rem;color:var(--text2);line-height:1.6">Informe sua <strong>renda mensal</strong> em Meu Perfil para ver a regra 50/30/20 com os seus números.<br><button class="sh-ok" style="margin-top:10px;width:auto;padding:8px 16px;font-size:.75rem" onclick="abrirPerfilEdicao()">Informar renda</button></div>';
+    return;
+  }
+  // Média por mês com lançamento, para não comparar um mês cheio com outro pela metade.
+  const meses=new Set((base||[]).map(d=>d.mes));
+  const n=Math.max(1,meses.size);
+  let fixas=0, variaveis=0;
+  (base||[]).forEach(d=>{
+    if(d.movimento!=='Debito') return;
+    if(d.tipo==='Despesas fixas') fixas+=d.valorAbs; else variaveis+=d.valorAbs;
+  });
+  fixas/=n; variaveis/=n;
+  const sobra=Math.max(0, rendaMensal-fixas-variaveis);
+  el.innerHTML =
+    dashBarraRegra('🏠 Essenciais (moradia, contas, mercado)',50,fixas,rendaMensal*0.5,rendaMensal,false) +
+    dashBarraRegra('🎉 Estilo de vida (lazer, desejos)',30,variaveis,rendaMensal*0.3,rendaMensal,false) +
+    dashBarraRegra('💰 Guardar e investir',20,sobra,rendaMensal*0.2,rendaMensal,true) +
+    `<div style="font-size:.68rem;color:var(--text3);line-height:1.5;margin-top:4px">Média dos ${n} ${n===1?'mês':'meses'} com lançamento no período filtrado. A marca cinza em cada barra é o limite da regra. Essenciais e estilo de vida devem ficar <em>abaixo</em>; guardar, <em>acima</em>.</div>`;
+}
+function dashMetasSalario(base){
+  const el=document.getElementById('dash-metas-salario');
+  if(!el) return;
+  if(!(rendaMensal>0)){
+    el.innerHTML='<div style="font-size:.76rem;color:var(--text2);line-height:1.6">Com a sua renda mensal informada em Meu Perfil, o app calcula aqui a reserva de emergência, quanto investir por mês e quanto você precisaria acumular para viver de renda.</div>';
+    return;
+  }
+  const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+  const guardado=(APP.bolsos||[]).reduce((s,b)=>s+(Number(b.saldo)||0),0);
+  const patrimonio=guardado+calcSaldoCC();
+  const metas=[
+    {ic:'🛟',nome:'Reserva de emergência',alvo:rendaMensal*6,atual:guardado,
+     exp:'6 meses de renda em aplicação de resgate rápido. É a primeira meta, antes de qualquer investimento arriscado.'},
+    {ic:'🏖️',nome:'Independência financeira',alvo:rendaMensal*93,atual:patrimonio,
+     exp:'93 vezes a renda: o patrimônio que, investido, renderia o seu salário todo mês sem você trabalhar.'}
+  ];
+  const linhas=metas.map(m=>{
+    const pct=Math.max(0,Math.min(100,m.alvo>0?(m.atual/m.alvo*100):0));
+    const cor=pct>=100?'var(--teal)':pct>=50?'var(--gold)':'var(--accent)';
+    return `
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.78rem;margin-bottom:5px">
+        <span style="color:var(--text);font-weight:600">${m.ic} ${m.nome}</span>
+        <span style="font-family:var(--mono);color:${cor}">${pct.toFixed(0)}%</span>
+      </div>
+      <div style="height:9px;border-radius:999px;background:var(--surface2);overflow:hidden">
+        <div style="height:100%;width:${Math.max(2,pct)}%;background:${cor};border-radius:999px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.66rem;color:var(--text3);margin-top:4px">
+        <span>você tem ${f(m.atual)}</span><span>meta ${f(m.alvo)}</span>
+      </div>
+      <div style="font-size:.66rem;color:var(--text3);line-height:1.5;margin-top:4px">${m.exp}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:16px">
+      <div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Sobreviver · 50%</div>
+        <div style="font-family:var(--mono);font-size:.95rem;color:var(--text)">${f(rendaMensal*0.5)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Aproveitar · 30%</div>
+        <div style="font-family:var(--mono);font-size:.95rem;color:var(--text)">${f(rendaMensal*0.3)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">
+        <div style="font-size:.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Investir · 20%</div>
+        <div style="font-family:var(--mono);font-size:.95rem;color:var(--teal)">${f(rendaMensal*0.2)}</div>
+      </div>
+    </div>
+    ${linhas}
+    <div style="font-size:.66rem;color:var(--text3);line-height:1.5">Calculado sobre a renda de ${f(rendaMensal)} informada no seu perfil. São referências de planejamento, não recomendação de investimento.</div>`;
 }
 
 /* ── Despesas por categoria (donut) ── */
