@@ -10145,12 +10145,14 @@ function dashVirada(){
   const cv=document.getElementById('chart-virada');
   if(!cv) return;
   const resumoEl=document.getElementById('dash-virada-resumo');
-  /* Série própria, do ANO INTEIRO — de propósito fora do filtro de mês e de
-     tipo. O Dashboard abre filtrado no mês corrente, e evolução com um mês só
-     não desenha nada: foi assim que este gráfico nasceu em branco. Mesmas
-     exclusões do universo do dashboard: transferência entre bolso e conta não
-     é receita nem despesa, e pagamento de fatura não é gasto novo (a despesa
-     já foi contada na compra). */
+  /* Série própria, montada de APP.dados (e não da base filtrada por tipo), com
+     as mesmas exclusões do universo do dashboard: transferência entre bolso e
+     conta não é receita nem despesa, e pagamento de fatura não é gasto novo (a
+     despesa já foi contada na compra).
+
+     O filtro de meses é respeitado — mas comparação precisa de pelo menos dois
+     pontos. Com um mês só selecionado o gráfico mostra o ano inteiro e avisa,
+     em vez de ficar em branco, que foi como ele nasceu. */
   const byMes={};
   MESES.forEach(m=>{byMes[m]={rec:0,desp:0};});
   (APP.dados||[]).forEach(d=>{
@@ -10158,7 +10160,12 @@ function dashVirada(){
     if(!byMes[d.mes]) return;
     d.movimento==='Credito'?byMes[d.mes].rec+=d.valorAbs:byMes[d.mes].desp+=d.valorAbs;
   });
-  const labels=MESES.filter(m=>byMes[m].rec>0||byMes[m].desp>0);
+  const comDados=MESES.filter(m=>byMes[m].rec>0||byMes[m].desp>0);
+  const sel=mesesFiltroAtivo('dash');
+  const filtrados=sel.length?comDados.filter(m=>sel.includes(m)):comDados;
+  const usouFiltro=filtrados.length>=2;
+  const labels=usouFiltro?filtrados:comDados;
+
   dashDestroyChart('chart-virada');
   if(labels.length<2){
     const ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height);
@@ -10169,7 +10176,16 @@ function dashVirada(){
   }
   const rec=labels.map(m=>byMes[m].rec);
   const desp=labels.map(m=>byMes[m].desp);
-  let acc=0; const reserva=labels.map((m,i)=>{acc+=rec[i]-desp[i];return acc;});
+  /* Reserva = o dinheiro que você de fato separou (saldo dos bolsos no fim de
+     cada mês), a mesma série do gráfico "Crescimento da Reserva". Antes esta
+     linha era a soma acumulada de receitas menos despesas, que começa em zero
+     em janeiro e afunda fundo quando há um mês ruim ou quando os lançamentos
+     do ano começaram pelas despesas — mostrava um buraco que não existe no
+     bolso de ninguém. */
+  const rs=dashReservaSerie(false);
+  const mapaReserva={}; rs.labels.forEach((m,i)=>{ mapaReserva[m]=rs.valores[i]; });
+  const reserva=labels.map(m=>(m in mapaReserva)?mapaReserva[m]:null);
+  const temReserva=reserva.some(v=>v!==null&&Math.abs(v)>0.005);
 
   // Virada: primeiro mês em que as despesas ficam abaixo das receitas e
   // assim permanecem até o fim do período.
@@ -10186,10 +10202,10 @@ function dashVirada(){
     data:{labels,datasets:[
       {label:'Receitas',data:rec,borderColor:'#10B981',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#10B981',fill:false,tension:.35},
       {label:'Despesas',data:desp,borderColor:'#EF4444',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#EF4444',fill:false,tension:.35},
-      {label:'Reserva acumulada',data:reserva,borderColor:'#8B5CF6',backgroundColor:grad,borderWidth:2.5,
+      ...(temReserva?[{label:'Reserva guardada',data:reserva,borderColor:'#8B5CF6',backgroundColor:grad,borderWidth:2.5,
        pointRadius:labels.map((_,i)=>i===virada?6:3),
        pointBackgroundColor:labels.map((_,i)=>i===virada?'#FACC15':'#8B5CF6'),
-       fill:true,tension:.35}
+       spanGaps:true,fill:true,tension:.35}]:[])
     ]},
     options:{...CHART_BASE,plugins:{...CHART_BASE.plugins,
       legend:{display:true,position:'top',labels:{color:'#94A3B8',font:{size:10,family:'Sora'},boxWidth:10,padding:12}},
@@ -10203,14 +10219,27 @@ function dashVirada(){
   if(resumoEl){
     const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
     const ultimo=labels.length-1;
-    const rodape='<br><span style="opacity:.75">Mostra o ano inteiro, sem o filtro de mês do Dashboard.</span>';
+    const rodape=usouFiltro
+      ? ''
+      : (sel.length
+          ? '<br><span style="opacity:.75">Comparar precisa de pelo menos dois meses, então aqui está o ano inteiro, não só o mês do filtro.</span>'
+          : '');
+    let txt;
     if(virada<0){
-      resumoEl.innerHTML=`Ainda não houve virada: as despesas seguem alcançando ou passando as receitas. O caminho é derrubar a linha vermelha — em ${labels[ultimo]} ela está em <strong style="color:var(--danger)">${f(desp[ultimo])}</strong> contra <strong style="color:var(--teal)">${f(rec[ultimo])}</strong> de receita.`+rodape;
+      txt=`Ainda não houve virada: as despesas seguem alcançando ou passando as receitas. O caminho é derrubar a linha vermelha — em ${labels[ultimo]} ela está em <strong style="color:var(--danger)">${f(desp[ultimo])}</strong> contra <strong style="color:var(--teal)">${f(rec[ultimo])}</strong> de receita.`;
     }else if(virada===0){
-      resumoEl.innerHTML=`Suas despesas estão abaixo das receitas desde ${labels[0]}. Reserva acumulada no período: <strong style="color:var(--purple)">${f(reserva[ultimo])}</strong>.`+rodape;
+      txt=`Suas despesas estão abaixo das receitas desde ${labels[0]} — o dinheiro vem sobrando em todos os meses mostrados.`;
     }else{
-      resumoEl.innerHTML=`⭐ Ponto da virada em <strong>${labels[virada]}</strong>: foi quando o dinheiro começou a sobrar. De lá para cá a reserva acumulou <strong style="color:var(--purple)">${f(reserva[ultimo]-reserva[virada-1])}</strong>.`+rodape;
+      txt=`⭐ Ponto da virada em <strong>${labels[virada]}</strong>: foi quando o dinheiro começou a sobrar.`;
     }
+    if(temReserva){
+      const vIni=reserva.find(v=>v!==null), vFim=[...reserva].reverse().find(v=>v!==null);
+      const dif=(vFim||0)-(vIni||0);
+      txt+=` A reserva guardada ${dif>=0?'subiu':'caiu'} <strong style="color:var(--purple)">${f(dif)}</strong> no período, fechando em <strong style="color:var(--purple)">${f(vFim||0)}</strong>.`;
+    }else{
+      txt+=' A linha roxa aparece quando você guardar algum valor num bolso da Carteira.';
+    }
+    resumoEl.innerHTML=txt+rodape;
   }
 }
 
@@ -10359,7 +10388,13 @@ function dashMetasSalario(base){
    desde zero) perderia todo dinheiro que já existia antes do app — inclusive
    o informado nos primeiros passos, que entra como saldo e não gera
    movimento. */
-function dashReservaSerie(){
+/* `filtrar` = respeitar o filtro de meses do Dashboard. Cada ponto é o saldo
+   real dos bolsos no fim daquele mês (reconstruído para trás a partir do saldo
+   de hoje), então filtrar só escolhe quais meses aparecem — nenhum valor é
+   recalculado. Quem chama sem filtrar é o gráfico da virada, que precisa da
+   série inteira para comparar com receitas e despesas. */
+function dashReservaSerie(filtrar){
+  const selMeses=filtrar?mesesFiltroAtivo('dash'):[];
   const atual=(APP.bolsos||[]).reduce((s,b)=>s+(Number(b.saldo)||0),0);
 
   const movs=[];
@@ -10378,6 +10413,7 @@ function dashReservaSerie(){
   MESES.forEach(m=>{
     const mi=mesIndexDoMesRef(m);
     if(mi<0)return;
+    if(selMeses.length&&!selMeses.includes(m))return;
     const ano=anoDoMesRef(m,_ANO);
     // Só até o mês corrente: daqui pra frente é projeção, não histórico.
     if(ano>hoje.getFullYear()||(ano===hoje.getFullYear()&&mi>hoje.getMonth()))return;
@@ -10395,7 +10431,7 @@ function dashReserva(){
   const resumoEl=document.getElementById('dash-reserva-resumo');
   dashDestroyChart('chart-reserva');
   if(!cv)return;
-  const {labels,valores}=dashReservaSerie();
+  const {labels,valores}=dashReservaSerie(true);
   const temAlgo=labels.length&&valores.some(v=>Math.abs(v)>0.005);
   if(!temAlgo){
     const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
@@ -10438,7 +10474,7 @@ function dashProjecao(){
   const resumoEl=document.getElementById('dash-proj-resumo');
   dashDestroyChart('chart-projecao');
   if(!cv)return;
-  const {labels,valores}=dashReservaSerie();
+  const {labels,valores}=dashReservaSerie(true);
   if(!labels.length||!valores.some(v=>Math.abs(v)>0.005)){
     const ctx0=cv.getContext('2d');ctx0.clearRect(0,0,cv.width,cv.height);
     if(resumoEl)resumoEl.textContent='Sem reserva registrada ainda — a projeção aparece quando houver saldo em algum bolso.';
