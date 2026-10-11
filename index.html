@@ -2647,8 +2647,8 @@ body.light .tema-btn.ativo{background:rgba(37,99,235,.08)}
     <!-- 12. Metas calculadas sobre o salário -->
     <div class="dash-card">
       <div class="dash-card-header">
-        <span class="dash-card-title">🎯 Metas do seu salário</span>
-        <span class="dash-card-badge" style="background:rgba(234,179,8,.15);color:var(--gold)">Referências</span>
+        <span class="dash-card-title">🎯 Regra dos 5 Multiplicadores</span>
+        <span class="dash-card-badge" style="background:rgba(234,179,8,.15);color:var(--gold)">Sobre a renda</span>
       </div>
       <div id="dash-metas-salario"></div>
     </div>
@@ -10023,7 +10023,7 @@ function renderDash(){
     dashProjecao();
     // Metas e regra vêm da renda do perfil, não dos lançamentos: aparecem
     // mesmo para quem ainda não lançou nada (e convidam a informar a renda).
-    dashVirada([]);
+    dashVirada();
     dashRegra503020([]);
     dashMetasSalario([]);
     return;
@@ -10040,7 +10040,7 @@ function renderDash(){
      depende do filtro de mês/tipo dos lançamentos. */
   dashReserva();
   dashProjecao();
-  dashVirada(base);
+  dashVirada();
   dashRegra503020(base);
   dashMetasSalario(base);
   dashInsights(base);
@@ -10141,18 +10141,30 @@ function dashSaldo(base){
    acumulado. O ponto da virada é o mês em que a linha de despesas passa
    abaixo da de receitas e não volta a cruzar — é dali em diante que o
    dinheiro começa a sobrar de verdade, e é esse mês que o resumo nomeia. */
-function dashVirada(base){
+function dashVirada(){
   const cv=document.getElementById('chart-virada');
   if(!cv) return;
   const resumoEl=document.getElementById('dash-virada-resumo');
+  /* Série própria, do ANO INTEIRO — de propósito fora do filtro de mês e de
+     tipo. O Dashboard abre filtrado no mês corrente, e evolução com um mês só
+     não desenha nada: foi assim que este gráfico nasceu em branco. Mesmas
+     exclusões do universo do dashboard: transferência entre bolso e conta não
+     é receita nem despesa, e pagamento de fatura não é gasto novo (a despesa
+     já foi contada na compra). */
   const byMes={};
   MESES.forEach(m=>{byMes[m]={rec:0,desp:0};});
-  (base||[]).forEach(d=>{ if(byMes[d.mes]) d.movimento==='Credito'?byMes[d.mes].rec+=d.valorAbs:byMes[d.mes].desp+=d.valorAbs; });
+  (APP.dados||[]).forEach(d=>{
+    if(d.deBolso||d.faturaPagamento) return;
+    if(!byMes[d.mes]) return;
+    d.movimento==='Credito'?byMes[d.mes].rec+=d.valorAbs:byMes[d.mes].desp+=d.valorAbs;
+  });
   const labels=MESES.filter(m=>byMes[m].rec>0||byMes[m].desp>0);
   dashDestroyChart('chart-virada');
   if(labels.length<2){
     const ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height);
-    if(resumoEl) resumoEl.innerHTML='Com dois meses de lançamentos este gráfico já mostra se o seu dinheiro começou a sobrar.';
+    if(resumoEl) resumoEl.innerHTML=labels.length
+      ? '<strong>Ainda falta um mês para comparar.</strong><br>Este gráfico mostra, mês a mês, quando as despesas passam a ficar abaixo das receitas. Com o segundo mês de lançamentos ele aparece sozinho.'
+      : '<strong>Sem lançamentos neste ano ainda.</strong><br>Assim que houver dois meses registrados, o gráfico mostra quando o dinheiro começa a sobrar.';
     return;
   }
   const rec=labels.map(m=>byMes[m].rec);
@@ -10191,12 +10203,13 @@ function dashVirada(base){
   if(resumoEl){
     const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
     const ultimo=labels.length-1;
+    const rodape='<br><span style="opacity:.75">Mostra o ano inteiro, sem o filtro de mês do Dashboard.</span>';
     if(virada<0){
-      resumoEl.innerHTML=`Ainda não houve virada: as despesas seguem alcançando ou passando as receitas. O caminho é derrubar a linha vermelha — hoje ela está em <strong style="color:var(--danger)">${f(desp[ultimo])}</strong> contra <strong style="color:var(--teal)">${f(rec[ultimo])}</strong> de receita.`;
+      resumoEl.innerHTML=`Ainda não houve virada: as despesas seguem alcançando ou passando as receitas. O caminho é derrubar a linha vermelha — em ${labels[ultimo]} ela está em <strong style="color:var(--danger)">${f(desp[ultimo])}</strong> contra <strong style="color:var(--teal)">${f(rec[ultimo])}</strong> de receita.`+rodape;
     }else if(virada===0){
-      resumoEl.innerHTML=`Suas despesas estão abaixo das receitas desde o primeiro mês do período. Reserva acumulada: <strong style="color:var(--purple)">${f(reserva[ultimo])}</strong>.`;
+      resumoEl.innerHTML=`Suas despesas estão abaixo das receitas desde ${labels[0]}. Reserva acumulada no período: <strong style="color:var(--purple)">${f(reserva[ultimo])}</strong>.`+rodape;
     }else{
-      resumoEl.innerHTML=`⭐ Ponto da virada em <strong>${labels[virada]}</strong>: foi quando o dinheiro começou a sobrar. De lá para cá a reserva acumulou <strong style="color:var(--purple)">${f(reserva[ultimo]-reserva[virada-1])}</strong>.`;
+      resumoEl.innerHTML=`⭐ Ponto da virada em <strong>${labels[virada]}</strong>: foi quando o dinheiro começou a sobrar. De lá para cá a reserva acumulou <strong style="color:var(--purple)">${f(reserva[ultimo]-reserva[virada-1])}</strong>.`+rodape;
     }
   }
 }
@@ -10253,59 +10266,85 @@ function dashRegra503020(base){
     dashBarraRegra('🏠 Essenciais (moradia, contas, mercado)',50,fixas,rendaMensal*0.5,rendaMensal,false) +
     dashBarraRegra('🎉 Estilo de vida (lazer, desejos)',30,variaveis,rendaMensal*0.3,rendaMensal,false) +
     dashBarraRegra('💰 Guardar e investir',20,sobra,rendaMensal*0.2,rendaMensal,true) +
-    `<div style="font-size:.68rem;color:var(--text3);line-height:1.5;margin-top:4px">Média dos ${n} ${n===1?'mês':'meses'} com lançamento no período filtrado. A marca cinza em cada barra é o limite da regra. Essenciais e estilo de vida devem ficar <em>abaixo</em>; guardar, <em>acima</em>.</div>`;
+    `<div style="font-size:.68rem;color:var(--text3);line-height:1.5;margin-top:4px">Média ${n===1?'do mês':'dos '+n+' meses'} com lançamento no período filtrado. A marca cinza em cada barra é o limite da regra. Essenciais e estilo de vida devem ficar <em>abaixo</em>; guardar, <em>acima</em>.</div>`;
 }
+/* Regra dos 5 Multiplicadores: cinco contas sobre a mesma renda — três que
+   limitam o mês (×0,5 sobreviver, ×0,3 aproveitar, ×0,2 investir) e duas que
+   são patrimônio a acumular (×6 reserva de emergência, ×93 independência).
+   Cada uma aparece do mesmo jeito: o multiplicador, quanto dá em reais, onde
+   você está hoje e a barra comparando — senão vira lista de números soltos. */
 function dashMetasSalario(base){
   const el=document.getElementById('dash-metas-salario');
   if(!el) return;
   if(!(rendaMensal>0)){
-    el.innerHTML='<div style="font-size:.76rem;color:var(--text2);line-height:1.6">Com a sua renda mensal informada em Meu Perfil, o app calcula aqui a reserva de emergência, quanto investir por mês e quanto você precisaria acumular para viver de renda.</div>';
+    el.innerHTML='<div style="font-size:.76rem;color:var(--text2);line-height:1.6">São cinco contas sobre a sua renda: quanto pode custar sua vida (×0,5), quanto cabe em lazer (×0,3), quanto investir por mês (×0,2), a reserva de emergência (×6) e o patrimônio que paga suas contas sem você trabalhar (×93).<br>Informe sua <strong>renda mensal</strong> em Meu Perfil para ver os seus números.<div><button class="sh-ok" style="margin-top:10px;width:auto;padding:8px 16px;font-size:.75rem" onclick="abrirPerfilEdicao()">Informar renda</button></div></div>';
     return;
   }
   const f=v=>'R$ '+Math.abs(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+  const meses=new Set((base||[]).map(d=>d.mes));
+  const n=Math.max(1,meses.size);
+  let fixas=0, variaveis=0;
+  (base||[]).forEach(d=>{
+    if(d.movimento!=='Debito') return;
+    if(d.tipo==='Despesas fixas') fixas+=d.valorAbs; else variaveis+=d.valorAbs;
+  });
+  fixas/=n; variaveis/=n;
+  const sobra=Math.max(0, rendaMensal-fixas-variaveis);
   const guardado=(APP.bolsos||[]).reduce((s,b)=>s+(Number(b.saldo)||0),0);
   const patrimonio=guardado+calcSaldoCC();
-  const metas=[
-    {ic:'🛟',nome:'Reserva de emergência',alvo:rendaMensal*6,atual:guardado,
-     exp:'6 meses de renda em aplicação de resgate rápido. É a primeira meta, antes de qualquer investimento arriscado.'},
-    {ic:'🏖️',nome:'Independência financeira',alvo:rendaMensal*93,atual:patrimonio,
-     exp:'93 vezes a renda: o patrimônio que, investido, renderia o seu salário todo mês sem você trabalhar.'}
+
+  const regras=[
+    {mult:'× 0,5', ic:'🏠', nome:'Custo de sobrevivência', alvo:rendaMensal*0.5, atual:fixas, teto:true,
+     exp:'Moradia, contas e mercado não deveriam passar de metade da renda. Acima disso, o padrão de vida está caro para o que entra.',
+     rot:'seus gastos fixos'},
+    {mult:'× 0,3', ic:'🎉', nome:'Teto do estilo de vida', alvo:rendaMensal*0.3, atual:variaveis, teto:true,
+     exp:'Lazer, viagem, desejos e parcelas. Dentro desse teto, pode gastar sem culpa.',
+     rot:'seus gastos variáveis'},
+    {mult:'× 0,2', ic:'🚀', nome:'O motor do futuro', alvo:rendaMensal*0.2, atual:sobra, teto:false,
+     exp:'O que você separa todo mês. É este valor que constrói a reserva e a independência logo abaixo.',
+     rot:'o que sobrou'},
+    {mult:'× 6', ic:'🛟', nome:'Reserva de emergência', alvo:rendaMensal*6, atual:guardado, teto:false,
+     exp:'Seis meses de renda em aplicação de resgate rápido. É a primeira meta, antes de qualquer investimento arriscado.',
+     rot:'nos seus bolsos'},
+    {mult:'× 93', ic:'🏖️', nome:'Independência financeira', alvo:rendaMensal*93, atual:patrimonio, teto:false,
+     exp:'O patrimônio que, investido, renderia a sua renda todo mês — o ponto em que trabalhar vira escolha.',
+     rot:'seu patrimônio hoje'}
   ];
-  const linhas=metas.map(m=>{
-    const pct=Math.max(0,Math.min(100,m.alvo>0?(m.atual/m.alvo*100):0));
-    const cor=pct>=100?'var(--teal)':pct>=50?'var(--gold)':'var(--accent)';
+
+  const linhas=regras.map(r=>{
+    const pct=r.alvo>0?(r.atual/r.alvo*100):0;
+    const larg=Math.max(2,Math.min(100,pct));
+    // Teto (gastos): ficar abaixo é bom. Meta (guardar): quanto mais perto de 100%, melhor.
+    const cor=r.teto
+      ? (pct<=100?'var(--teal)':pct<=120?'var(--gold)':'var(--danger)')
+      : (pct>=100?'var(--teal)':pct>=50?'var(--gold)':'var(--accent)');
     return `
-    <div style="margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.78rem;margin-bottom:5px">
-        <span style="color:var(--text);font-weight:600">${m.ic} ${m.nome}</span>
-        <span style="font-family:var(--mono);color:${cor}">${pct.toFixed(0)}%</span>
+    <div style="padding:14px 0;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px">
+        <span style="font-family:var(--mono);font-size:.78rem;font-weight:600;color:var(--gold);min-width:48px">${r.mult}</span>
+        <span style="flex:1;color:var(--text);font-weight:600;font-size:.82rem">${r.ic} ${r.nome}</span>
+        <span style="font-family:var(--mono);font-size:.9rem;color:var(--text)">${f(r.alvo)}</span>
       </div>
-      <div style="height:9px;border-radius:999px;background:var(--surface2);overflow:hidden">
-        <div style="height:100%;width:${Math.max(2,pct)}%;background:${cor};border-radius:999px"></div>
+      <div style="height:8px;border-radius:999px;background:var(--surface2);overflow:hidden">
+        <div style="height:100%;width:${larg}%;background:${cor};border-radius:999px"></div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:.66rem;color:var(--text3);margin-top:4px">
-        <span>você tem ${f(m.atual)}</span><span>meta ${f(m.alvo)}</span>
+        <span>${r.rot}: <span style="color:${cor}">${f(r.atual)}</span></span>
+        <span>${pct.toFixed(0)}% ${r.teto?'do teto':'da meta'}</span>
       </div>
-      <div style="font-size:.66rem;color:var(--text3);line-height:1.5;margin-top:4px">${m.exp}</div>
+      <div style="font-size:.66rem;color:var(--text3);line-height:1.5;margin-top:5px">${r.exp}</div>
     </div>`;
   }).join('');
+
   el.innerHTML=`
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:16px">
-      <div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">
-        <div style="font-size:.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Sobreviver · 50%</div>
-        <div style="font-family:var(--mono);font-size:.95rem;color:var(--text)">${f(rendaMensal*0.5)}</div>
-      </div>
-      <div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">
-        <div style="font-size:.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Aproveitar · 30%</div>
-        <div style="font-family:var(--mono);font-size:.95rem;color:var(--text)">${f(rendaMensal*0.3)}</div>
-      </div>
-      <div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">
-        <div style="font-size:.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Investir · 20%</div>
-        <div style="font-family:var(--mono);font-size:.95rem;color:var(--teal)">${f(rendaMensal*0.2)}</div>
-      </div>
+    <div style="font-size:.74rem;color:var(--text2);line-height:1.6;margin-bottom:6px">
+      Cinco contas sobre a sua renda de <strong style="color:var(--text)">${f(rendaMensal)}</strong>.
+      As três primeiras são limites do mês; as duas últimas, patrimônio a acumular.
     </div>
     ${linhas}
-    <div style="font-size:.66rem;color:var(--text3);line-height:1.5">Calculado sobre a renda de ${f(rendaMensal)} informada no seu perfil. São referências de planejamento, não recomendação de investimento.</div>`;
+    <div style="font-size:.66rem;color:var(--text3);line-height:1.5;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+      Gastos são a média ${n===1?'do mês':'dos '+n+' meses'} do período filtrado; reserva e patrimônio são os saldos de hoje. São referências de planejamento, não recomendação de investimento.
+    </div>`;
 }
 
 /* ── Despesas por categoria (donut) ── */
